@@ -8,7 +8,11 @@ import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8">
+    <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
+      <div className="fixed right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <ThemeSelector variant="icon" />
+      </div>
+
       <section className="grid w-full max-w-5xl gap-8 lg:grid-cols-[0.9fr_1fr] lg:items-center">
         <div>
           <div className="flex items-center gap-3">
@@ -47,10 +51,6 @@ export default function LoginPage() {
             Entre para acessar o painel da sua empresa ou crie a primeira conta
             administradora do ambiente.
           </p>
-
-          <div className="max-w-md">
-            <ThemeSelector />
-          </div>
 
           {!hasSupabaseEnv ? (
             <div className="mt-6 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-4 text-sm text-[var(--muted-foreground)]">
