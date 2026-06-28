@@ -408,6 +408,14 @@ const quickActionById = {
     reply: "Vou te levar para o formulário de orçamento.",
     section: "budgets"
   },
+  createCustomer: {
+    actionId: "create-customer",
+    href: "/customers#customer-form",
+    icon: UserRound,
+    label: "Novo cliente",
+    reply: "Vou te levar para o cadastro de cliente.",
+    section: "customers"
+  },
   createIngredient: {
     actionId: "create-ingredient",
     href: "/ingredients#ingredient-form",
@@ -501,9 +509,9 @@ const quickActionsByPage: Record<string, QuickAction[]> = {
     quickActionById.sales
   ],
   customers: [
+    quickActionById.createCustomer,
     quickActionById.createBudget,
-    quickActionById.sales,
-    quickActionById.dashboard
+    quickActionById.sales
   ],
   dashboard: [
     quickActionById.createBudget,
@@ -718,6 +726,147 @@ function canUseQuickPrompt(prompt: QuickPrompt, role: string | null) {
   }
 
   return true;
+}
+
+function hasAnyTerm(prompt: string, terms: string[]) {
+  return terms.some((term) => prompt.includes(term));
+}
+
+function startsAsQuestion(prompt: string) {
+  return [
+    "como ",
+    "o que ",
+    "oque ",
+    "qual ",
+    "quais ",
+    "quando ",
+    "quanto ",
+    "quantos ",
+    "tem ",
+    "existe "
+  ].some((prefix) => prompt.startsWith(prefix));
+}
+
+function getDirectQuickAction(prompt: string) {
+  const normalized = normalizePrompt(prompt);
+
+  if (startsAsQuestion(normalized)) {
+    return null;
+  }
+
+  const wantsCreation = hasAnyTerm(normalized, [
+    "adicionar",
+    "adicione",
+    "cadastrar",
+    "cadastre",
+    "comecar",
+    "criar",
+    "crie",
+    "faca",
+    "fazer",
+    "iniciar",
+    "montar",
+    "monte",
+    "novo",
+    "nova"
+  ]);
+  const wantsNavigation = hasAnyTerm(normalized, [
+    "abrir",
+    "abre",
+    "acessar",
+    "ir para",
+    "ir pra",
+    "leve",
+    "leva",
+    "listar",
+    "mostra",
+    "mostrar",
+    "va para",
+    "ver"
+  ]);
+
+  if (!wantsCreation && !wantsNavigation) {
+    return null;
+  }
+
+  if (wantsCreation && hasAnyTerm(normalized, ["cliente"])) {
+    return quickActionById.createCustomer;
+  }
+
+  if (wantsCreation && hasAnyTerm(normalized, ["orcamento", "proposta"])) {
+    return quickActionById.createBudget;
+  }
+
+  if (
+    wantsCreation &&
+    hasAnyTerm(normalized, ["insumo", "materia", "materia prima"])
+  ) {
+    return quickActionById.createIngredient;
+  }
+
+  if (wantsCreation && hasAnyTerm(normalized, ["produto", "composicao"])) {
+    return quickActionById.createProduct;
+  }
+
+  if (
+    hasAnyTerm(normalized, ["entrada", "lancar", "movimentacao", "saida", "ajuste"]) &&
+    hasAnyTerm(normalized, ["estoque", "insumo"])
+  ) {
+    return quickActionById.openStockMovement;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, ["estoque", "estoque baixo", "reposicao", "repor"])
+  ) {
+    return quickActionById.openStockList;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, ["orcamento", "orcamentos", "proposta"])
+  ) {
+    return quickActionById.budgets;
+  }
+
+  if (wantsNavigation && hasAnyTerm(normalized, ["cliente", "clientes"])) {
+    return quickActionById.customers;
+  }
+
+  if (wantsNavigation && hasAnyTerm(normalized, ["venda", "vendas"])) {
+    return quickActionById.sales;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, ["dashboard", "inicio", "resumo", "visao geral"])
+  ) {
+    return quickActionById.dashboard;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, ["plano", "planos", "assinatura"])
+  ) {
+    return quickActionById.billing;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, ["configuracao", "configuracoes", "permissao", "usuario"])
+  ) {
+    return quickActionById.settings;
+  }
+
+  if (wantsNavigation && hasAnyTerm(normalized, ["historico", "auditoria"])) {
+    return quickActionById.history;
+  }
+
+  if (wantsNavigation && hasAnyTerm(normalized, ["conta", "perfil"])) {
+    return quickActionById.account;
+  }
+
+  return null;
 }
 
 function uniqueByLabel<T extends { label: string }>(items: T[]) {
@@ -1987,6 +2136,14 @@ export function VirtualAssistant({
       return;
     }
 
+    const directAction = getDirectQuickAction(cleanPrompt);
+
+    if (directAction) {
+      runQuickAction(directAction, cleanPrompt);
+      setInput("");
+      return;
+    }
+
     setMessages((current) =>
       limitConversation([
         ...current,
@@ -2017,12 +2174,12 @@ export function VirtualAssistant({
     }
   }
 
-  function runQuickAction(action: QuickAction) {
+  function runQuickAction(action: QuickAction, userText = action.label) {
     if (!canUseQuickAction(action, role)) {
       setMessages((current) =>
         limitConversation([
           ...current,
-          { author: "user", text: action.label },
+          { author: "user", text: userText },
           {
             author: "assistant",
             text: getRestrictedReply(action.label.toLowerCase())
@@ -2044,7 +2201,7 @@ export function VirtualAssistant({
     setMessages((current) =>
       limitConversation([
         ...current,
-        { author: "user", text: action.label },
+        { author: "user", text: userText },
         { author: "assistant", text: action.reply }
       ])
     );

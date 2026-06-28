@@ -3,6 +3,7 @@ export const assistantActionStorageKey = "carbon-flow-pending-assistant-action";
 
 export type AssistantActionId =
   | "create-budget"
+  | "create-customer"
   | "create-ingredient"
   | "create-product"
   | "open-stock-list"
