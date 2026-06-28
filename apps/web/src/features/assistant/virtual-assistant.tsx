@@ -322,14 +322,14 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
 
       <button
         aria-label="Abrir assistente virtual"
-        className="ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+        className="ml-auto flex h-60 w-60 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
           setIsOpen((current) => !current);
         }}
         type="button"
       >
-        <AssistantAvatar className="h-[4.5rem] w-[4.5rem]" src={avatarSrc} />
+        <AssistantAvatar className="h-[13.5rem] w-[13.5rem]" src={avatarSrc} />
       </button>
     </div>
   );
