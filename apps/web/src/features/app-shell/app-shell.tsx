@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 
 import { signOutAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
+import { VirtualAssistant } from "@/features/assistant/virtual-assistant";
 import { CompanySwitcher } from "@/features/company/company-switcher";
 import { ThemeSelector } from "@/features/theme/theme-selector";
 import { canAccessSection, type AppSection } from "@/lib/access-control";
@@ -154,6 +155,7 @@ export function AppShell({
           {children}
         </section>
       </div>
+      <VirtualAssistant activeItem={activeItem} />
     </main>
   );
 }
