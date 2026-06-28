@@ -1,11 +1,14 @@
 "use client";
 
 import {
+  AlertTriangle,
+  BarChart3,
   Boxes,
   FileText,
   HelpCircle,
   PackageCheck,
   Send,
+  Trophy,
   X
 } from "lucide-react";
 import Image from "next/image";
@@ -13,6 +16,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { env } from "@/lib/env";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type Message = {
   author: "assistant" | "user";
@@ -27,6 +32,49 @@ type QuickPrompt = {
 
 type VirtualAssistantProps = {
   activeItem: string;
+  companyId: string;
+};
+
+type DashboardSummary = {
+  period: {
+    label: string;
+    start: string;
+    end: string;
+  };
+  metrics: {
+    estimatedProfit: number;
+    lowStockCount: number;
+    openBudgetAmount: number;
+    openBudgetCount: number;
+    revenue: number;
+    salesCount: number;
+  };
+  bestSellers: Array<{
+    productId: string | null;
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }>;
+  lowStock: Array<{
+    category: string | null;
+    current: number;
+    id: string;
+    minimum: number;
+    name: string;
+    unit: string;
+  }>;
+  alerts: Array<{
+    detail: string;
+    severity: "info" | "warning";
+    title: string;
+    type: string;
+  }>;
+};
+
+type ReplyContext = {
+  dashboard: DashboardSummary | null;
+  dashboardError: string | null;
+  isDashboardLoading: boolean;
 };
 
 const pageTips: Record<string, string> = {
@@ -55,6 +103,21 @@ const pageTips: Record<string, string> = {
 };
 
 const quickPrompts: QuickPrompt[] = [
+  {
+    icon: BarChart3,
+    label: "Resumo do mês",
+    prompt: "Resumo do mês"
+  },
+  {
+    icon: AlertTriangle,
+    label: "Estoque baixo",
+    prompt: "Tem estoque baixo?"
+  },
+  {
+    icon: Trophy,
+    label: "Mais vendidos",
+    prompt: "Quais produtos mais venderam?"
+  },
   {
     icon: Boxes,
     label: "Criar insumo",
@@ -130,11 +193,212 @@ function AssistantAvatar({
   );
 }
 
-function getAssistantReply(prompt: string) {
-  const normalized = prompt
+const currencyFormatter = new Intl.NumberFormat("pt-BR", {
+  currency: "BRL",
+  style: "currency"
+});
+
+const decimalFormatter = new Intl.NumberFormat("pt-BR", {
+  maximumFractionDigits: 4
+});
+
+function normalizePrompt(prompt: string) {
+  return prompt
     .toLowerCase()
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "");
+}
+
+function getApiMessage(payload: unknown, fallback: string) {
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    typeof payload.message === "string"
+  ) {
+    return payload.message;
+  }
+
+  if (
+    payload &&
+    typeof payload === "object" &&
+    "message" in payload &&
+    Array.isArray(payload.message)
+  ) {
+    return payload.message.join(" ");
+  }
+
+  return fallback;
+}
+
+function formatQuantity(value: number, unit?: string) {
+  return [decimalFormatter.format(value), unit].filter(Boolean).join(" ");
+}
+
+function getRealDataUnavailableReply({
+  dashboard,
+  dashboardError,
+  isDashboardLoading
+}: ReplyContext) {
+  if (dashboard) {
+    return null;
+  }
+
+  if (isDashboardLoading) {
+    return "Estou carregando os dados reais da empresa. Tente perguntar de novo em alguns segundos.";
+  }
+
+  if (dashboardError) {
+    return `Ainda não consegui carregar os dados reais da empresa. Motivo: ${dashboardError}`;
+  }
+
+  return "Ainda não tenho os dados reais carregados nesta sessão. Tente novamente em alguns segundos.";
+}
+
+function formatDashboardReply(context: ReplyContext) {
+  const unavailableReply = getRealDataUnavailableReply(context);
+
+  if (unavailableReply) {
+    return unavailableReply;
+  }
+
+  const dashboard = context.dashboard!;
+  const metrics = dashboard.metrics;
+  const bestSeller = dashboard.bestSellers[0];
+  const stockDetail =
+    metrics.lowStockCount > 0
+      ? `${metrics.lowStockCount} insumo(s) em estoque baixo`
+      : "nenhum insumo em estoque baixo";
+  const bestSellerDetail = bestSeller
+    ? `O produto mais vendido é ${bestSeller.productName}, com ${formatQuantity(
+        bestSeller.quantity
+      )} vendido(s).`
+    : "Ainda não há produto mais vendido neste mês.";
+
+  return `Resumo do mês atual: faturamento de ${currencyFormatter.format(
+    metrics.revenue
+  )}, ${metrics.salesCount} venda(s), lucro estimado de ${currencyFormatter.format(
+    metrics.estimatedProfit
+  )} e ${metrics.openBudgetCount} orçamento(s) em aberto somando ${currencyFormatter.format(
+    metrics.openBudgetAmount
+  )}. No estoque, há ${stockDetail}. ${bestSellerDetail}`;
+}
+
+function formatFinancialReply(context: ReplyContext) {
+  const unavailableReply = getRealDataUnavailableReply(context);
+
+  if (unavailableReply) {
+    return unavailableReply;
+  }
+
+  const metrics = context.dashboard!.metrics;
+  const margin =
+    metrics.revenue > 0
+      ? ` A margem estimada está em ${decimalFormatter.format(
+          Math.round((metrics.estimatedProfit / metrics.revenue) * 1000) / 10
+        )}%.`
+      : " Ainda não há margem porque não existem vendas no período.";
+
+  return `No mês atual, o faturamento está em ${currencyFormatter.format(
+    metrics.revenue
+  )}, com ${metrics.salesCount} venda(s) e lucro estimado de ${currencyFormatter.format(
+    metrics.estimatedProfit
+  )}.${margin}`;
+}
+
+function formatLowStockReply(context: ReplyContext) {
+  const unavailableReply = getRealDataUnavailableReply(context);
+
+  if (unavailableReply) {
+    return unavailableReply;
+  }
+
+  const dashboard = context.dashboard!;
+
+  if (dashboard.metrics.lowStockCount === 0) {
+    return "Agora não há nenhum insumo abaixo do estoque mínimo. O estoque está saudável nesse ponto.";
+  }
+
+  const items = dashboard.lowStock
+    .map(
+      (item) =>
+        `${item.name}: atual ${formatQuantity(
+          item.current,
+          item.unit
+        )}, mínimo ${formatQuantity(item.minimum, item.unit)}`
+    )
+    .join("; ");
+
+  return `Há ${dashboard.metrics.lowStockCount} insumo(s) em estoque baixo. Principais pontos: ${items}.`;
+}
+
+function formatBestSellersReply(context: ReplyContext) {
+  const unavailableReply = getRealDataUnavailableReply(context);
+
+  if (unavailableReply) {
+    return unavailableReply;
+  }
+
+  const bestSellers = context.dashboard!.bestSellers;
+
+  if (bestSellers.length === 0) {
+    return "Ainda não há produtos vendidos no mês atual. Assim que vendas forem registradas, eu mostro o ranking aqui.";
+  }
+
+  const ranking = bestSellers
+    .map(
+      (product, index) =>
+        `${index + 1}. ${product.productName}: ${formatQuantity(
+          product.quantity
+        )} vendido(s), ${currencyFormatter.format(product.revenue)}`
+    )
+    .join("; ");
+
+  return `Produtos mais vendidos no mês atual: ${ranking}.`;
+}
+
+function getAssistantReply(prompt: string, context: ReplyContext) {
+  const normalized = normalizePrompt(prompt);
+
+  if (
+    normalized.includes("resumo") ||
+    normalized.includes("dashboard") ||
+    normalized.includes("visao geral") ||
+    normalized.includes("geral do mes")
+  ) {
+    return formatDashboardReply(context);
+  }
+
+  if (
+    normalized.includes("faturamento") ||
+    normalized.includes("receita") ||
+    normalized.includes("lucro") ||
+    (normalized.includes("venda") &&
+      (normalized.includes("mes") ||
+        normalized.includes("periodo") ||
+        normalized.includes("quantas") ||
+        normalized.includes("como estao")))
+  ) {
+    return formatFinancialReply(context);
+  }
+
+  if (
+    normalized.includes("estoque baixo") ||
+    normalized.includes("repor") ||
+    normalized.includes("reposicao") ||
+    normalized.includes("abaixo do minimo")
+  ) {
+    return formatLowStockReply(context);
+  }
+
+  if (
+    normalized.includes("mais vendido") ||
+    normalized.includes("mais venderam") ||
+    normalized.includes("ranking") ||
+    normalized.includes("produto vendido")
+  ) {
+    return formatBestSellersReply(context);
+  }
 
   if (normalized.includes("comeco") || normalized.includes("primeiro")) {
     return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
@@ -183,9 +447,15 @@ function getAssistantReply(prompt: string) {
   return "Posso ajudar com insumos, produtos, estoque, clientes, orçamentos, vendas, usuários e planos. Me diga o que você quer fazer que eu te oriento pelo fluxo.";
 }
 
-export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
+export function VirtualAssistant({
+  activeItem,
+  companyId
+}: VirtualAssistantProps) {
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [theme, setTheme] = useState("carbon-dark");
   const introMessage = useMemo<Message>(
     () => ({
@@ -215,6 +485,64 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadDashboard() {
+      setIsDashboardLoading(true);
+      setDashboardError(null);
+
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error("Sessão expirada. Entre novamente.");
+        }
+
+        const response = await fetch(`${env.apiUrl}/dashboard`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            "x-company-id": companyId
+          }
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok) {
+          throw new Error(
+            getApiMessage(payload, "Não foi possível carregar o dashboard.")
+          );
+        }
+
+        if (isActive) {
+          setDashboard(payload as DashboardSummary);
+        }
+      } catch (error) {
+        if (isActive) {
+          setDashboard(null);
+          setDashboardError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar os dados reais."
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsDashboardLoading(false);
+        }
+      }
+    }
+
+    void loadDashboard();
+
+    return () => {
+      isActive = false;
+    };
+  }, [companyId]);
+
   function sendPrompt(prompt: string) {
     const cleanPrompt = prompt.trim();
 
@@ -225,7 +553,14 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
     setMessages((current) => [
       ...current,
       { author: "user", text: cleanPrompt },
-      { author: "assistant", text: getAssistantReply(cleanPrompt) }
+      {
+        author: "assistant",
+        text: getAssistantReply(cleanPrompt, {
+          dashboard,
+          dashboardError,
+          isDashboardLoading
+        })
+      }
     ]);
     setInput("");
   }

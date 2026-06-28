@@ -155,7 +155,7 @@ export function AppShell({
           {children}
         </section>
       </div>
-      <VirtualAssistant activeItem={activeItem} />
+      <VirtualAssistant activeItem={activeItem} companyId={activeCompanyId} />
     </main>
   );
 }
