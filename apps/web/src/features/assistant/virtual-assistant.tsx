@@ -106,9 +106,11 @@ function getCurrentTheme() {
 
 function AssistantAvatar({
   className,
+  sizes = "56px",
   src
 }: {
   className: string;
+  sizes?: string;
   src: string;
 }) {
   return (
@@ -120,7 +122,8 @@ function AssistantAvatar({
         aria-hidden="true"
         className="object-contain"
         fill
-        sizes="56px"
+        quality={95}
+        sizes={sizes}
         src={src}
       />
     </span>
@@ -240,6 +243,7 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
             <div className="flex min-w-0 items-center gap-3">
               <AssistantAvatar
                 className="h-12 w-12 shrink-0"
+                sizes="48px"
                 src={avatarSrc}
               />
               <div className="min-w-0">
@@ -329,7 +333,11 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
         }}
         type="button"
       >
-        <AssistantAvatar className="h-[13.5rem] w-[13.5rem]" src={avatarSrc} />
+        <AssistantAvatar
+          className="h-[13.5rem] w-[13.5rem]"
+          sizes="216px"
+          src={avatarSrc}
+        />
       </button>
     </div>
   );
