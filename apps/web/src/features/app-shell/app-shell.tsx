@@ -158,6 +158,7 @@ export function AppShell({
       <VirtualAssistant
         activeItem={activeItem}
         companyId={activeCompanyId}
+        role={role}
         userEmail={userEmail}
       />
     </main>

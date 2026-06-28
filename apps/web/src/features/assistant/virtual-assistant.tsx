@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BarChart3,
   Boxes,
+  CheckCircle2,
   CreditCard,
   FileText,
   HelpCircle,
@@ -31,6 +32,14 @@ import {
   storeAssistantAction,
   type AssistantActionId
 } from "@/features/assistant/assistant-actions";
+import {
+  canAccessSection,
+  canConvertBudgets,
+  canManageProducts,
+  normalizeRole,
+  type AppSection,
+  type CompanyRole
+} from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -43,6 +52,9 @@ type QuickPrompt = {
   icon: typeof Boxes;
   label: string;
   prompt: string;
+  requiresBudgetConversion?: boolean;
+  requiresProductManagement?: boolean;
+  sections?: AppSection[];
 };
 
 type QuickAction = {
@@ -51,11 +63,14 @@ type QuickAction = {
   icon: typeof Boxes;
   label: string;
   reply: string;
+  requiresProductManagement?: boolean;
+  section: AppSection;
 };
 
 type VirtualAssistantProps = {
   activeItem: string;
   companyId: string;
+  role: string | null;
   userEmail: string;
 };
 
@@ -99,6 +114,12 @@ type ReplyContext = {
   dashboard: DashboardSummary | null;
   dashboardError: string | null;
   isDashboardLoading: boolean;
+  role: string | null;
+};
+
+type AssistantStatus = {
+  className: string;
+  label: string;
 };
 
 const pageTips: Record<string, string> = {
@@ -130,22 +151,27 @@ const quickPromptById = {
   bestSellers: {
     icon: Trophy,
     label: "Mais vendidos",
-    prompt: "Quais produtos mais venderam?"
+    prompt: "Quais produtos mais venderam?",
+    sections: ["dashboard"]
   },
   budgetToSale: {
     icon: FileText,
     label: "Converter venda",
-    prompt: "Como transformo orçamento em venda?"
+    prompt: "Como transformo orçamento em venda?",
+    requiresBudgetConversion: true,
+    sections: ["budgets", "sales"]
   },
   customerHistory: {
     icon: UsersRound,
     label: "Histórico cliente",
-    prompt: "Como acompanho o histórico de um cliente?"
+    prompt: "Como acompanho o histórico de um cliente?",
+    sections: ["customers"]
   },
   dashboardSummary: {
     icon: BarChart3,
     label: "Resumo do mês",
-    prompt: "Resumo do mês"
+    prompt: "Resumo do mês",
+    sections: ["dashboard"]
   },
   firstSteps: {
     icon: HelpCircle,
@@ -155,37 +181,44 @@ const quickPromptById = {
   ingredientCost: {
     icon: Boxes,
     label: "Custo insumo",
-    prompt: "Como cadastro custo de insumo?"
+    prompt: "Como cadastro custo de insumo?",
+    sections: ["ingredients"]
   },
   lowStock: {
     icon: AlertTriangle,
     label: "Estoque baixo",
-    prompt: "Tem estoque baixo?"
+    prompt: "Tem estoque baixo?",
+    sections: ["dashboard"]
   },
   minimumStock: {
     icon: AlertTriangle,
     label: "Estoque mínimo",
-    prompt: "Como defino estoque mínimo?"
+    prompt: "Como defino estoque mínimo?",
+    sections: ["ingredients"]
   },
   permissions: {
     icon: Settings,
     label: "Permissões",
-    prompt: "Como funcionam permissões de usuários?"
+    prompt: "Como funcionam permissões de usuários?",
+    sections: ["settings"]
   },
   pricing: {
     icon: PackageCheck,
     label: "Preço sugerido",
-    prompt: "Como calculo preço e margem?"
+    prompt: "Como calculo preço e margem?",
+    sections: ["products"]
   },
   salesFlow: {
     icon: ShoppingCart,
     label: "Baixa estoque",
-    prompt: "Como a venda baixa o estoque?"
+    prompt: "Como a venda baixa o estoque?",
+    sections: ["sales", "stock"]
   },
   subscription: {
     icon: CreditCard,
     label: "Planos",
-    prompt: "Como funcionam os planos?"
+    prompt: "Como funcionam os planos?",
+    sections: ["billing"]
   }
 } satisfies Record<string, QuickPrompt>;
 
@@ -259,78 +292,91 @@ const quickActionById = {
     href: "/account#app-content",
     icon: UserRound,
     label: "Minha conta",
-    reply: "Vou abrir sua conta."
+    reply: "Vou abrir sua conta.",
+    section: "account"
   },
   billing: {
     href: "/billing#app-content",
     icon: CreditCard,
     label: "Ver planos",
-    reply: "Vou abrir a área de planos."
+    reply: "Vou abrir a área de planos.",
+    section: "billing"
   },
   createBudget: {
     actionId: "create-budget",
     href: "/budgets#budget-form",
     icon: FileText,
     label: "Novo orçamento",
-    reply: "Vou te levar para o formulário de orçamento."
+    reply: "Vou te levar para o formulário de orçamento.",
+    section: "budgets"
   },
   createIngredient: {
     actionId: "create-ingredient",
     href: "/ingredients#ingredient-form",
     icon: Plus,
     label: "Cadastrar insumo",
-    reply: "Vou te levar para o cadastro de insumos."
+    reply: "Vou te levar para o cadastro de insumos.",
+    section: "ingredients"
   },
   createProduct: {
     actionId: "create-product",
     href: "/products#product-form",
     icon: PackageCheck,
     label: "Criar produto",
-    reply: "Vou abrir a criação de produto."
+    reply: "Vou abrir a criação de produto.",
+    requiresProductManagement: true,
+    section: "products"
   },
   customers: {
     href: "/customers#app-content",
     icon: UsersRound,
     label: "Ver clientes",
-    reply: "Vou abrir a área de clientes."
+    reply: "Vou abrir a área de clientes.",
+    section: "customers"
   },
   dashboard: {
     href: "/dashboard#app-content",
     icon: BarChart3,
     label: "Dashboard",
-    reply: "Vou abrir o dashboard."
+    reply: "Vou abrir o dashboard.",
+    section: "dashboard"
   },
   history: {
     href: "/history#app-content",
     icon: History,
     label: "Histórico",
-    reply: "Vou abrir o histórico."
+    reply: "Vou abrir o histórico.",
+    section: "history"
   },
   openStockList: {
     actionId: "open-stock-list",
     href: "/stock#stock-list",
     icon: Warehouse,
     label: "Ver estoque",
-    reply: "Vou abrir a visão de estoque."
+    reply: "Vou abrir a visão de estoque.",
+    section: "stock"
   },
   openStockMovement: {
     actionId: "open-stock-movement",
     href: "/stock#stock-movement-form",
     icon: ShoppingCart,
     label: "Lançar estoque",
-    reply: "Vou abrir o lançamento de movimentação."
+    reply: "Vou abrir o lançamento de movimentação.",
+    section: "stock"
   },
   sales: {
     href: "/sales#app-content",
     icon: ShoppingCart,
     label: "Ver vendas",
-    reply: "Vou abrir a tela de vendas."
+    reply: "Vou abrir a tela de vendas.",
+    section: "sales"
   },
   settings: {
     href: "/settings#app-content",
     icon: Settings,
     label: "Configurações",
-    reply: "Vou abrir as configurações."
+    reply: "Vou abrir as configurações.",
+    section: "settings"
   }
 } satisfies Record<string, QuickAction>;
 
@@ -399,11 +445,15 @@ const quickActionsByPage: Record<string, QuickAction[]> = {
 };
 
 const navigationLinks = [
-  { href: "/ingredients#app-content", label: "Insumos" },
-  { href: "/products#app-content", label: "Produtos" },
-  { href: "/budgets#app-content", label: "Orçamentos" },
-  { href: "/sales#app-content", label: "Vendas" }
-];
+  { href: "/ingredients#app-content", label: "Insumos", section: "ingredients" },
+  { href: "/products#app-content", label: "Produtos", section: "products" },
+  { href: "/budgets#app-content", label: "Orçamentos", section: "budgets" },
+  { href: "/sales#app-content", label: "Vendas", section: "sales" }
+] satisfies Array<{
+  href: string;
+  label: string;
+  section: AppSection;
+}>;
 
 const fallbackAssistantAvatar =
   "/brand/AvatarBrancoePreto/Design sem nome (4).png";
@@ -529,6 +579,130 @@ function writeStoredConversation(storageKey: string, messages: Message[]) {
   }
 }
 
+function canUseQuickAction(action: QuickAction, role: string | null) {
+  if (!canAccessSection(role, action.section)) {
+    return false;
+  }
+
+  if (action.requiresProductManagement && !canManageProducts(role)) {
+    return false;
+  }
+
+  return true;
+}
+
+function canUseQuickPrompt(prompt: QuickPrompt, role: string | null) {
+  if (
+    prompt.sections?.some((section) => !canAccessSection(role, section)) ??
+    false
+  ) {
+    return false;
+  }
+
+  if (prompt.requiresBudgetConversion && !canConvertBudgets(role)) {
+    return false;
+  }
+
+  if (prompt.requiresProductManagement && !canManageProducts(role)) {
+    return false;
+  }
+
+  return true;
+}
+
+function uniqueByLabel<T extends { label: string }>(items: T[]) {
+  const labels = new Set<string>();
+
+  return items.filter((item) => {
+    if (labels.has(item.label)) {
+      return false;
+    }
+
+    labels.add(item.label);
+    return true;
+  });
+}
+
+function getVisibleQuickActions(activeItem: string, role: string | null) {
+  return uniqueByLabel([
+    ...(quickActionsByPage[activeItem] ?? defaultQuickActions),
+    ...defaultQuickActions,
+    quickActionById.dashboard,
+    quickActionById.customers,
+    quickActionById.account
+  ])
+    .filter((action) => canUseQuickAction(action, role))
+    .slice(0, 3);
+}
+
+function getVisibleQuickPrompts(activeItem: string, role: string | null) {
+  return uniqueByLabel([
+    ...(quickPromptsByPage[activeItem] ?? defaultQuickPrompts),
+    ...defaultQuickPrompts,
+    quickPromptById.pricing,
+    quickPromptById.customerHistory,
+    quickPromptById.firstSteps
+  ])
+    .filter((prompt) => canUseQuickPrompt(prompt, role))
+    .slice(0, 4);
+}
+
+function getVisibleNavigationLinks(role: string | null) {
+  return navigationLinks.filter((item) => canAccessSection(role, item.section));
+}
+
+function getRoleLabel(role: string | null) {
+  const normalizedRole = normalizeRole(role);
+
+  const labels: Record<CompanyRole, string> = {
+    admin: "Administrador",
+    employee: "Funcionário",
+    seller: "Vendedor"
+  };
+
+  return normalizedRole ? labels[normalizedRole] : "Perfil sem acesso";
+}
+
+function getRestrictedReply(sectionLabel: string) {
+  return `Seu perfil atual não tem acesso a ${sectionLabel}. Se isso for necessário para o seu trabalho, peça para um administrador ajustar suas permissões.`;
+}
+
+function getAssistantStatus({
+  canReadDashboard,
+  dashboardError,
+  isDashboardLoading
+}: {
+  canReadDashboard: boolean;
+  dashboardError: string | null;
+  isDashboardLoading: boolean;
+}): AssistantStatus {
+  if (!canReadDashboard) {
+    return {
+      className: "bg-[rgb(245_158_11/0.78)]",
+      label: "Dados restritos ao perfil"
+    };
+  }
+
+  if (isDashboardLoading) {
+    return {
+      className: "bg-[var(--primary)] animate-pulse",
+      label: "Carregando dados"
+    };
+  }
+
+  if (dashboardError) {
+    return {
+      className: "bg-[rgb(248_113_113/0.86)]",
+      label: "Erro nos dados"
+    };
+  }
+
+  return {
+    className: "bg-[rgb(34_197_94/0.86)]",
+    label: "Dados atualizados"
+  };
+}
+
 function normalizePrompt(prompt: string) {
   return prompt
     .toLowerCase()
@@ -565,8 +739,13 @@ function formatQuantity(value: number, unit?: string) {
 function getRealDataUnavailableReply({
   dashboard,
   dashboardError,
-  isDashboardLoading
+  isDashboardLoading,
+  role
 }: ReplyContext) {
+  if (!canAccessSection(role, "dashboard")) {
+    return getRestrictedReply("os dados do dashboard");
+  }
+
   if (dashboard) {
     return null;
   }
@@ -732,6 +911,10 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     normalized.includes("ponto de reposicao") ||
     normalized.includes("quando repor")
   ) {
+    if (!canAccessSection(context.role, "ingredients")) {
+      return getRestrictedReply("o cadastro de insumos e estoque mínimo");
+    }
+
     return "Use o estoque mínimo como ponto de alerta para reposição. Uma boa regra inicial é colocar o mínimo suficiente para cobrir o tempo entre comprar o insumo e ele chegar, considerando sua média de uso.";
   }
 
@@ -740,6 +923,10 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     normalized.includes("margem") ||
     normalized.includes("precificacao")
   ) {
+    if (!canAccessSection(context.role, "products")) {
+      return getRestrictedReply("produtos e precificação");
+    }
+
     return "Em Produtos, o Carbon Flow soma o custo dos insumos da composição e sugere preço com margem inicial de 30%. Você pode ajustar a margem ou informar um preço manual quando quiser.";
   }
 
@@ -747,34 +934,89 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     normalized.includes("historico") &&
     (normalized.includes("cliente") || normalized.includes("compras"))
   ) {
+    if (!canAccessSection(context.role, "customers")) {
+      return getRestrictedReply("clientes");
+    }
+
     return "Em Clientes, cada cadastro concentra dados de contato e histórico comercial. Isso ajuda a ver orçamentos, vendas e valores gastos por cliente.";
   }
 
   if (normalized.includes("comeco") || normalized.includes("primeiro")) {
+    if (normalizeRole(context.role) === "seller") {
+      return "Para vendedor, o melhor começo é consultar produtos, cadastrar clientes e criar orçamentos. Quando precisar de estoque, vendas finalizadas ou configurações, chame um administrador ou funcionário.";
+    }
+
     return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
   }
 
   if (normalized.includes("insumo") || normalized.includes("materia")) {
+    if (!canAccessSection(context.role, "ingredients")) {
+      return getRestrictedReply("insumos");
+    }
+
     return "Para cadastrar um insumo, vá em Insumos, clique em Novo insumo e informe nome, unidade, custo unitário, estoque atual e estoque mínimo. Esse custo será usado no cálculo dos produtos.";
   }
 
   if (normalized.includes("produto") || normalized.includes("composicao")) {
+    if (!canAccessSection(context.role, "products")) {
+      return getRestrictedReply("produtos");
+    }
+
+    if (
+      (normalized.includes("criar") ||
+        normalized.includes("cadastrar") ||
+        normalized.includes("montar")) &&
+      !canManageProducts(context.role)
+    ) {
+      return "Seu perfil pode consultar produtos, mas criar ou editar produtos fica para administradores e funcionários.";
+    }
+
     return "Para criar um produto, vá em Produtos, clique em Novo produto e adicione os insumos da composição. O Carbon Flow calcula o custo e sugere o preço com base na margem.";
   }
 
   if (normalized.includes("estoque") || normalized.includes("baixa")) {
+    if (!canAccessSection(context.role, "stock")) {
+      return getRestrictedReply("estoque");
+    }
+
     return "O estoque baixa automaticamente quando uma venda é criada a partir de produtos com composição. Também dá para acompanhar entradas, saídas e ajustes na tela Estoque.";
   }
 
   if (normalized.includes("orcamento") || normalized.includes("proposta")) {
+    if (!canAccessSection(context.role, "budgets")) {
+      return getRestrictedReply("orçamentos");
+    }
+
+    if (
+      (normalized.includes("converter") || normalized.includes("venda")) &&
+      !canConvertBudgets(context.role)
+    ) {
+      return "Seu perfil pode trabalhar com orçamentos, mas converter orçamento em venda e baixar estoque fica para administradores e funcionários.";
+    }
+
     return "Em Orçamentos você seleciona cliente, produtos, quantidades, validade e observações. Depois pode imprimir ou abrir o documento profissional do orçamento.";
   }
 
   if (normalized.includes("venda") || normalized.includes("converter")) {
+    if (
+      normalized.includes("converter") &&
+      !canConvertBudgets(context.role)
+    ) {
+      return "Seu perfil pode trabalhar com orçamentos, mas converter orçamento em venda e baixar estoque fica para administradores e funcionários.";
+    }
+
+    if (!canAccessSection(context.role, "sales")) {
+      return getRestrictedReply("vendas");
+    }
+
     return "Quando o cliente aprovar, use Converter em venda no orçamento. O sistema cria a venda, registra os itens e baixa os insumos do estoque.";
   }
 
   if (normalized.includes("cliente")) {
+    if (!canAccessSection(context.role, "customers")) {
+      return getRestrictedReply("clientes");
+    }
+
     return "Em Clientes você cadastra nome, telefone, e-mail, endereço e observações. O histórico ajuda a acompanhar orçamentos, vendas e valores gastos.";
   }
 
@@ -783,10 +1025,18 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     normalized.includes("convite") ||
     normalized.includes("permiss")
   ) {
+    if (!canAccessSection(context.role, "settings")) {
+      return getRestrictedReply("configurações e permissões");
+    }
+
     return "Em Configurações você gerencia usuários, convites e permissões. Administradores têm acesso total; vendedores e funcionários podem ter acesso limitado.";
   }
 
   if (normalized.includes("plano") || normalized.includes("assinatura")) {
+    if (!canAccessSection(context.role, "billing")) {
+      return getRestrictedReply("planos e assinatura");
+    }
+
     return "Em Planos você acompanha os limites do plano atual e deixa a estrutura pronta para assinaturas futuras.";
   }
 
@@ -800,6 +1050,7 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
 export function VirtualAssistant({
   activeItem,
   companyId,
+  role,
   userEmail
 }: VirtualAssistantProps) {
   const router = useRouter();
@@ -826,11 +1077,16 @@ export function VirtualAssistant({
     () => getConversationStorageKey(companyId, userEmail),
     [companyId, userEmail]
   );
+  const canReadDashboard = canAccessSection(role, "dashboard");
   const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
-  const visibleQuickActions =
-    quickActionsByPage[activeItem] ?? defaultQuickActions;
-  const visibleQuickPrompts =
-    quickPromptsByPage[activeItem] ?? defaultQuickPrompts;
+  const assistantStatus = getAssistantStatus({
+    canReadDashboard,
+    dashboardError,
+    isDashboardLoading
+  });
+  const visibleNavigationLinks = getVisibleNavigationLinks(role);
+  const visibleQuickActions = getVisibleQuickActions(activeItem, role);
+  const visibleQuickPrompts = getVisibleQuickPrompts(activeItem, role);
 
   useEffect(() => {
     function syncTheme() {
@@ -869,6 +1125,13 @@ export function VirtualAssistant({
     let isActive = true;
 
     async function loadDashboard() {
+      if (!canReadDashboard) {
+        setDashboard(null);
+        setDashboardError(null);
+        setIsDashboardLoading(false);
+        return;
+      }
+
       setIsDashboardLoading(true);
       setDashboardError(null);
 
@@ -921,7 +1184,7 @@ export function VirtualAssistant({
     return () => {
       isActive = false;
     };
-  }, [companyId]);
+  }, [canReadDashboard, companyId]);
 
   function sendPrompt(prompt: string) {
     const cleanPrompt = prompt.trim();
@@ -939,7 +1202,8 @@ export function VirtualAssistant({
           text: getAssistantReply(cleanPrompt, {
             dashboard,
             dashboardError,
-            isDashboardLoading
+            isDashboardLoading,
+            role
           })
         }
       ])
@@ -965,6 +1229,20 @@ export function VirtualAssistant({
   }
 
   function runQuickAction(action: QuickAction) {
+    if (!canUseQuickAction(action, role)) {
+      setMessages((current) =>
+        limitConversation([
+          ...current,
+          { author: "user", text: action.label },
+          {
+            author: "assistant",
+            text: getRestrictedReply(action.label.toLowerCase())
+          }
+        ])
+      );
+      return;
+    }
+
     const actionId = action.actionId;
     const targetUrl = new URL(action.href, window.location.origin);
     const destination = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
@@ -1015,6 +1293,22 @@ export function VirtualAssistant({
                 <p className="truncate text-xs text-[var(--muted-foreground)]">
                   Seu assistente virtual do Carbon Flow
                 </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                  <span className="inline-flex items-center gap-1">
+                    <span
+                      className={[
+                        "h-1.5 w-1.5 rounded-full",
+                        assistantStatus.className
+                      ].join(" ")}
+                    />
+                    {assistantStatus.label}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                    Memória local
+                  </span>
+                  <span>{getRoleLabel(role)}</span>
+                </div>
               </div>
             </div>
 
@@ -1086,7 +1380,7 @@ export function VirtualAssistant({
             </div>
 
             <div className="mb-3 flex flex-wrap gap-2">
-              {navigationLinks.map((item) => (
+              {visibleNavigationLinks.map((item) => (
                 <Link
                   className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-xs text-[var(--primary)] transition hover:bg-[var(--secondary)]"
                   href={item.href}
