@@ -248,16 +248,16 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
               />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[var(--foreground)]">
-                  Assistente Carbon
+                  Carbon
                 </p>
                 <p className="truncate text-xs text-[var(--muted-foreground)]">
-                  Ajuda rápida do sistema
+                  Seu assistente virtual do Carbon Flow
                 </p>
               </div>
             </div>
 
             <button
-              aria-label="Fechar assistente"
+              aria-label="Fechar Carbon"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
               onClick={() => setIsOpen(false)}
               type="button"
@@ -325,7 +325,7 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
       ) : null}
 
       <button
-        aria-label="Abrir assistente virtual"
+        aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
         className="ml-auto flex h-60 w-60 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
