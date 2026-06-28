@@ -178,6 +178,14 @@ type AssistantStatus = {
   label: string;
 };
 
+type ProactiveAlert = {
+  action: QuickAction;
+  detail: string;
+  id: string;
+  severity: "info" | "warning";
+  title: string;
+};
+
 const pageTips: Record<string, string> = {
   account:
     "Aqui você ajusta dados da sua conta e pode trocar informações pessoais do usuário logado.",
@@ -384,6 +392,13 @@ const quickActionById = {
     label: "Ver planos",
     reply: "Vou abrir a área de planos.",
     section: "billing"
+  },
+  budgets: {
+    href: "/budgets#app-content",
+    icon: FileText,
+    label: "Ver orçamentos",
+    reply: "Vou abrir a área de orçamentos.",
+    section: "budgets"
   },
   createBudget: {
     actionId: "create-budget",
@@ -860,6 +875,148 @@ function getOpenBudgets(budgets: AssistantBudget[]) {
 
       return statusPriority[a.status] - statusPriority[b.status];
     });
+}
+
+function getDaysUntil(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const today = new Date();
+  const target = value.includes("T")
+    ? new Date(value)
+    : new Date(`${value}T00:00:00`);
+
+  today.setHours(0, 0, 0, 0);
+  target.setHours(0, 0, 0, 0);
+
+  return Math.ceil((target.getTime() - today.getTime()) / 86400000);
+}
+
+function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
+  const alerts: ProactiveAlert[] = [];
+
+  if (
+    canAccessSection(context.role, "stock") &&
+    context.dashboard &&
+    !context.dashboardError &&
+    context.dashboard.metrics.lowStockCount > 0
+  ) {
+    const firstItem = context.dashboard.lowStock[0];
+    const detail = firstItem
+      ? `${firstItem.name} está abaixo do mínimo. Ao todo, ${context.dashboard.metrics.lowStockCount} insumo(s) precisam de atenção.`
+      : `${context.dashboard.metrics.lowStockCount} insumo(s) precisam de reposição.`;
+
+    alerts.push({
+      action: quickActionById.openStockList,
+      detail,
+      id: "low-stock",
+      severity: "warning",
+      title: "Estoque baixo"
+    });
+  }
+
+  if (
+    canAccessSection(context.role, "budgets") &&
+    !context.isBudgetsLoading &&
+    !context.budgetsError
+  ) {
+    const openBudgets = getOpenBudgets(context.budgets);
+    const approvedBudgets = openBudgets.filter(
+      (budget) => budget.status === "approved"
+    );
+    const budgetsDueSoon = openBudgets.filter((budget) => {
+      const daysUntil = getDaysUntil(budget.validUntil);
+
+      return (
+        budget.status !== "approved" &&
+        daysUntil !== null &&
+        daysUntil >= 0 &&
+        daysUntil <= 3
+      );
+    });
+
+    if (approvedBudgets.length > 0) {
+      const approvedTotal = approvedBudgets.reduce(
+        (total, budget) => total + budget.totalAmount,
+        0
+      );
+      const detail = canConvertBudgets(context.role)
+        ? `${approvedBudgets.length} orçamento(s) aprovado(s) somando ${currencyFormatter.format(
+            approvedTotal
+          )} já podem virar venda.`
+        : `${approvedBudgets.length} orçamento(s) aprovado(s) dependem de administrador ou funcionário para virar venda.`;
+
+      alerts.push({
+        action: quickActionById.budgets,
+        detail,
+        id: "approved-budgets",
+        severity: canConvertBudgets(context.role) ? "warning" : "info",
+        title: "Orçamentos aprovados"
+      });
+    }
+
+    if (budgetsDueSoon.length > 0) {
+      alerts.push({
+        action: quickActionById.budgets,
+        detail: `${budgetsDueSoon.length} orçamento(s) vencem nos próximos 3 dias. Vale revisar antes que esfriem.`,
+        id: "budgets-due-soon",
+        severity: "info",
+        title: "Orçamentos vencendo"
+      });
+    }
+  }
+
+  if (
+    canAccessSection(context.role, "customers") &&
+    !context.isCustomersLoading &&
+    !context.customersError &&
+    context.customers.length > 0
+  ) {
+    const customersWithoutSales = context.customers.filter(
+      (customer) => customer.summary.salesCount === 0
+    ).length;
+    const customersWithoutContact = context.customers.filter(
+      (customer) => !customer.phone && !customer.email
+    ).length;
+    const customersWithOpenBudgets = context.customers.filter(
+      (customer) => customer.summary.openBudgetsCount > 0
+    ).length;
+
+    if (
+      customersWithoutSales > 0 ||
+      customersWithoutContact > 0 ||
+      customersWithOpenBudgets > 0
+    ) {
+      alerts.push({
+        action: quickActionById.customers,
+        detail: `${customersWithoutSales} sem venda, ${customersWithoutContact} sem contato e ${customersWithOpenBudgets} com orçamento em aberto.`,
+        id: "customer-opportunities",
+        severity: "info",
+        title: "Oportunidades em clientes"
+      });
+    }
+  }
+
+  return alerts.slice(0, 3);
+}
+
+function getProactiveAlertClasses(severity: ProactiveAlert["severity"]) {
+  if (severity === "warning") {
+    return {
+      dot: "bg-[rgb(245_158_11/0.9)]",
+      panel:
+        "border-[rgb(245_158_11/0.35)] bg-[rgb(245_158_11/0.10)] hover:bg-[rgb(245_158_11/0.14)]",
+      title: "text-[rgb(251_191_36)]"
+    };
+  }
+
+  return {
+    dot: "bg-[var(--primary)]",
+    panel:
+      "border-[var(--border)] bg-[var(--surface-muted)] hover:bg-[var(--secondary)]",
+    title: "text-[var(--primary)]"
+  };
 }
 
 function getRealDataUnavailableReply({
@@ -1477,6 +1634,45 @@ export function VirtualAssistant({
   const visibleNavigationLinks = getVisibleNavigationLinks(role);
   const visibleQuickActions = getVisibleQuickActions(activeItem, role);
   const visibleQuickPrompts = getVisibleQuickPrompts(activeItem, role);
+  const assistantContext = useMemo<ReplyContext>(
+    () => ({
+      budgets,
+      budgetsError,
+      customers,
+      customersError,
+      dashboard,
+      dashboardError,
+      isBudgetsLoading,
+      isCustomersLoading,
+      isDashboardLoading,
+      isSalesLoading,
+      role,
+      sales,
+      salesError
+    }),
+    [
+      budgets,
+      budgetsError,
+      customers,
+      customersError,
+      dashboard,
+      dashboardError,
+      isBudgetsLoading,
+      isCustomersLoading,
+      isDashboardLoading,
+      isSalesLoading,
+      role,
+      sales,
+      salesError
+    ]
+  );
+  const proactiveAlerts = useMemo(
+    () => getProactiveAlerts(assistantContext),
+    [assistantContext]
+  );
+  const hasWarningAlert = proactiveAlerts.some(
+    (alert) => alert.severity === "warning"
+  );
 
   useEffect(() => {
     function syncTheme() {
@@ -1797,21 +1993,7 @@ export function VirtualAssistant({
         { author: "user", text: cleanPrompt },
         {
           author: "assistant",
-          text: getAssistantReply(cleanPrompt, {
-            budgets,
-            budgetsError,
-            customers,
-            customersError,
-            dashboard,
-            dashboardError,
-            isBudgetsLoading,
-            isCustomersLoading,
-            isDashboardLoading,
-            isSalesLoading,
-            sales,
-            salesError,
-            role
-          })
+          text: getAssistantReply(cleanPrompt, assistantContext)
         }
       ])
     );
@@ -1941,6 +2123,60 @@ export function VirtualAssistant({
             </div>
           </header>
 
+          {proactiveAlerts.length ? (
+            <div className="shrink-0 border-b border-[var(--border)] p-3 sm:p-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+                  Atenção agora
+                </p>
+                <span className="text-[11px] text-[var(--muted-foreground)]">
+                  {proactiveAlerts.length} ponto(s)
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {proactiveAlerts.map((alert) => {
+                  const tone = getProactiveAlertClasses(alert.severity);
+
+                  return (
+                    <button
+                      className={[
+                        "flex w-full min-w-0 items-start gap-3 rounded-md border p-3 text-left transition",
+                        tone.panel
+                      ].join(" ")}
+                      key={alert.id}
+                      onClick={() => runQuickAction(alert.action)}
+                      type="button"
+                    >
+                      <span
+                        className={[
+                          "mt-1 h-2 w-2 shrink-0 rounded-full",
+                          tone.dot
+                        ].join(" ")}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className={[
+                            "block text-xs font-semibold",
+                            tone.title
+                          ].join(" ")}
+                        >
+                          {alert.title}
+                        </span>
+                        <span className="mt-1 block break-words text-xs leading-5 text-[var(--muted-foreground)]">
+                          {alert.detail}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--foreground)]">
+                        Abrir
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((message, index) => (
               <div
@@ -2029,13 +2265,25 @@ export function VirtualAssistant({
 
       <button
         aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
-        className="ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
+        className="relative ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
           setIsOpen((current) => !current);
         }}
         type="button"
       >
+        {!isOpen && proactiveAlerts.length ? (
+          <span
+            className={[
+              "absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold shadow-lg sm:right-2 sm:top-2 md:right-3 md:top-3 xl:right-8 xl:top-8",
+              hasWarningAlert
+                ? "bg-[rgb(245_158_11)] text-black"
+                : "bg-[var(--primary)] text-[var(--background)]"
+            ].join(" ")}
+          >
+            {proactiveAlerts.length}
+          </span>
+        ) : null}
         <AssistantAvatar
           className="h-[4.5rem] w-[4.5rem] sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
           sizes="(min-width: 1280px) 216px, (min-width: 1024px) 112px, (min-width: 768px) 96px, (min-width: 640px) 80px, 72px"
