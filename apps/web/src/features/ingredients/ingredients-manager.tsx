@@ -10,7 +10,14 @@ import {
   Save,
   Search
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
@@ -93,6 +100,7 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const formSectionRef = useRef<HTMLElement | null>(null);
 
   const request = useCallback(
     async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -182,6 +190,20 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
     setMessage(null);
   }
 
+  function scrollToForm() {
+    window.requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }
+
+  function createIngredient() {
+    resetForm();
+    scrollToForm();
+  }
+
   function editIngredient(ingredient: Ingredient) {
     setEditingId(ingredient.id);
     setForm({
@@ -193,6 +215,7 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
       unitCost: String(ingredient.unitCost)
     });
     setMessage(null);
+    scrollToForm();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -274,7 +297,7 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
             Insumos
           </h1>
         </div>
-        <Button onClick={resetForm} type="button" variant="secondary">
+        <Button onClick={createIngredient} type="button" variant="secondary">
           <Plus className="h-4 w-4" aria-hidden="true" />
           Novo insumo
         </Button>
@@ -314,7 +337,10 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
       </section>
 
       <div className="grid gap-4 2xl:grid-cols-[0.82fr_1.18fr]">
-        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+        <section
+          className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          ref={formSectionRef}
+        >
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-white">

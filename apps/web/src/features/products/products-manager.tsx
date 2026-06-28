@@ -18,6 +18,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent
 } from "react";
@@ -179,6 +180,7 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
+  const formSectionRef = useRef<HTMLElement | null>(null);
   const canManage = canManageProducts(role);
 
   const request = useCallback(
@@ -392,6 +394,20 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
     setMessage(null);
   }
 
+  function scrollToForm() {
+    window.requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }
+
+  function createProduct() {
+    resetForm();
+    scrollToForm();
+  }
+
   function editProduct(product: Product) {
     setEditingId(product.id);
     setForm({
@@ -412,6 +428,7 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
       sku: product.sku ?? ""
     });
     setMessage(null);
+    scrollToForm();
   }
 
   function buildPayload() {
@@ -532,7 +549,7 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
           </h1>
         </div>
         {canManage ? (
-          <Button onClick={resetForm} type="button" variant="secondary">
+          <Button onClick={createProduct} type="button" variant="secondary">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Novo produto
           </Button>
@@ -610,7 +627,10 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
         }
       >
         {canManage ? (
-        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+        <section
+          className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          ref={formSectionRef}
+        >
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-white">
