@@ -1,6 +1,8 @@
 ﻿import type { Metadata } from "next";
 import "./globals.css";
 
+import { CookieConsent } from "@/features/privacy/cookie-consent";
+
 import {
   defaultTheme,
   themeColorById,
@@ -70,7 +72,10 @@ export default function RootLayout({
         <meta content="dark light" name="color-scheme" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <CookieConsent />
+      </body>
     </html>
   );
 }
