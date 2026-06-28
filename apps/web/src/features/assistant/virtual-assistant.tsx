@@ -130,14 +130,47 @@ type AssistantBudget = {
   validUntil: string | null;
 };
 
+type AssistantCustomer = {
+  id: string;
+  email: string | null;
+  name: string;
+  phone: string | null;
+  summary: {
+    budgetsCount: number;
+    estimatedProfit: number;
+    lastSaleAt: string | null;
+    openBudgetsCount: number;
+    salesCount: number;
+    totalSpent: number;
+  };
+};
+
+type AssistantSale = {
+  id: string;
+  customer: {
+    name: string;
+  } | null;
+  estimatedProfit: number;
+  numberLabel: string;
+  soldAt: string;
+  status: "completed" | "cancelled" | "refunded";
+  totalAmount: number;
+};
+
 type ReplyContext = {
   budgets: AssistantBudget[];
   budgetsError: string | null;
+  customers: AssistantCustomer[];
+  customersError: string | null;
   dashboard: DashboardSummary | null;
   dashboardError: string | null;
   isBudgetsLoading: boolean;
+  isCustomersLoading: boolean;
   isDashboardLoading: boolean;
+  isSalesLoading: boolean;
   role: string | null;
+  sales: AssistantSale[];
+  salesError: string | null;
 };
 
 type AssistantStatus = {
@@ -190,6 +223,12 @@ const quickPromptById = {
     prompt: "Como acompanho o histórico de um cliente?",
     sections: ["customers"]
   },
+  customerOpportunities: {
+    icon: UserRound,
+    label: "Oportunidades",
+    prompt: "Tem clientes sem venda ou sem contato?",
+    sections: ["customers"]
+  },
   dashboardSummary: {
     icon: BarChart3,
     label: "Resumo do mês",
@@ -237,6 +276,12 @@ const quickPromptById = {
     prompt: "Como calculo preço e margem?",
     sections: ["products"]
   },
+  recentSales: {
+    icon: ShoppingCart,
+    label: "Vendas recentes",
+    prompt: "Quais foram as vendas recentes?",
+    sections: ["sales"]
+  },
   salesFlow: {
     icon: ShoppingCart,
     label: "Baixa estoque",
@@ -248,6 +293,12 @@ const quickPromptById = {
     label: "Planos",
     prompt: "Como funcionam os planos?",
     sections: ["billing"]
+  },
+  topCustomers: {
+    icon: UsersRound,
+    label: "Top clientes",
+    prompt: "Quais clientes mais compraram?",
+    sections: ["customers"]
   }
 } satisfies Record<string, QuickPrompt>;
 
@@ -275,15 +326,16 @@ const quickPromptsByPage: Record<string, QuickPrompt[]> = {
     quickPromptById.pricing
   ],
   customers: [
+    quickPromptById.topCustomers,
     quickPromptById.pendingBudgets,
-    quickPromptById.customerHistory,
-    quickPromptById.budgetToSale
+    quickPromptById.customerOpportunities,
+    quickPromptById.customerHistory
   ],
   dashboard: [
     quickPromptById.dashboardSummary,
+    quickPromptById.topCustomers,
     quickPromptById.pendingBudgets,
-    quickPromptById.lowStock,
-    quickPromptById.bestSellers
+    quickPromptById.lowStock
   ],
   history: [
     quickPromptById.salesFlow,
@@ -301,9 +353,10 @@ const quickPromptsByPage: Record<string, QuickPrompt[]> = {
     quickPromptById.budgetToSale
   ],
   sales: [
+    quickPromptById.recentSales,
+    quickPromptById.topCustomers,
     quickPromptById.salesFlow,
-    quickPromptById.dashboardSummary,
-    quickPromptById.lowStock
+    quickPromptById.dashboardSummary
   ],
   settings: [
     quickPromptById.permissions,
@@ -682,6 +735,8 @@ function getVisibleQuickPrompts(activeItem: string, role: string | null) {
     ...(quickPromptsByPage[activeItem] ?? defaultQuickPrompts),
     ...defaultQuickPrompts,
     quickPromptById.pendingBudgets,
+    quickPromptById.topCustomers,
+    quickPromptById.recentSales,
     quickPromptById.pricing,
     quickPromptById.customerHistory,
     quickPromptById.firstSteps
@@ -1000,6 +1055,152 @@ ${items}${hiddenCount}
 ${nextStep}`;
 }
 
+function formatTopCustomersReply(context: ReplyContext) {
+  if (!canAccessSection(context.role, "customers")) {
+    return getRestrictedReply("clientes");
+  }
+
+  if (context.isCustomersLoading) {
+    return "Estou carregando os clientes da empresa. Tente perguntar de novo em alguns segundos.";
+  }
+
+  if (context.customersError) {
+    return `Ainda não consegui carregar os clientes. Motivo: ${context.customersError}`;
+  }
+
+  const customersWithSales = context.customers
+    .filter((customer) => customer.summary.totalSpent > 0)
+    .sort((a, b) => b.summary.totalSpent - a.summary.totalSpent);
+
+  if (customersWithSales.length === 0) {
+    return "Ainda não há clientes com vendas registradas. Quando as vendas entrarem, eu mostro quem mais comprou.";
+  }
+
+  const ranking = customersWithSales
+    .slice(0, 5)
+    .map((customer, index) => {
+      const lastSale = customer.summary.lastSaleAt
+        ? `, última venda em ${formatDate(customer.summary.lastSaleAt)}`
+        : "";
+
+      return `${index + 1}. ${customer.name}: ${currencyFormatter.format(
+        customer.summary.totalSpent
+      )} em ${customer.summary.salesCount} venda(s)${lastSale}`;
+    })
+    .join("\n");
+  const hiddenCount =
+    customersWithSales.length > 5
+      ? `\n+ ${customersWithSales.length - 5} outro(s) cliente(s) com compras`
+      : "";
+
+  return `Clientes que mais compraram:
+${ranking}${hiddenCount}`;
+}
+
+function formatCustomerOpportunitiesReply(context: ReplyContext) {
+  if (!canAccessSection(context.role, "customers")) {
+    return getRestrictedReply("clientes");
+  }
+
+  if (context.isCustomersLoading) {
+    return "Estou carregando os clientes da empresa. Tente perguntar de novo em alguns segundos.";
+  }
+
+  if (context.customersError) {
+    return `Ainda não consegui carregar os clientes. Motivo: ${context.customersError}`;
+  }
+
+  const customersWithoutSales = context.customers.filter(
+    (customer) => customer.summary.salesCount === 0
+  );
+  const customersWithoutContact = context.customers.filter(
+    (customer) => !customer.phone && !customer.email
+  );
+  const customersWithOpenBudgets = context.customers
+    .filter((customer) => customer.summary.openBudgetsCount > 0)
+    .sort(
+      (a, b) => b.summary.openBudgetsCount - a.summary.openBudgetsCount
+    );
+  const openBudgetNames = customersWithOpenBudgets
+    .slice(0, 5)
+    .map(
+      (customer) =>
+        `${customer.name}: ${customer.summary.openBudgetsCount} orçamento(s) em aberto`
+    )
+    .join("\n");
+
+  if (
+    customersWithoutSales.length === 0 &&
+    customersWithoutContact.length === 0 &&
+    customersWithOpenBudgets.length === 0
+  ) {
+    return "Não encontrei oportunidades óbvias nos clientes agora. Todos têm contato, não há clientes sem venda e não há orçamentos em aberto por cliente.";
+  }
+
+  return [
+    "Oportunidades em clientes:",
+    `Clientes sem venda: ${customersWithoutSales.length}`,
+    `Clientes sem telefone/e-mail: ${customersWithoutContact.length}`,
+    `Clientes com orçamento em aberto: ${customersWithOpenBudgets.length}`,
+    openBudgetNames ? `Principais pendências:\n${openBudgetNames}` : null
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function formatRecentSalesReply(context: ReplyContext) {
+  if (!canAccessSection(context.role, "sales")) {
+    return getRestrictedReply("vendas");
+  }
+
+  if (context.isSalesLoading) {
+    return "Estou carregando as vendas da empresa. Tente perguntar de novo em alguns segundos.";
+  }
+
+  if (context.salesError) {
+    return `Ainda não consegui carregar as vendas. Motivo: ${context.salesError}`;
+  }
+
+  const recentSales = [...context.sales]
+    .filter((sale) => sale.status === "completed")
+    .sort(
+      (a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()
+    );
+
+  if (recentSales.length === 0) {
+    return "Ainda não há vendas concluídas registradas.";
+  }
+
+  const totalAmount = recentSales.reduce(
+    (total, sale) => total + sale.totalAmount,
+    0
+  );
+  const totalProfit = recentSales.reduce(
+    (total, sale) => total + sale.estimatedProfit,
+    0
+  );
+  const items = recentSales
+    .slice(0, 5)
+    .map((sale) => {
+      const customer = sale.customer?.name ?? "sem cliente";
+
+      return `${sale.numberLabel} - ${customer} - ${currencyFormatter.format(
+        sale.totalAmount
+      )} - ${formatDate(sale.soldAt)}`;
+    })
+    .join("\n");
+  const hiddenCount =
+    recentSales.length > 5
+      ? `\n+ ${recentSales.length - 5} outra(s) venda(s)`
+      : "";
+
+  return `Vendas concluídas: ${recentSales.length}
+Faturamento carregado: ${currencyFormatter.format(totalAmount)}
+Lucro estimado: ${currencyFormatter.format(totalProfit)}
+Vendas recentes:
+${items}${hiddenCount}`;
+}
+
 function getAssistantReply(prompt: string, context: ReplyContext) {
   const normalized = normalizePrompt(prompt);
 
@@ -1051,6 +1252,35 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     (normalized.includes("orcamento") && normalized.includes("aprovado"))
   ) {
     return formatPendingBudgetsReply(context);
+  }
+
+  if (
+    normalized.includes("cliente mais compr") ||
+    normalized.includes("clientes mais compr") ||
+    normalized.includes("cliente gastou mais") ||
+    normalized.includes("clientes gastaram mais") ||
+    normalized.includes("top clientes")
+  ) {
+    return formatTopCustomersReply(context);
+  }
+
+  if (
+    normalized.includes("vendas recentes") ||
+    normalized.includes("venda recente") ||
+    normalized.includes("quem comprou recentemente") ||
+    normalized.includes("comprou recentemente")
+  ) {
+    return formatRecentSalesReply(context);
+  }
+
+  if (
+    normalized.includes("cliente sem venda") ||
+    normalized.includes("clientes sem venda") ||
+    normalized.includes("cliente sem contato") ||
+    normalized.includes("clientes sem contato") ||
+    normalized.includes("oportunidade")
+  ) {
+    return formatCustomerOpportunitiesReply(context);
   }
 
   if (
@@ -1204,12 +1434,18 @@ export function VirtualAssistant({
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [budgets, setBudgets] = useState<AssistantBudget[]>([]);
   const [budgetsError, setBudgetsError] = useState<string | null>(null);
+  const [customers, setCustomers] = useState<AssistantCustomer[]>([]);
+  const [customersError, setCustomersError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [sales, setSales] = useState<AssistantSale[]>([]);
+  const [salesError, setSalesError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isBudgetsLoading, setIsBudgetsLoading] = useState(true);
+  const [isCustomersLoading, setIsCustomersLoading] = useState(true);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [isSalesLoading, setIsSalesLoading] = useState(true);
   const [loadedConversationKey, setLoadedConversationKey] = useState<
     string | null
   >(null);
@@ -1229,7 +1465,9 @@ export function VirtualAssistant({
     [companyId, userEmail]
   );
   const canReadBudgets = canAccessSection(role, "budgets");
+  const canReadCustomers = canAccessSection(role, "customers");
   const canReadDashboard = canAccessSection(role, "dashboard");
+  const canReadSales = canAccessSection(role, "sales");
   const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
   const assistantStatus = getAssistantStatus({
     canReadDashboard,
@@ -1354,6 +1592,71 @@ export function VirtualAssistant({
   useEffect(() => {
     let isActive = true;
 
+    async function loadCustomers() {
+      if (!canReadCustomers) {
+        setCustomers([]);
+        setCustomersError(null);
+        setIsCustomersLoading(false);
+        return;
+      }
+
+      setIsCustomersLoading(true);
+      setCustomersError(null);
+
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error("Sessão expirada. Entre novamente.");
+        }
+
+        const response = await fetch(`${env.apiUrl}/customers`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            "x-company-id": companyId
+          }
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok) {
+          throw new Error(
+            getApiMessage(payload, "Não foi possível carregar os clientes.")
+          );
+        }
+
+        if (isActive) {
+          setCustomers(payload as AssistantCustomer[]);
+        }
+      } catch (error) {
+        if (isActive) {
+          setCustomers([]);
+          setCustomersError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar os clientes."
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsCustomersLoading(false);
+        }
+      }
+    }
+
+    void loadCustomers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [canReadCustomers, companyId]);
+
+  useEffect(() => {
+    let isActive = true;
+
     async function loadDashboard() {
       if (!canReadDashboard) {
         setDashboard(null);
@@ -1416,6 +1719,71 @@ export function VirtualAssistant({
     };
   }, [canReadDashboard, companyId]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadSales() {
+      if (!canReadSales) {
+        setSales([]);
+        setSalesError(null);
+        setIsSalesLoading(false);
+        return;
+      }
+
+      setIsSalesLoading(true);
+      setSalesError(null);
+
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error("Sessão expirada. Entre novamente.");
+        }
+
+        const response = await fetch(`${env.apiUrl}/sales`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            "x-company-id": companyId
+          }
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok) {
+          throw new Error(
+            getApiMessage(payload, "Não foi possível carregar as vendas.")
+          );
+        }
+
+        if (isActive) {
+          setSales(payload as AssistantSale[]);
+        }
+      } catch (error) {
+        if (isActive) {
+          setSales([]);
+          setSalesError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar as vendas."
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsSalesLoading(false);
+        }
+      }
+    }
+
+    void loadSales();
+
+    return () => {
+      isActive = false;
+    };
+  }, [canReadSales, companyId]);
+
   function sendPrompt(prompt: string) {
     const cleanPrompt = prompt.trim();
 
@@ -1432,10 +1800,16 @@ export function VirtualAssistant({
           text: getAssistantReply(cleanPrompt, {
             budgets,
             budgetsError,
+            customers,
+            customersError,
             dashboard,
             dashboardError,
             isBudgetsLoading,
+            isCustomersLoading,
             isDashboardLoading,
+            isSalesLoading,
+            sales,
+            salesError,
             role
           })
         }
