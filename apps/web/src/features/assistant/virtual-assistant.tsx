@@ -24,7 +24,7 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -781,13 +781,17 @@ function formatDashboardReply(context: ReplyContext) {
       )} vendido(s).`
     : "Ainda não há produto mais vendido neste mês.";
 
-  return `Resumo do mês atual: faturamento de ${currencyFormatter.format(
-    metrics.revenue
-  )}, ${metrics.salesCount} venda(s), lucro estimado de ${currencyFormatter.format(
-    metrics.estimatedProfit
-  )} e ${metrics.openBudgetCount} orçamento(s) em aberto somando ${currencyFormatter.format(
-    metrics.openBudgetAmount
-  )}. No estoque, há ${stockDetail}. ${bestSellerDetail}`;
+  return [
+    "Resumo do mês atual:",
+    `Faturamento: ${currencyFormatter.format(metrics.revenue)}`,
+    `Vendas: ${metrics.salesCount}`,
+    `Lucro estimado: ${currencyFormatter.format(metrics.estimatedProfit)}`,
+    `Orçamentos em aberto: ${metrics.openBudgetCount} somando ${currencyFormatter.format(
+      metrics.openBudgetAmount
+    )}`,
+    `Estoque: ${stockDetail}`,
+    bestSellerDetail
+  ].join("\n");
 }
 
 function formatFinancialReply(context: ReplyContext) {
@@ -833,9 +837,9 @@ function formatLowStockReply(context: ReplyContext) {
           item.unit
         )}, mínimo ${formatQuantity(item.minimum, item.unit)}`
     )
-    .join("; ");
+    .join("\n");
 
-  return `Há ${dashboard.metrics.lowStockCount} insumo(s) em estoque baixo. Principais pontos: ${items}.`;
+  return `Há ${dashboard.metrics.lowStockCount} insumo(s) em estoque baixo.\n${items}`;
 }
 
 function formatBestSellersReply(context: ReplyContext) {
@@ -858,9 +862,9 @@ function formatBestSellersReply(context: ReplyContext) {
           product.quantity
         )} vendido(s), ${currencyFormatter.format(product.revenue)}`
     )
-    .join("; ");
+    .join("\n");
 
-  return `Produtos mais vendidos no mês atual: ${ranking}.`;
+  return `Produtos mais vendidos no mês atual:\n${ranking}`;
 }
 
 function getAssistantReply(prompt: string, context: ReplyContext) {
@@ -1054,6 +1058,7 @@ export function VirtualAssistant({
   userEmail
 }: VirtualAssistantProps) {
   const router = useRouter();
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -1103,6 +1108,19 @@ export function VirtualAssistant({
       window.removeEventListener("storage", syncTheme);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end"
+      });
+    });
+  }, [isOpen, messages]);
 
   useEffect(() => {
     setLoadedConversationKey(null);
@@ -1278,7 +1296,7 @@ export function VirtualAssistant({
   return (
     <div className="fixed bottom-1 right-1 z-40 sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6">
       {isOpen ? (
-        <section className="mb-3 w-[min(calc(100vw-2rem),24rem)] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)]">
+        <section className="mb-3 flex max-h-[calc(100vh-6rem)] w-[min(calc(100vw-0.75rem),24rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:max-h-[calc(100vh-7rem)] md:max-h-[calc(100vh-8rem)] xl:max-h-[calc(100vh-17rem)] xl:w-[24rem]">
           <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] p-4">
             <div className="flex min-w-0 items-center gap-3">
               <AssistantAvatar
@@ -1334,11 +1352,11 @@ export function VirtualAssistant({
             </div>
           </header>
 
-          <div className="max-h-[22rem] space-y-3 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {messages.map((message, index) => (
               <div
                 className={[
-                  "rounded-md px-3 py-2 text-sm leading-6",
+                  "whitespace-pre-line rounded-md px-3 py-2 text-sm leading-6",
                   message.author === "assistant"
                     ? "mr-8 bg-[var(--surface-soft)] text-[var(--muted-foreground)]"
                     : "ml-8 bg-[var(--primary-active)] text-[var(--foreground)]"
@@ -1348,9 +1366,13 @@ export function VirtualAssistant({
                 {message.text}
               </div>
             ))}
+            <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-[var(--border)] p-4">
+          <div className="shrink-0 border-t border-[var(--border)] p-3 sm:p-4">
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+              Ações rápidas
+            </p>
             <div className="mb-3 grid grid-cols-2 gap-2">
               {visibleQuickActions.map((item) => (
                 <button
@@ -1365,6 +1387,9 @@ export function VirtualAssistant({
               ))}
             </div>
 
+            <p className="mb-2 text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+              Perguntas úteis
+            </p>
             <div className="mb-3 grid grid-cols-2 gap-2">
               {visibleQuickPrompts.map((item) => (
                 <button
@@ -1379,17 +1404,24 @@ export function VirtualAssistant({
               ))}
             </div>
 
-            <div className="mb-3 flex flex-wrap gap-2">
-              {visibleNavigationLinks.map((item) => (
-                <Link
-                  className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-xs text-[var(--primary)] transition hover:bg-[var(--secondary)]"
-                  href={item.href}
-                  key={item.href}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
+            {visibleNavigationLinks.length ? (
+              <>
+                <p className="mb-2 text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+                  Navegação
+                </p>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {visibleNavigationLinks.map((item) => (
+                    <Link
+                      className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-xs text-[var(--primary)] transition hover:bg-[var(--secondary)]"
+                      href={item.href}
+                      key={item.href}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </>
+            ) : null}
 
             <form className="flex gap-2" onSubmit={handleSubmit}>
               <input
