@@ -886,7 +886,7 @@ export function VirtualAssistant({
   }
 
   return (
-    <div className="fixed bottom-5 right-4 z-40 sm:bottom-6 sm:right-6">
+    <div className="fixed bottom-1 right-1 z-40 sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6">
       {isOpen ? (
         <section className="mb-3 w-[min(calc(100vw-2rem),24rem)] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)]">
           <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] p-4">
@@ -990,7 +990,7 @@ export function VirtualAssistant({
 
       <button
         aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
-        className="ml-auto flex h-60 w-60 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+        className="ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
           setIsOpen((current) => !current);
@@ -998,8 +998,8 @@ export function VirtualAssistant({
         type="button"
       >
         <AssistantAvatar
-          className="h-[13.5rem] w-[13.5rem]"
-          sizes="216px"
+          className="h-[4.5rem] w-[4.5rem] sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
+          sizes="(min-width: 1280px) 216px, (min-width: 1024px) 112px, (min-width: 768px) 96px, (min-width: 640px) 80px, 72px"
           src={avatarSrc}
         />
       </button>
