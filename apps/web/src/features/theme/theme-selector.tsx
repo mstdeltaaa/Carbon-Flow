@@ -29,6 +29,9 @@ function applyTheme(themeId: string) {
   }
 
   meta.content = getThemeOption(themeId).themeColor;
+  window.dispatchEvent(
+    new CustomEvent("carbon-flow-theme-change", { detail: themeId })
+  );
 }
 
 function getPreferredTheme() {

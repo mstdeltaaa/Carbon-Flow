@@ -1,17 +1,16 @@
 "use client";
 
 import {
-  Bot,
   Boxes,
   FileText,
   HelpCircle,
   PackageCheck,
   Send,
-  Sparkles,
   X
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -85,6 +84,51 @@ const navigationLinks = [
   { href: "/sales#app-content", label: "Vendas" }
 ];
 
+const fallbackAssistantAvatar =
+  "/brand/AvatarBrancoePreto/Design sem nome (4).png";
+
+const assistantAvatarByTheme: Record<string, string> = {
+  "blue-dark": "/brand/AvatarAzulePreto/Design sem nome (1).png",
+  "blue-light": "/brand/AvatarAzuleBranco/Design sem nome (5).png",
+  "carbon-dark": fallbackAssistantAvatar,
+  "carbon-light": "/brand/AvatarPretoeBranco/Design sem nome (2).png",
+  "green-dark": "/brand/AvatarVerdeePreto/Design sem nome.png",
+  "green-light": "/brand/AvatarVerdeeBranco/Design sem nome (3).png"
+};
+
+function getCurrentTheme() {
+  if (typeof document === "undefined") {
+    return "carbon-dark";
+  }
+
+  return document.documentElement.dataset.theme ?? "carbon-dark";
+}
+
+function AssistantAvatar({
+  className,
+  src
+}: {
+  className: string;
+  src: string;
+}) {
+  return (
+    <span
+      className={["relative block overflow-hidden rounded-md", className].join(
+        " "
+      )}
+    >
+      <Image
+        alt=""
+        aria-hidden="true"
+        className="object-contain"
+        fill
+        sizes="56px"
+        src={src}
+      />
+    </span>
+  );
+}
+
 function getAssistantReply(prompt: string) {
   const normalized = prompt
     .toLowerCase()
@@ -141,6 +185,7 @@ function getAssistantReply(prompt: string) {
 export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [theme, setTheme] = useState("carbon-dark");
   const introMessage = useMemo<Message>(
     () => ({
       author: "assistant",
@@ -151,6 +196,23 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
     [activeItem]
   );
   const [messages, setMessages] = useState<Message[]>([introMessage]);
+  const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
+
+  useEffect(() => {
+    function syncTheme() {
+      setTheme(getCurrentTheme());
+    }
+
+    syncTheme();
+
+    window.addEventListener("carbon-flow-theme-change", syncTheme);
+    window.addEventListener("storage", syncTheme);
+
+    return () => {
+      window.removeEventListener("carbon-flow-theme-change", syncTheme);
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, []);
 
   function sendPrompt(prompt: string) {
     const cleanPrompt = prompt.trim();
@@ -178,8 +240,8 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
         <section className="mb-3 w-[min(calc(100vw-2rem),24rem)] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)]">
           <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] p-4">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--primary-active)] text-[var(--primary)]">
-                <Bot className="h-5 w-5" aria-hidden="true" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)]">
+                <AssistantAvatar className="h-8 w-8" src={avatarSrc} />
               </div>
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[var(--foreground)]">
@@ -261,14 +323,14 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
 
       <button
         aria-label="Abrir assistente virtual"
-        className="ml-auto flex h-12 w-12 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--primary)] text-[var(--primary-foreground)] shadow-2xl shadow-[color:var(--shadow-color)] transition hover:bg-[var(--primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+        className="ml-auto flex h-14 w-14 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] transition hover:bg-[var(--secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
           setIsOpen((current) => !current);
         }}
         type="button"
       >
-        <Sparkles className="h-5 w-5" aria-hidden="true" />
+        <AssistantAvatar className="h-11 w-11" src={avatarSrc} />
       </button>
     </div>
   );
