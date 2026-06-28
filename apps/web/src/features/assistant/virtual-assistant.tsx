@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   Settings,
   Trophy,
+  Trash2,
   UserRound,
   UsersRound,
   Warehouse,
@@ -55,6 +56,7 @@ type QuickAction = {
 type VirtualAssistantProps = {
   activeItem: string;
   companyId: string;
+  userEmail: string;
 };
 
 type DashboardSummary = {
@@ -458,6 +460,75 @@ const decimalFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 4
 });
 
+const assistantConversationLimit = 20;
+const assistantConversationVersion = 1;
+
+function getConversationStorageKey(companyId: string, userEmail: string) {
+  return [
+    "carbon-flow-assistant-conversation",
+    companyId,
+    userEmail.trim().toLowerCase()
+  ].join(":");
+}
+
+function isStoredMessage(value: unknown): value is Message {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "author" in value &&
+    (value.author === "assistant" || value.author === "user") &&
+    "text" in value &&
+    typeof value.text === "string"
+  );
+}
+
+function limitConversation(messages: Message[]) {
+  return messages.slice(-assistantConversationLimit);
+}
+
+function readStoredConversation(storageKey: string) {
+  try {
+    const storedValue = window.localStorage.getItem(storageKey);
+
+    if (!storedValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(storedValue) as unknown;
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !("version" in parsed) ||
+      parsed.version !== assistantConversationVersion ||
+      !("messages" in parsed) ||
+      !Array.isArray(parsed.messages)
+    ) {
+      return null;
+    }
+
+    const messages = parsed.messages.filter(isStoredMessage);
+
+    return messages.length ? limitConversation(messages) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredConversation(storageKey: string, messages: Message[]) {
+  try {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        messages: limitConversation(messages),
+        version: assistantConversationVersion
+      })
+    );
+  } catch {
+    // The assistant keeps working even if the browser blocks storage.
+  }
+}
+
 function normalizePrompt(prompt: string) {
   return prompt
     .toLowerCase()
@@ -728,7 +799,8 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
 
 export function VirtualAssistant({
   activeItem,
-  companyId
+  companyId,
+  userEmail
 }: VirtualAssistantProps) {
   const router = useRouter();
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
@@ -736,6 +808,9 @@ export function VirtualAssistant({
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [loadedConversationKey, setLoadedConversationKey] = useState<
+    string | null
+  >(null);
   const [theme, setTheme] = useState("carbon-dark");
   const introMessage = useMemo<Message>(
     () => ({
@@ -747,6 +822,10 @@ export function VirtualAssistant({
     [activeItem]
   );
   const [messages, setMessages] = useState<Message[]>([introMessage]);
+  const conversationStorageKey = useMemo(
+    () => getConversationStorageKey(companyId, userEmail),
+    [companyId, userEmail]
+  );
   const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
   const visibleQuickActions =
     quickActionsByPage[activeItem] ?? defaultQuickActions;
@@ -768,6 +847,23 @@ export function VirtualAssistant({
       window.removeEventListener("storage", syncTheme);
     };
   }, []);
+
+  useEffect(() => {
+    setLoadedConversationKey(null);
+
+    const storedMessages = readStoredConversation(conversationStorageKey);
+
+    setMessages(storedMessages ?? [introMessage]);
+    setLoadedConversationKey(conversationStorageKey);
+  }, [conversationStorageKey, introMessage]);
+
+  useEffect(() => {
+    if (loadedConversationKey !== conversationStorageKey) {
+      return;
+    }
+
+    writeStoredConversation(conversationStorageKey, messages);
+  }, [conversationStorageKey, loadedConversationKey, messages]);
 
   useEffect(() => {
     let isActive = true;
@@ -834,24 +930,38 @@ export function VirtualAssistant({
       return;
     }
 
-    setMessages((current) => [
-      ...current,
-      { author: "user", text: cleanPrompt },
-      {
-        author: "assistant",
-        text: getAssistantReply(cleanPrompt, {
-          dashboard,
-          dashboardError,
-          isDashboardLoading
-        })
-      }
-    ]);
+    setMessages((current) =>
+      limitConversation([
+        ...current,
+        { author: "user", text: cleanPrompt },
+        {
+          author: "assistant",
+          text: getAssistantReply(cleanPrompt, {
+            dashboard,
+            dashboardError,
+            isDashboardLoading
+          })
+        }
+      ])
+    );
     setInput("");
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     sendPrompt(input);
+  }
+
+  function clearConversation() {
+    const resetMessages = [introMessage];
+
+    setMessages(resetMessages);
+
+    try {
+      window.localStorage.removeItem(conversationStorageKey);
+    } catch {
+      // The in-memory conversation was already reset.
+    }
   }
 
   function runQuickAction(action: QuickAction) {
@@ -864,11 +974,13 @@ export function VirtualAssistant({
       storeAssistantAction(actionId);
     }
 
-    setMessages((current) => [
-      ...current,
-      { author: "user", text: action.label },
-      { author: "assistant", text: action.reply }
-    ]);
+    setMessages((current) =>
+      limitConversation([
+        ...current,
+        { author: "user", text: action.label },
+        { author: "assistant", text: action.reply }
+      ])
+    );
     setIsOpen(false);
 
     router.push(destination);
@@ -906,14 +1018,26 @@ export function VirtualAssistant({
               </div>
             </div>
 
-            <button
-              aria-label="Fechar Carbon"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
-              onClick={() => setIsOpen(false)}
-              type="button"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                aria-label="Limpar conversa do Carbon"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                onClick={clearConversation}
+                title="Limpar conversa"
+                type="button"
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+
+              <button
+                aria-label="Fechar Carbon"
+                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                onClick={() => setIsOpen(false)}
+                type="button"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           </header>
 
           <div className="max-h-[22rem] space-y-3 overflow-y-auto p-4">
