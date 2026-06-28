@@ -113,9 +113,7 @@ function AssistantAvatar({
 }) {
   return (
     <span
-      className={["relative block overflow-hidden rounded-md", className].join(
-        " "
-      )}
+      className={["relative block", className].join(" ")}
     >
       <Image
         alt=""
@@ -240,9 +238,10 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
         <section className="mb-3 w-[min(calc(100vw-2rem),24rem)] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)]">
           <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] p-4">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)]">
-                <AssistantAvatar className="h-8 w-8" src={avatarSrc} />
-              </div>
+              <AssistantAvatar
+                className="h-12 w-12 shrink-0"
+                src={avatarSrc}
+              />
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-[var(--foreground)]">
                   Assistente Carbon
@@ -323,14 +322,14 @@ export function VirtualAssistant({ activeItem }: VirtualAssistantProps) {
 
       <button
         aria-label="Abrir assistente virtual"
-        className="ml-auto flex h-14 w-14 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] transition hover:bg-[var(--secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+        className="ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
           setIsOpen((current) => !current);
         }}
         type="button"
       >
-        <AssistantAvatar className="h-11 w-11" src={avatarSrc} />
+        <AssistantAvatar className="h-[4.5rem] w-[4.5rem]" src={avatarSrc} />
       </button>
     </div>
   );
