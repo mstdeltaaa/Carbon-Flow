@@ -1,6 +1,7 @@
 ﻿import Image from "next/image";
 import { Suspense } from "react";
 
+import { ThemeSelector } from "@/features/theme/theme-selector";
 import { hasSupabaseEnv } from "@/lib/env";
 
 import { LoginForm } from "./login-form";
@@ -46,6 +47,10 @@ export default function LoginPage() {
             Entre para acessar o painel da sua empresa ou crie a primeira conta
             administradora do ambiente.
           </p>
+
+          <div className="max-w-md">
+            <ThemeSelector />
+          </div>
 
           {!hasSupabaseEnv ? (
             <div className="mt-6 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-4 text-sm text-[var(--muted-foreground)]">
