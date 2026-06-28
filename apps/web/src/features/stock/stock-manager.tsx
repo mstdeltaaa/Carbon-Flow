@@ -17,6 +17,12 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
+import {
+  assistantActionEvent,
+  clearStoredAssistantAction,
+  getStoredAssistantAction,
+  type AssistantActionId
+} from "@/features/assistant/assistant-actions";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -211,6 +217,48 @@ export function StockManager({ companyId }: StockManagerProps) {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    function runAssistantAction(actionId: AssistantActionId) {
+      const targetId =
+        actionId === "open-stock-movement"
+          ? "stock-movement-form"
+          : "stock-list";
+
+      clearStoredAssistantAction(actionId);
+      window.requestAnimationFrame(() => {
+        document.getElementById(targetId)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      });
+    }
+
+    const storedAction = getStoredAssistantAction();
+
+    if (
+      storedAction === "open-stock-list" ||
+      storedAction === "open-stock-movement"
+    ) {
+      runAssistantAction(storedAction);
+    }
+
+    function handleAssistantAction(event: Event) {
+      if (
+        event instanceof CustomEvent &&
+        (event.detail === "open-stock-list" ||
+          event.detail === "open-stock-movement")
+      ) {
+        runAssistantAction(event.detail);
+      }
+    }
+
+    window.addEventListener(assistantActionEvent, handleAssistantAction);
+
+    return () => {
+      window.removeEventListener(assistantActionEvent, handleAssistantAction);
+    };
+  }, []);
+
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
 
@@ -364,7 +412,10 @@ export function StockManager({ companyId }: StockManagerProps) {
       </section>
 
       <div className="grid gap-4 2xl:grid-cols-[0.82fr_1.18fr]">
-        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+        <section
+          className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          id="stock-movement-form"
+        >
           <div>
             <h2 className="text-base font-semibold text-white">
               Lançar movimentação
@@ -485,7 +536,10 @@ export function StockManager({ companyId }: StockManagerProps) {
           </form>
         </section>
 
-        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+        <section
+          className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          id="stock-list"
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-white">Saldos</h2>

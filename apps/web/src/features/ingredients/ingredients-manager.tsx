@@ -21,6 +21,11 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
+import {
+  assistantActionEvent,
+  clearStoredAssistantAction,
+  getStoredAssistantAction
+} from "@/features/assistant/assistant-actions";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -204,6 +209,32 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
     scrollToForm();
   }
 
+  useEffect(() => {
+    function runAssistantAction() {
+      clearStoredAssistantAction("create-ingredient");
+      createIngredient();
+    }
+
+    if (getStoredAssistantAction() === "create-ingredient") {
+      runAssistantAction();
+    }
+
+    function handleAssistantAction(event: Event) {
+      if (
+        event instanceof CustomEvent &&
+        event.detail === "create-ingredient"
+      ) {
+        runAssistantAction();
+      }
+    }
+
+    window.addEventListener(assistantActionEvent, handleAssistantAction);
+
+    return () => {
+      window.removeEventListener(assistantActionEvent, handleAssistantAction);
+    };
+  }, []);
+
   function editIngredient(ingredient: Ingredient) {
     setEditingId(ingredient.id);
     setForm({
@@ -339,6 +370,7 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
       <div className="grid gap-4 2xl:grid-cols-[0.82fr_1.18fr]">
         <section
           className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          id="ingredient-form"
           ref={formSectionRef}
         >
           <div className="flex items-center justify-between gap-4">

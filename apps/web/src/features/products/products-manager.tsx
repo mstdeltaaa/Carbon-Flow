@@ -25,6 +25,11 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
+import {
+  assistantActionEvent,
+  clearStoredAssistantAction,
+  getStoredAssistantAction
+} from "@/features/assistant/assistant-actions";
 import { canManageProducts } from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -408,6 +413,29 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
     scrollToForm();
   }
 
+  useEffect(() => {
+    function runAssistantAction() {
+      clearStoredAssistantAction("create-product");
+      createProduct();
+    }
+
+    if (getStoredAssistantAction() === "create-product") {
+      runAssistantAction();
+    }
+
+    function handleAssistantAction(event: Event) {
+      if (event instanceof CustomEvent && event.detail === "create-product") {
+        runAssistantAction();
+      }
+    }
+
+    window.addEventListener(assistantActionEvent, handleAssistantAction);
+
+    return () => {
+      window.removeEventListener(assistantActionEvent, handleAssistantAction);
+    };
+  }, []);
+
   function editProduct(product: Product) {
     setEditingId(product.id);
     setForm({
@@ -629,6 +657,7 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
         {canManage ? (
         <section
           className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          id="product-form"
           ref={formSectionRef}
         >
           <div className="flex items-center justify-between gap-4">

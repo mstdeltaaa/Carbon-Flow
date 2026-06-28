@@ -20,6 +20,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent
 } from "react";
@@ -27,6 +28,11 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
+import {
+  assistantActionEvent,
+  clearStoredAssistantAction,
+  getStoredAssistantAction
+} from "@/features/assistant/assistant-actions";
 import { canConvertBudgets } from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -226,6 +232,7 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
+  const formSectionRef = useRef<HTMLElement | null>(null);
   const canConvert = canConvertBudgets(role);
 
   const request = useCallback(
@@ -415,6 +422,43 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
     setMessage(null);
   }
 
+  function scrollToForm() {
+    window.requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }
+
+  function createBudget() {
+    resetForm();
+    scrollToForm();
+  }
+
+  useEffect(() => {
+    function runAssistantAction() {
+      clearStoredAssistantAction("create-budget");
+      createBudget();
+    }
+
+    if (getStoredAssistantAction() === "create-budget") {
+      runAssistantAction();
+    }
+
+    function handleAssistantAction(event: Event) {
+      if (event instanceof CustomEvent && event.detail === "create-budget") {
+        runAssistantAction();
+      }
+    }
+
+    window.addEventListener(assistantActionEvent, handleAssistantAction);
+
+    return () => {
+      window.removeEventListener(assistantActionEvent, handleAssistantAction);
+    };
+  }, []);
+
   function editBudget(budget: Budget) {
     if (budget.status === "converted") {
       setMessage(
@@ -439,6 +483,7 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
       validUntil: budget.validUntil ?? ""
     });
     setMessage(null);
+    scrollToForm();
   }
 
   function buildPayload() {
@@ -671,7 +716,11 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
       </section>
 
       <div className="grid gap-4 2xl:grid-cols-[0.92fr_1.08fr]">
-        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+        <section
+          className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+          id="budget-form"
+          ref={formSectionRef}
+        >
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-white">

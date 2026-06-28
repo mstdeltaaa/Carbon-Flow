@@ -7,15 +7,24 @@ import {
   FileText,
   HelpCircle,
   PackageCheck,
+  Plus,
   Send,
+  ShoppingCart,
   Trophy,
+  Warehouse,
   X
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  emitAssistantAction,
+  storeAssistantAction,
+  type AssistantActionId
+} from "@/features/assistant/assistant-actions";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -28,6 +37,14 @@ type QuickPrompt = {
   icon: typeof Boxes;
   label: string;
   prompt: string;
+};
+
+type QuickAction = {
+  actionId: AssistantActionId;
+  href: string;
+  icon: typeof Boxes;
+  label: string;
+  reply: string;
 };
 
 type VirtualAssistantProps = {
@@ -119,24 +136,47 @@ const quickPrompts: QuickPrompt[] = [
     prompt: "Quais produtos mais venderam?"
   },
   {
-    icon: Boxes,
-    label: "Criar insumo",
-    prompt: "Como cadastro um insumo?"
-  },
-  {
-    icon: PackageCheck,
-    label: "Criar produto",
-    prompt: "Como monto um produto com insumos?"
-  },
-  {
-    icon: FileText,
-    label: "Orçamento",
-    prompt: "Como transformo orçamento em venda?"
-  },
-  {
     icon: HelpCircle,
     label: "Primeiros passos",
     prompt: "Por onde eu começo?"
+  }
+];
+
+const quickActions: QuickAction[] = [
+  {
+    actionId: "create-ingredient",
+    href: "/ingredients#ingredient-form",
+    icon: Plus,
+    label: "Cadastrar insumo",
+    reply: "Vou te levar para o cadastro de insumos."
+  },
+  {
+    actionId: "create-product",
+    href: "/products#product-form",
+    icon: PackageCheck,
+    label: "Criar produto",
+    reply: "Vou abrir a criação de produto."
+  },
+  {
+    actionId: "create-budget",
+    href: "/budgets#budget-form",
+    icon: FileText,
+    label: "Novo orçamento",
+    reply: "Vou te levar para o formulário de orçamento."
+  },
+  {
+    actionId: "open-stock-list",
+    href: "/stock#stock-list",
+    icon: Warehouse,
+    label: "Ver estoque",
+    reply: "Vou abrir a visão de estoque."
+  },
+  {
+    actionId: "open-stock-movement",
+    href: "/stock#stock-movement-form",
+    icon: ShoppingCart,
+    label: "Lançar estoque",
+    reply: "Vou abrir o lançamento de movimentação."
   }
 ];
 
@@ -451,6 +491,7 @@ export function VirtualAssistant({
   activeItem,
   companyId
 }: VirtualAssistantProps) {
+  const router = useRouter();
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -570,6 +611,26 @@ export function VirtualAssistant({
     sendPrompt(input);
   }
 
+  function runQuickAction(action: QuickAction) {
+    const targetUrl = new URL(action.href, window.location.origin);
+    const destination = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
+    const isSamePage = targetUrl.pathname === window.location.pathname;
+
+    storeAssistantAction(action.actionId);
+    setMessages((current) => [
+      ...current,
+      { author: "user", text: action.label },
+      { author: "assistant", text: action.reply }
+    ]);
+    setIsOpen(false);
+
+    router.push(destination);
+
+    if (isSamePage) {
+      window.requestAnimationFrame(() => emitAssistantAction(action.actionId));
+    }
+  }
+
   return (
     <div className="fixed bottom-5 right-4 z-40 sm:bottom-6 sm:right-6">
       {isOpen ? (
@@ -618,6 +679,20 @@ export function VirtualAssistant({
           </div>
 
           <div className="border-t border-[var(--border)] p-4">
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {quickActions.map((item) => (
+                <button
+                  className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-2 text-left text-xs text-[var(--foreground)] transition hover:bg-[var(--secondary)]"
+                  key={item.label}
+                  onClick={() => runQuickAction(item)}
+                  type="button"
+                >
+                  <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              ))}
+            </div>
+
             <div className="mb-3 grid grid-cols-2 gap-2">
               {quickPrompts.map((item) => (
                 <button
