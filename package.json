@@ -1,0 +1,24 @@
+{
+  "name": "carbon-flow",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --parallel --filter @carbon-flow/web --filter @carbon-flow/api dev",
+    "dev:web": "pnpm --filter @carbon-flow/web dev",
+    "dev:api": "pnpm --filter @carbon-flow/api dev",
+    "build": "pnpm --recursive --if-present build",
+    "lint": "pnpm --recursive --if-present lint",
+    "typecheck": "pnpm --recursive --if-present typecheck",
+    "format": "pnpm --recursive --if-present format",
+    "test": "pnpm --recursive --if-present test"
+  },
+  "devDependencies": {
+    "prettier": "3.9.0",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,213 @@
+import { BadRequestException, Injectable } from "@nestjs/common";
+
+import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import {
+  createEmptyPlanUsage,
+  defaultPlanLimits,
+  planLimitLabels,
+  type PlanLimitKey,
+  type PlanLimits,
+  type PlanUsage,
+  type SubscriptionPlan,
+  type SubscriptionStatus
+} from "./subscription-limits";
+
+type SubscriptionRow = {
+  current_period_end: string | null;
+  limits: Record<string, unknown> | null;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+};
+
+const planLimitKeys: PlanLimitKey[] = [
+  "users",
+  "ingredients",
+  "products",
+  "customers",
+  "budgets_per_month",
+  "sales_per_month"
+];
+
+function getCurrentMonthStartIso() {
+  const now = new Date();
+
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  ).toISOString();
+}
+
+function toCount(value: number | null) {
+  return value ?? 0;
+}
+
+function normalizeStoredLimit(value: unknown) {
+  if (value === null) {
+    return null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === "unlimited" || normalized === "ilimitado") {
+      return null;
+    }
+
+    const parsed = Number(normalized);
+
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, Math.floor(parsed));
+    }
+  }
+
+  return undefined;
+}
+
+function mergeLimits(plan: SubscriptionPlan, storedLimits: Record<string, unknown> | null) {
+  const limits: PlanLimits = {
+    ...defaultPlanLimits[plan]
+  };
+
+  for (const key of planLimitKeys) {
+    const storedValue = normalizeStoredLimit(storedLimits?.[key]);
+
+    if (storedValue !== undefined) {
+      limits[key] = storedValue;
+    }
+  }
+
+  return limits;
+}
+
+function mapSubscription(row: SubscriptionRow | null) {
+  const plan = row?.plan ?? "free";
+
+  return {
+    currentPeriodEnd: row?.current_period_end ?? null,
+    limits: mergeLimits(plan, row?.limits ?? null),
+    plan,
+    status: row?.status ?? "inactive"
+  };
+}
+
+function throwDatabaseError(error: { message?: string }): never {
+  throw new BadRequestException(
+    error.message ?? "Nao foi possivel processar a assinatura."
+  );
+}
+
+@Injectable()
+export class SubscriptionsService {
+  constructor(private readonly supabaseFactory: SupabaseClientFactory) {}
+
+  async getOverview(companyId: string) {
+    const [subscription, usage] = await Promise.all([
+      this.getSubscription(companyId),
+      this.getUsage(companyId)
+    ]);
+
+    return {
+      ...subscription,
+      usage
+    };
+  }
+
+  async assertCanCreate(companyId: string, resource: PlanLimitKey) {
+    const overview = await this.getOverview(companyId);
+    const limit = overview.limits[resource];
+    const currentUsage = overview.usage[resource];
+
+    if (limit === null || currentUsage < limit) {
+      return overview;
+    }
+
+    throw new BadRequestException(
+      `Seu plano atual permite ate ${limit} ${planLimitLabels[resource]}.`
+    );
+  }
+
+  private async getSubscription(companyId: string) {
+    const supabase = this.supabaseFactory.createAdmin();
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select("plan, status, limits, current_period_end")
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return mapSubscription((data as SubscriptionRow | null) ?? null);
+  }
+
+  private async getUsage(companyId: string) {
+    const supabase = this.supabaseFactory.createAdmin();
+    const monthStart = getCurrentMonthStartIso();
+    const usage = createEmptyPlanUsage();
+
+    const [
+      users,
+      ingredients,
+      products,
+      customers,
+      budgets,
+      sales
+    ] = await Promise.all([
+      supabase
+        .from("company_users")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .neq("status", "disabled"),
+      supabase
+        .from("ingredients")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("is_active", true),
+      supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("is_active", true),
+      supabase
+        .from("customers")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId),
+      supabase
+        .from("budgets")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .gte("created_at", monthStart),
+      supabase
+        .from("sales")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .gte("created_at", monthStart)
+    ]);
+
+    for (const result of [
+      users,
+      ingredients,
+      products,
+      customers,
+      budgets,
+      sales
+    ]) {
+      if (result.error) {
+        throwDatabaseError(result.error);
+      }
+    }
+
+    usage.users = toCount(users.count);
+    usage.ingredients = toCount(ingredients.count);
+    usage.products = toCount(products.count);
+    usage.customers = toCount(customers.count);
+    usage.budgets_per_month = toCount(budgets.count);
+    usage.sales_per_month = toCount(sales.count);
+
+    return usage;
+  }
+}
