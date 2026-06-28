@@ -38,6 +38,8 @@ const navItems = [
   { label: "Configurações", href: "/settings", icon: Settings, id: "settings" }
 ];
 
+const contentAnchor = "app-content";
+
 type AppShellProps = {
   activeItem: string;
   activeCompanyId: string;
@@ -127,7 +129,7 @@ export function AppShell({
                       ? "bg-[rgb(159_243_196/0.14)] text-[var(--primary)]"
                       : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-white"
                   ].join(" ")}
-                  href={item.href}
+                  href={`${item.href}#${contentAnchor}`}
                   key={item.id}
                 >
                   <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -145,7 +147,10 @@ export function AppShell({
           </form>
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col gap-5">
+        <section
+          className="flex min-w-0 scroll-mt-4 flex-1 flex-col gap-5"
+          id={contentAnchor}
+        >
           {children}
         </section>
       </div>
