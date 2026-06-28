@@ -110,9 +110,32 @@ type DashboardSummary = {
   }>;
 };
 
+type BudgetStatus =
+  | "draft"
+  | "sent"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "converted"
+  | "cancelled";
+
+type AssistantBudget = {
+  id: string;
+  customer: {
+    name: string;
+  } | null;
+  numberLabel: string;
+  status: BudgetStatus;
+  totalAmount: number;
+  validUntil: string | null;
+};
+
 type ReplyContext = {
+  budgets: AssistantBudget[];
+  budgetsError: string | null;
   dashboard: DashboardSummary | null;
   dashboardError: string | null;
+  isBudgetsLoading: boolean;
   isDashboardLoading: boolean;
   role: string | null;
 };
@@ -196,6 +219,12 @@ const quickPromptById = {
     prompt: "Como defino estoque mínimo?",
     sections: ["ingredients"]
   },
+  pendingBudgets: {
+    icon: FileText,
+    label: "Pendentes",
+    prompt: "Quais orçamentos estão pendentes?",
+    sections: ["budgets"]
+  },
   permissions: {
     icon: Settings,
     label: "Permissões",
@@ -241,17 +270,18 @@ const quickPromptsByPage: Record<string, QuickPrompt[]> = {
     quickPromptById.firstSteps
   ],
   budgets: [
+    quickPromptById.pendingBudgets,
     quickPromptById.budgetToSale,
-    quickPromptById.pricing,
-    quickPromptById.customerHistory
+    quickPromptById.pricing
   ],
   customers: [
+    quickPromptById.pendingBudgets,
     quickPromptById.customerHistory,
-    quickPromptById.budgetToSale,
-    quickPromptById.firstSteps
+    quickPromptById.budgetToSale
   ],
   dashboard: [
     quickPromptById.dashboardSummary,
+    quickPromptById.pendingBudgets,
     quickPromptById.lowStock,
     quickPromptById.bestSellers
   ],
@@ -510,6 +540,18 @@ const decimalFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 4
 });
 
+const dateFormatter = new Intl.DateTimeFormat("pt-BR");
+
+const budgetStatusLabels: Record<BudgetStatus, string> = {
+  approved: "Aprovado",
+  cancelled: "Cancelado",
+  converted: "Convertido",
+  draft: "Rascunho",
+  expired: "Expirado",
+  rejected: "Recusado",
+  sent: "Enviado"
+};
+
 const assistantConversationLimit = 20;
 const assistantConversationVersion = 1;
 
@@ -639,6 +681,7 @@ function getVisibleQuickPrompts(activeItem: string, role: string | null) {
   return uniqueByLabel([
     ...(quickPromptsByPage[activeItem] ?? defaultQuickPrompts),
     ...defaultQuickPrompts,
+    quickPromptById.pendingBudgets,
     quickPromptById.pricing,
     quickPromptById.customerHistory,
     quickPromptById.firstSteps
@@ -734,6 +777,34 @@ function getApiMessage(payload: unknown, fallback: string) {
 
 function formatQuantity(value: number, unit?: string) {
   return [decimalFormatter.format(value), unit].filter(Boolean).join(" ");
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "sem validade";
+  }
+
+  return dateFormatter.format(
+    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`)
+  );
+}
+
+function getOpenBudgets(budgets: AssistantBudget[]) {
+  return budgets
+    .filter((budget) => ["draft", "sent", "approved"].includes(budget.status))
+    .sort((a, b) => {
+      const statusPriority: Record<BudgetStatus, number> = {
+        approved: 0,
+        sent: 1,
+        draft: 2,
+        expired: 3,
+        rejected: 4,
+        cancelled: 5,
+        converted: 6
+      };
+
+      return statusPriority[a.status] - statusPriority[b.status];
+    });
 }
 
 function getRealDataUnavailableReply({
@@ -838,8 +909,17 @@ function formatLowStockReply(context: ReplyContext) {
         )}, mínimo ${formatQuantity(item.minimum, item.unit)}`
     )
     .join("\n");
+  const hiddenCount =
+    dashboard.metrics.lowStockCount > dashboard.lowStock.length
+      ? `\n+ ${dashboard.metrics.lowStockCount - dashboard.lowStock.length} outro(s) item(ns) abaixo do mínimo`
+      : "";
+  const actionHint = canAccessSection(context.role, "stock")
+    ? "Ação recomendada: abrir Estoque e lançar entrada ou ajuste nos itens críticos."
+    : "Ação recomendada: peça para um administrador ou funcionário revisar a reposição.";
 
-  return `Há ${dashboard.metrics.lowStockCount} insumo(s) em estoque baixo.\n${items}`;
+  return `Há ${dashboard.metrics.lowStockCount} insumo(s) em estoque baixo.
+${items}${hiddenCount}
+${actionHint}`;
 }
 
 function formatBestSellersReply(context: ReplyContext) {
@@ -865,6 +945,59 @@ function formatBestSellersReply(context: ReplyContext) {
     .join("\n");
 
   return `Produtos mais vendidos no mês atual:\n${ranking}`;
+}
+
+function formatPendingBudgetsReply(context: ReplyContext) {
+  if (!canAccessSection(context.role, "budgets")) {
+    return getRestrictedReply("orçamentos");
+  }
+
+  if (context.isBudgetsLoading) {
+    return "Estou carregando os orçamentos da empresa. Tente perguntar de novo em alguns segundos.";
+  }
+
+  if (context.budgetsError) {
+    return `Ainda não consegui carregar os orçamentos. Motivo: ${context.budgetsError}`;
+  }
+
+  const openBudgets = getOpenBudgets(context.budgets);
+
+  if (openBudgets.length === 0) {
+    return "Não há orçamentos pendentes agora. A fila comercial está limpa.";
+  }
+
+  const totalAmount = openBudgets.reduce(
+    (total, budget) => total + budget.totalAmount,
+    0
+  );
+  const approvedCount = openBudgets.filter(
+    (budget) => budget.status === "approved"
+  ).length;
+  const items = openBudgets
+    .slice(0, 5)
+    .map((budget) => {
+      const customer = budget.customer?.name ?? "sem cliente";
+
+      return `${budget.numberLabel} - ${customer} - ${
+        budgetStatusLabels[budget.status]
+      } - ${currencyFormatter.format(budget.totalAmount)} - validade ${formatDate(
+        budget.validUntil
+      )}`;
+    })
+    .join("\n");
+  const hiddenCount =
+    openBudgets.length > 5 ? `\n+ ${openBudgets.length - 5} outro(s)` : "";
+  const nextStep =
+    approvedCount > 0 && canConvertBudgets(context.role)
+      ? `${approvedCount} orçamento(s) aprovado(s) já podem virar venda.`
+      : approvedCount > 0
+        ? `${approvedCount} orçamento(s) aprovado(s) dependem de administrador ou funcionário para virar venda.`
+        : "Próximo passo: revisar rascunhos e acompanhar os enviados.";
+
+  return `Orçamentos pendentes: ${openBudgets.length}
+Valor em aberto: ${currencyFormatter.format(totalAmount)}
+${items}${hiddenCount}
+${nextStep}`;
 }
 
 function getAssistantReply(prompt: string, context: ReplyContext) {
@@ -908,6 +1041,16 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     normalized.includes("produto vendido")
   ) {
     return formatBestSellersReply(context);
+  }
+
+  if (
+    normalized.includes("orcamento pendente") ||
+    normalized.includes("orcamentos pendentes") ||
+    normalized.includes("orcamento em aberto") ||
+    normalized.includes("orcamentos em aberto") ||
+    (normalized.includes("orcamento") && normalized.includes("aprovado"))
+  ) {
+    return formatPendingBudgetsReply(context);
   }
 
   if (
@@ -1059,10 +1202,13 @@ export function VirtualAssistant({
 }: VirtualAssistantProps) {
   const router = useRouter();
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const [budgets, setBudgets] = useState<AssistantBudget[]>([]);
+  const [budgetsError, setBudgetsError] = useState<string | null>(null);
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [isBudgetsLoading, setIsBudgetsLoading] = useState(true);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [loadedConversationKey, setLoadedConversationKey] = useState<
     string | null
@@ -1082,6 +1228,7 @@ export function VirtualAssistant({
     () => getConversationStorageKey(companyId, userEmail),
     [companyId, userEmail]
   );
+  const canReadBudgets = canAccessSection(role, "budgets");
   const canReadDashboard = canAccessSection(role, "dashboard");
   const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
   const assistantStatus = getAssistantStatus({
@@ -1138,6 +1285,71 @@ export function VirtualAssistant({
 
     writeStoredConversation(conversationStorageKey, messages);
   }, [conversationStorageKey, loadedConversationKey, messages]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadBudgets() {
+      if (!canReadBudgets) {
+        setBudgets([]);
+        setBudgetsError(null);
+        setIsBudgetsLoading(false);
+        return;
+      }
+
+      setIsBudgetsLoading(true);
+      setBudgetsError(null);
+
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          throw new Error("Sessão expirada. Entre novamente.");
+        }
+
+        const response = await fetch(`${env.apiUrl}/budgets`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            "x-company-id": companyId
+          }
+        });
+        const payload = (await response.json().catch(() => null)) as unknown;
+
+        if (!response.ok) {
+          throw new Error(
+            getApiMessage(payload, "Não foi possível carregar os orçamentos.")
+          );
+        }
+
+        if (isActive) {
+          setBudgets(payload as AssistantBudget[]);
+        }
+      } catch (error) {
+        if (isActive) {
+          setBudgets([]);
+          setBudgetsError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar os orçamentos."
+          );
+        }
+      } finally {
+        if (isActive) {
+          setIsBudgetsLoading(false);
+        }
+      }
+    }
+
+    void loadBudgets();
+
+    return () => {
+      isActive = false;
+    };
+  }, [canReadBudgets, companyId]);
 
   useEffect(() => {
     let isActive = true;
@@ -1218,8 +1430,11 @@ export function VirtualAssistant({
         {
           author: "assistant",
           text: getAssistantReply(cleanPrompt, {
+            budgets,
+            budgetsError,
             dashboard,
             dashboardError,
+            isBudgetsLoading,
             isDashboardLoading,
             role
           })
