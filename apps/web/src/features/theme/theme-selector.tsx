@@ -4,6 +4,8 @@ import { Palette } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  defaultDarkTheme,
+  defaultLightTheme,
   defaultTheme,
   getThemeOption,
   isThemeId,
@@ -29,6 +31,18 @@ function applyTheme(themeId: string) {
   meta.content = getThemeOption(themeId).themeColor;
 }
 
+function getPreferredTheme() {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-color-scheme: light)").matches
+  ) {
+    return defaultLightTheme;
+  }
+
+  return defaultDarkTheme;
+}
+
 export function ThemeSelector({
   className,
   variant = "panel"
@@ -44,7 +58,7 @@ export function ThemeSelector({
       ? storedTheme
       : isThemeId(documentTheme)
         ? documentTheme
-        : defaultTheme;
+        : getPreferredTheme();
 
     setTheme(initialTheme);
     applyTheme(initialTheme);

@@ -4,6 +4,8 @@ import "./globals.css";
 import { CookieConsent } from "@/features/privacy/cookie-consent";
 
 import {
+  defaultDarkTheme,
+  defaultLightTheme,
   defaultTheme,
   themeColorById,
   themeStorageKey
@@ -32,8 +34,14 @@ export const metadata: Metadata = {
 const themeScript = `
 (() => {
   const defaultTheme = ${JSON.stringify(defaultTheme)};
+  const defaultDarkTheme = ${JSON.stringify(defaultDarkTheme)};
+  const defaultLightTheme = ${JSON.stringify(defaultLightTheme)};
   const storageKey = ${JSON.stringify(themeStorageKey)};
   const themeColors = ${JSON.stringify(themeColorById)};
+  const getSystemTheme = () =>
+    window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
+      ? defaultLightTheme
+      : defaultDarkTheme;
   const setThemeColor = (theme) => {
     let meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) {
@@ -49,7 +57,7 @@ const themeScript = `
     const storedTheme = window.localStorage.getItem(storageKey);
     const theme = Object.prototype.hasOwnProperty.call(themeColors, storedTheme)
       ? storedTheme
-      : defaultTheme;
+      : getSystemTheme();
 
     document.documentElement.dataset.theme = theme;
     setThemeColor(theme);

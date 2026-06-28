@@ -7,7 +7,9 @@ export type ThemeOption = {
 };
 
 export const themeStorageKey = "carbon-flow-theme";
-export const defaultTheme = "green-dark";
+export const defaultDarkTheme = "carbon-dark";
+export const defaultLightTheme = "carbon-light";
+export const defaultTheme = defaultDarkTheme;
 
 export const themes: ThemeOption[] = [
   {
