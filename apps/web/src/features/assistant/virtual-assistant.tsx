@@ -4,13 +4,18 @@ import {
   AlertTriangle,
   BarChart3,
   Boxes,
+  CreditCard,
   FileText,
   HelpCircle,
+  History,
   PackageCheck,
   Plus,
   Send,
   ShoppingCart,
+  Settings,
   Trophy,
+  UserRound,
+  UsersRound,
   Warehouse,
   X
 } from "lucide-react";
@@ -40,7 +45,7 @@ type QuickPrompt = {
 };
 
 type QuickAction = {
-  actionId: AssistantActionId;
+  actionId?: AssistantActionId;
   href: string;
   icon: typeof Boxes;
   label: string;
@@ -119,66 +124,277 @@ const pageTips: Record<string, string> = {
     "Em Estoque você acompanha entradas, saídas, ajustes e movimentações geradas pelas vendas."
 };
 
-const quickPrompts: QuickPrompt[] = [
-  {
-    icon: BarChart3,
-    label: "Resumo do mês",
-    prompt: "Resumo do mês"
-  },
-  {
-    icon: AlertTriangle,
-    label: "Estoque baixo",
-    prompt: "Tem estoque baixo?"
-  },
-  {
+const quickPromptById = {
+  bestSellers: {
     icon: Trophy,
     label: "Mais vendidos",
     prompt: "Quais produtos mais venderam?"
   },
-  {
+  budgetToSale: {
+    icon: FileText,
+    label: "Converter venda",
+    prompt: "Como transformo orçamento em venda?"
+  },
+  customerHistory: {
+    icon: UsersRound,
+    label: "Histórico cliente",
+    prompt: "Como acompanho o histórico de um cliente?"
+  },
+  dashboardSummary: {
+    icon: BarChart3,
+    label: "Resumo do mês",
+    prompt: "Resumo do mês"
+  },
+  firstSteps: {
     icon: HelpCircle,
     label: "Primeiros passos",
     prompt: "Por onde eu começo?"
+  },
+  ingredientCost: {
+    icon: Boxes,
+    label: "Custo insumo",
+    prompt: "Como cadastro custo de insumo?"
+  },
+  lowStock: {
+    icon: AlertTriangle,
+    label: "Estoque baixo",
+    prompt: "Tem estoque baixo?"
+  },
+  minimumStock: {
+    icon: AlertTriangle,
+    label: "Estoque mínimo",
+    prompt: "Como defino estoque mínimo?"
+  },
+  permissions: {
+    icon: Settings,
+    label: "Permissões",
+    prompt: "Como funcionam permissões de usuários?"
+  },
+  pricing: {
+    icon: PackageCheck,
+    label: "Preço sugerido",
+    prompt: "Como calculo preço e margem?"
+  },
+  salesFlow: {
+    icon: ShoppingCart,
+    label: "Baixa estoque",
+    prompt: "Como a venda baixa o estoque?"
+  },
+  subscription: {
+    icon: CreditCard,
+    label: "Planos",
+    prompt: "Como funcionam os planos?"
   }
+} satisfies Record<string, QuickPrompt>;
+
+const defaultQuickPrompts: QuickPrompt[] = [
+  quickPromptById.dashboardSummary,
+  quickPromptById.lowStock,
+  quickPromptById.bestSellers,
+  quickPromptById.firstSteps
 ];
 
-const quickActions: QuickAction[] = [
-  {
-    actionId: "create-ingredient",
-    href: "/ingredients#ingredient-form",
-    icon: Plus,
-    label: "Cadastrar insumo",
-    reply: "Vou te levar para o cadastro de insumos."
+const quickPromptsByPage: Record<string, QuickPrompt[]> = {
+  account: [
+    quickPromptById.permissions,
+    quickPromptById.subscription,
+    quickPromptById.firstSteps
+  ],
+  billing: [
+    quickPromptById.subscription,
+    quickPromptById.permissions,
+    quickPromptById.firstSteps
+  ],
+  budgets: [
+    quickPromptById.budgetToSale,
+    quickPromptById.pricing,
+    quickPromptById.customerHistory
+  ],
+  customers: [
+    quickPromptById.customerHistory,
+    quickPromptById.budgetToSale,
+    quickPromptById.firstSteps
+  ],
+  dashboard: [
+    quickPromptById.dashboardSummary,
+    quickPromptById.lowStock,
+    quickPromptById.bestSellers
+  ],
+  history: [
+    quickPromptById.salesFlow,
+    quickPromptById.permissions,
+    quickPromptById.firstSteps
+  ],
+  ingredients: [
+    quickPromptById.ingredientCost,
+    quickPromptById.minimumStock,
+    quickPromptById.lowStock
+  ],
+  products: [
+    quickPromptById.pricing,
+    quickPromptById.ingredientCost,
+    quickPromptById.budgetToSale
+  ],
+  sales: [
+    quickPromptById.salesFlow,
+    quickPromptById.dashboardSummary,
+    quickPromptById.lowStock
+  ],
+  settings: [
+    quickPromptById.permissions,
+    quickPromptById.subscription,
+    quickPromptById.firstSteps
+  ],
+  stock: [
+    quickPromptById.lowStock,
+    quickPromptById.minimumStock,
+    quickPromptById.salesFlow
+  ]
+};
+
+const quickActionById = {
+  account: {
+    href: "/account#app-content",
+    icon: UserRound,
+    label: "Minha conta",
+    reply: "Vou abrir sua conta."
   },
-  {
-    actionId: "create-product",
-    href: "/products#product-form",
-    icon: PackageCheck,
-    label: "Criar produto",
-    reply: "Vou abrir a criação de produto."
+  billing: {
+    href: "/billing#app-content",
+    icon: CreditCard,
+    label: "Ver planos",
+    reply: "Vou abrir a área de planos."
   },
-  {
+  createBudget: {
     actionId: "create-budget",
     href: "/budgets#budget-form",
     icon: FileText,
     label: "Novo orçamento",
     reply: "Vou te levar para o formulário de orçamento."
   },
-  {
+  createIngredient: {
+    actionId: "create-ingredient",
+    href: "/ingredients#ingredient-form",
+    icon: Plus,
+    label: "Cadastrar insumo",
+    reply: "Vou te levar para o cadastro de insumos."
+  },
+  createProduct: {
+    actionId: "create-product",
+    href: "/products#product-form",
+    icon: PackageCheck,
+    label: "Criar produto",
+    reply: "Vou abrir a criação de produto."
+  },
+  customers: {
+    href: "/customers#app-content",
+    icon: UsersRound,
+    label: "Ver clientes",
+    reply: "Vou abrir a área de clientes."
+  },
+  dashboard: {
+    href: "/dashboard#app-content",
+    icon: BarChart3,
+    label: "Dashboard",
+    reply: "Vou abrir o dashboard."
+  },
+  history: {
+    href: "/history#app-content",
+    icon: History,
+    label: "Histórico",
+    reply: "Vou abrir o histórico."
+  },
+  openStockList: {
     actionId: "open-stock-list",
     href: "/stock#stock-list",
     icon: Warehouse,
     label: "Ver estoque",
     reply: "Vou abrir a visão de estoque."
   },
-  {
+  openStockMovement: {
     actionId: "open-stock-movement",
     href: "/stock#stock-movement-form",
     icon: ShoppingCart,
     label: "Lançar estoque",
     reply: "Vou abrir o lançamento de movimentação."
+  },
+  sales: {
+    href: "/sales#app-content",
+    icon: ShoppingCart,
+    label: "Ver vendas",
+    reply: "Vou abrir a tela de vendas."
+  },
+  settings: {
+    href: "/settings#app-content",
+    icon: Settings,
+    label: "Configurações",
+    reply: "Vou abrir as configurações."
   }
+} satisfies Record<string, QuickAction>;
+
+const defaultQuickActions: QuickAction[] = [
+  quickActionById.createIngredient,
+  quickActionById.createProduct,
+  quickActionById.createBudget
 ];
+
+const quickActionsByPage: Record<string, QuickAction[]> = {
+  account: [
+    quickActionById.settings,
+    quickActionById.billing,
+    quickActionById.dashboard
+  ],
+  billing: [
+    quickActionById.settings,
+    quickActionById.dashboard,
+    quickActionById.account
+  ],
+  budgets: [
+    quickActionById.createBudget,
+    quickActionById.customers,
+    quickActionById.sales
+  ],
+  customers: [
+    quickActionById.createBudget,
+    quickActionById.sales,
+    quickActionById.dashboard
+  ],
+  dashboard: [
+    quickActionById.createBudget,
+    quickActionById.openStockList,
+    quickActionById.sales
+  ],
+  history: [
+    quickActionById.sales,
+    quickActionById.openStockList,
+    quickActionById.settings
+  ],
+  ingredients: [
+    quickActionById.createIngredient,
+    quickActionById.openStockMovement,
+    quickActionById.openStockList
+  ],
+  products: [
+    quickActionById.createProduct,
+    quickActionById.createIngredient,
+    quickActionById.createBudget
+  ],
+  sales: [
+    quickActionById.createBudget,
+    quickActionById.openStockList,
+    quickActionById.dashboard
+  ],
+  settings: [
+    quickActionById.billing,
+    quickActionById.account,
+    quickActionById.dashboard
+  ],
+  stock: [
+    quickActionById.openStockMovement,
+    quickActionById.openStockList,
+    quickActionById.createIngredient
+  ]
+};
 
 const navigationLinks = [
   { href: "/ingredients#app-content", label: "Insumos" },
@@ -440,6 +656,29 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     return formatBestSellersReply(context);
   }
 
+  if (
+    normalized.includes("estoque minimo") ||
+    normalized.includes("ponto de reposicao") ||
+    normalized.includes("quando repor")
+  ) {
+    return "Use o estoque mínimo como ponto de alerta para reposição. Uma boa regra inicial é colocar o mínimo suficiente para cobrir o tempo entre comprar o insumo e ele chegar, considerando sua média de uso.";
+  }
+
+  if (
+    normalized.includes("preco") ||
+    normalized.includes("margem") ||
+    normalized.includes("precificacao")
+  ) {
+    return "Em Produtos, o Carbon Flow soma o custo dos insumos da composição e sugere preço com margem inicial de 30%. Você pode ajustar a margem ou informar um preço manual quando quiser.";
+  }
+
+  if (
+    normalized.includes("historico") &&
+    (normalized.includes("cliente") || normalized.includes("compras"))
+  ) {
+    return "Em Clientes, cada cadastro concentra dados de contato e histórico comercial. Isso ajuda a ver orçamentos, vendas e valores gastos por cliente.";
+  }
+
   if (normalized.includes("comeco") || normalized.includes("primeiro")) {
     return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
   }
@@ -509,6 +748,10 @@ export function VirtualAssistant({
   );
   const [messages, setMessages] = useState<Message[]>([introMessage]);
   const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
+  const visibleQuickActions =
+    quickActionsByPage[activeItem] ?? defaultQuickActions;
+  const visibleQuickPrompts =
+    quickPromptsByPage[activeItem] ?? defaultQuickPrompts;
 
   useEffect(() => {
     function syncTheme() {
@@ -612,11 +855,15 @@ export function VirtualAssistant({
   }
 
   function runQuickAction(action: QuickAction) {
+    const actionId = action.actionId;
     const targetUrl = new URL(action.href, window.location.origin);
     const destination = `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`;
     const isSamePage = targetUrl.pathname === window.location.pathname;
 
-    storeAssistantAction(action.actionId);
+    if (actionId) {
+      storeAssistantAction(actionId);
+    }
+
     setMessages((current) => [
       ...current,
       { author: "user", text: action.label },
@@ -626,8 +873,15 @@ export function VirtualAssistant({
 
     router.push(destination);
 
-    if (isSamePage) {
-      window.requestAnimationFrame(() => emitAssistantAction(action.actionId));
+    if (isSamePage && actionId) {
+      window.requestAnimationFrame(() => emitAssistantAction(actionId));
+    } else if (isSamePage && targetUrl.hash) {
+      window.requestAnimationFrame(() => {
+        document.getElementById(targetUrl.hash.slice(1))?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
+      });
     }
   }
 
@@ -680,7 +934,7 @@ export function VirtualAssistant({
 
           <div className="border-t border-[var(--border)] p-4">
             <div className="mb-3 grid grid-cols-2 gap-2">
-              {quickActions.map((item) => (
+              {visibleQuickActions.map((item) => (
                 <button
                   className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-2 text-left text-xs text-[var(--foreground)] transition hover:bg-[var(--secondary)]"
                   key={item.label}
@@ -694,7 +948,7 @@ export function VirtualAssistant({
             </div>
 
             <div className="mb-3 grid grid-cols-2 gap-2">
-              {quickPrompts.map((item) => (
+              {visibleQuickPrompts.map((item) => (
                 <button
                   className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-2 text-left text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
                   key={item.label}
