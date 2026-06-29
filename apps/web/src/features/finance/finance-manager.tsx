@@ -64,6 +64,15 @@ type FinanceSummary = {
     count: number;
     type: FinancialTransactionType;
   }>;
+  cashFlow: Array<{
+    date: string;
+    paidExpense: number;
+    paidIncome: number;
+    pendingExpense: number;
+    pendingIncome: number;
+    projectedBalance: number;
+    realizedBalance: number;
+  }>;
   period: {
     from: string;
     to: string;
@@ -79,8 +88,13 @@ type FinanceSummary = {
     payable?: number;
     pendingExpense: number;
     pendingIncome: number;
+    paidCount?: number;
+    pendingCount?: number;
     projectedBalance?: number;
     receivable?: number;
+    overdueCount?: number;
+    overduePayable?: number;
+    overdueReceivable?: number;
     salesCount?: number;
     salesRevenue?: number;
     transactionCount: number;
@@ -134,6 +148,30 @@ function getCurrentMonthPeriod() {
   return {
     from: toInputDate(new Date(now.getFullYear(), now.getMonth(), 1)),
     to: toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
+  };
+}
+
+function getLast30DaysPeriod() {
+  const now = new Date();
+  const start = new Date(now);
+
+  start.setDate(now.getDate() - 29);
+
+  return {
+    from: toInputDate(start),
+    to: toInputDate(now),
+  };
+}
+
+function getNext30DaysPeriod() {
+  const now = new Date();
+  const end = new Date(now);
+
+  end.setDate(now.getDate() + 30);
+
+  return {
+    from: toInputDate(now),
+    to: toInputDate(end),
   };
 }
 
@@ -379,9 +417,31 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     return summary?.byCategory ?? [];
   }, [summary]);
 
+  const cashFlowSummary = useMemo(() => {
+    return summary?.cashFlow ?? [];
+  }, [summary]);
+
+  const visibleCashFlow = useMemo(() => {
+    return cashFlowSummary.slice(-12);
+  }, [cashFlowSummary]);
+
   const maxCategoryAmount = useMemo(() => {
     return Math.max(...categorySummary.map((category) => category.amount), 1);
   }, [categorySummary]);
+
+  const maxCashFlowAmount = useMemo(() => {
+    return Math.max(
+      ...cashFlowSummary.flatMap((item) => [
+        Math.abs(item.paidIncome + item.pendingIncome),
+        Math.abs(item.paidExpense + item.pendingExpense),
+        Math.abs(item.projectedBalance),
+        Math.abs(item.realizedBalance),
+      ]),
+      1,
+    );
+  }, [cashFlowSummary]);
+
+  const today = toInputDate(new Date());
 
   const pendingDueTransactions = useMemo(() => {
     return transactions
@@ -389,11 +449,18 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         (transaction) =>
           transaction.status === "pending" && transaction.dueDate,
       )
-      .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
-      .slice(0, 5);
-  }, [transactions]);
+      .sort((a, b) => {
+        const aIsOverdue = Boolean(a.dueDate && a.dueDate < today);
+        const bIsOverdue = Boolean(b.dueDate && b.dueDate < today);
 
-  const today = toInputDate(new Date());
+        if (aIsOverdue !== bIsOverdue) {
+          return aIsOverdue ? -1 : 1;
+        }
+
+        return String(a.dueDate).localeCompare(String(b.dueDate));
+      })
+      .slice(0, 5);
+  }, [today, transactions]);
 
   const totals = summary?.totals ?? {
     balance: 0,
@@ -403,11 +470,16 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     estimatedSalesProfit: 0,
     paidExpense: 0,
     paidIncome: 0,
+    paidCount: 0,
     payable: 0,
     pendingExpense: 0,
     pendingIncome: 0,
+    pendingCount: 0,
     projectedBalance: 0,
     receivable: 0,
+    overdueCount: 0,
+    overduePayable: 0,
+    overdueReceivable: 0,
     salesCount: 0,
     salesRevenue: 0,
     transactionCount: 0,
@@ -426,6 +498,16 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     estimatedOperatingProfit - totals.pendingExpense;
   const salesRevenue = totals.salesRevenue ?? 0;
   const salesCount = totals.salesCount ?? 0;
+  const paidCount = totals.paidCount ?? 0;
+  const pendingCount = totals.pendingCount ?? 0;
+  const overdueCount = totals.overdueCount ?? 0;
+  const overduePayable = totals.overduePayable ?? 0;
+  const overdueReceivable = totals.overdueReceivable ?? 0;
+
+  function applyPeriod(period: { from: string; to: string }) {
+    setFrom(period.from);
+    setTo(period.to);
+  }
 
   function updateField<K extends keyof FinanceFormState>(
     field: K,
@@ -690,7 +772,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
             {currencyFormatter.format(receivable)}
           </p>
           <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-            Receitas pendentes no período
+            {overdueReceivable > 0
+              ? `${currencyFormatter.format(overdueReceivable)} vencido`
+              : "Receitas pendentes no período"}
           </p>
         </article>
 
@@ -708,7 +792,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
             {currencyFormatter.format(payable)}
           </p>
           <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-            Despesas pendentes no período
+            {overduePayable > 0
+              ? `${currencyFormatter.format(overduePayable)} vencido`
+              : "Despesas pendentes no período"}
           </p>
         </article>
 
@@ -758,6 +844,29 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
               Filtre lançamentos e resumo financeiro
             </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                onClick={() => applyPeriod(getCurrentMonthPeriod())}
+                type="button"
+                variant="secondary"
+              >
+                Este mês
+              </Button>
+              <Button
+                onClick={() => applyPeriod(getLast30DaysPeriod())}
+                type="button"
+                variant="secondary"
+              >
+                Últimos 30 dias
+              </Button>
+              <Button
+                onClick={() => applyPeriod(getNext30DaysPeriod())}
+                type="button"
+                variant="secondary"
+              >
+                Próximos 30 dias
+              </Button>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
             <label className="grid gap-2 text-xs text-white">
@@ -791,6 +900,110 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 xl:col-span-2">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-white">
+                Fluxo de caixa do período
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Entradas, saídas e saldo previsto por dia com movimentação
+              </p>
+            </div>
+            <div className="grid gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-3">
+              <span className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-2">
+                {paidCount} pago{paidCount === 1 ? "" : "s"}
+              </span>
+              <span className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-2">
+                {pendingCount} pendente{pendingCount === 1 ? "" : "s"}
+              </span>
+              <span className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-2">
+                {overdueCount} vencido{overdueCount === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {visibleCashFlow.length === 0 ? (
+              <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)]">
+                Ainda não há entradas ou saídas no período selecionado.
+              </p>
+            ) : null}
+
+            {visibleCashFlow.map((item) => {
+              const incomeTotal = item.paidIncome + item.pendingIncome;
+              const expenseTotal = item.paidExpense + item.pendingExpense;
+              const incomeWidth = Math.max(
+                (incomeTotal / maxCashFlowAmount) * 100,
+                incomeTotal > 0 ? 6 : 0,
+              );
+              const expenseWidth = Math.max(
+                (expenseTotal / maxCashFlowAmount) * 100,
+                expenseTotal > 0 ? 6 : 0,
+              );
+
+              return (
+                <div
+                  className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 md:grid-cols-[8rem_1fr_10rem] md:items-center"
+                  key={item.date}
+                >
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      {formatDate(item.date)}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                      Saldo real {currencyFormatter.format(item.realizedBalance)}
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <div>
+                      <div className="mb-1 flex justify-between gap-2 text-xs text-[var(--muted-foreground)]">
+                        <span>Entradas</span>
+                        <span>{currencyFormatter.format(incomeTotal)}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                        <div
+                          className="h-full rounded-full bg-[var(--primary)]"
+                          style={{ width: `${incomeWidth}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-1 flex justify-between gap-2 text-xs text-[var(--muted-foreground)]">
+                        <span>Saídas</span>
+                        <span>{currencyFormatter.format(expenseTotal)}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                        <div
+                          className="h-full rounded-full bg-[var(--destructive-text)]"
+                          style={{ width: `${expenseWidth}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="md:text-right">
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      Saldo previsto
+                    </p>
+                    <p
+                      className={[
+                        "mt-1 text-base font-semibold",
+                        item.projectedBalance >= 0
+                          ? "text-[var(--primary)]"
+                          : "text-[var(--destructive-text)]",
+                      ].join(" ")}
+                    >
+                      {currencyFormatter.format(item.projectedBalance)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1210,7 +1423,20 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                       return (
                         <tr key={transaction.id}>
                           <td className="py-3 pr-4 text-[var(--muted-foreground)]">
-                            {formatDate(transaction.transactionDate)}
+                            <p>{formatDate(transaction.transactionDate)}</p>
+                            {transaction.dueDate ? (
+                              <p
+                                className={[
+                                  "mt-1 text-xs",
+                                  transaction.status === "pending" &&
+                                  transaction.dueDate < today
+                                    ? "text-[var(--destructive-text)]"
+                                    : "text-[var(--muted-foreground)]",
+                                ].join(" ")}
+                              >
+                                Venc. {formatDate(transaction.dueDate)}
+                              </p>
+                            ) : null}
                           </td>
                           <td className="py-3 pr-4">
                             <p className="font-medium text-white">

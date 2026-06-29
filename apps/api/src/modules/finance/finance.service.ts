@@ -123,6 +123,18 @@ function mapTransaction(row: FinancialTransactionRow) {
   };
 }
 
+function createCashFlowItem(date: string) {
+  return {
+    date,
+    paidExpense: 0,
+    paidIncome: 0,
+    pendingExpense: 0,
+    pendingIncome: 0,
+    projectedBalance: 0,
+    realizedBalance: 0,
+  };
+}
+
 @Injectable()
 export class FinanceService {
   constructor(
@@ -194,6 +206,21 @@ export class FinanceService {
         .filter((transaction) => transaction.type === "expense")
         .reduce((total, transaction) => total + transaction.amount, 0),
     );
+    const today = toDateOnly(new Date());
+    const overdueTransactions = pendingTransactions.filter(
+      (transaction) =>
+        Boolean(transaction.dueDate) && String(transaction.dueDate) < today,
+    );
+    const overdueReceivable = roundMoney(
+      overdueTransactions
+        .filter((transaction) => transaction.type === "income")
+        .reduce((total, transaction) => total + transaction.amount, 0),
+    );
+    const overduePayable = roundMoney(
+      overdueTransactions
+        .filter((transaction) => transaction.type === "expense")
+        .reduce((total, transaction) => total + transaction.amount, 0),
+    );
     const categoryMap = new Map<
       string,
       {
@@ -218,8 +245,48 @@ export class FinanceService {
       categoryMap.set(key, current);
     }
 
+    const cashFlowMap = new Map<
+      string,
+      ReturnType<typeof createCashFlowItem>
+    >();
+
+    for (const transaction of activeTransactions) {
+      const item =
+        cashFlowMap.get(transaction.transactionDate) ??
+        createCashFlowItem(transaction.transactionDate);
+      const amount = transaction.amount;
+
+      if (transaction.status === "paid" && transaction.type === "income") {
+        item.paidIncome = roundMoney(item.paidIncome + amount);
+      }
+
+      if (transaction.status === "paid" && transaction.type === "expense") {
+        item.paidExpense = roundMoney(item.paidExpense + amount);
+      }
+
+      if (transaction.status === "pending" && transaction.type === "income") {
+        item.pendingIncome = roundMoney(item.pendingIncome + amount);
+      }
+
+      if (transaction.status === "pending" && transaction.type === "expense") {
+        item.pendingExpense = roundMoney(item.pendingExpense + amount);
+      }
+
+      item.realizedBalance = roundMoney(item.paidIncome - item.paidExpense);
+      item.projectedBalance = roundMoney(
+        item.paidIncome +
+          item.pendingIncome -
+          item.paidExpense -
+          item.pendingExpense,
+      );
+      cashFlowMap.set(transaction.transactionDate, item);
+    }
+
     return {
       byCategory: [...categoryMap.values()].sort((a, b) => b.amount - a.amount),
+      cashFlow: [...cashFlowMap.values()].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      ),
       period,
       totals: {
         balance: roundMoney(paidIncome - paidExpense),
@@ -236,10 +303,15 @@ export class FinanceService {
         payable: pendingExpense,
         pendingExpense,
         pendingIncome,
+        paidCount: paidTransactions.length,
+        pendingCount: pendingTransactions.length,
         projectedBalance: roundMoney(
           paidIncome + pendingIncome - paidExpense - pendingExpense,
         ),
         receivable: pendingIncome,
+        overdueCount: overdueTransactions.length,
+        overduePayable,
+        overdueReceivable,
         salesCount: salesSummary.salesCount,
         salesRevenue: salesSummary.salesRevenue,
         transactionCount: transactions.length,
