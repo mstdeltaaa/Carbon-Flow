@@ -66,7 +66,8 @@ const plans: PlanCard[] = [
     price: "Grátis"
   },
   {
-    description: "Para empresas que já operam com equipe e volume recorrente.",
+    description:
+      "Para empresas que já operam com equipe e volume recorrente. Comece com 7 dias grátis.",
     features: [
       "5 usuários",
       "500 insumos",
@@ -77,7 +78,7 @@ const plans: PlanCard[] = [
     ],
     id: "pro",
     label: "Pro",
-    price: "Em breve"
+    price: "7 dias grátis"
   },
   {
     description: "Para operações com várias pessoas e necessidade de escala.",
@@ -117,6 +118,7 @@ const usageOrder: PlanLimitKey[] = [
   "budgets_per_month",
   "sales_per_month"
 ];
+const millisecondsInDay = 24 * 60 * 60 * 1000;
 
 function getApiMessage(payload: unknown, fallback: string) {
   if (
@@ -169,6 +171,52 @@ function getUsagePercent(usage: number, limit: number | null) {
   return Math.min(100, Math.round((usage / limit) * 100));
 }
 
+function getTrialDaysLeft(currentPeriodEnd: string | null) {
+  if (!currentPeriodEnd) {
+    return null;
+  }
+
+  const endsAt = Date.parse(currentPeriodEnd);
+
+  if (!Number.isFinite(endsAt)) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / millisecondsInDay));
+}
+
+function getTrialLabel(currentPeriodEnd: string | null) {
+  const daysLeft = getTrialDaysLeft(currentPeriodEnd);
+
+  if (daysLeft === null) {
+    return "Teste grátis ativo";
+  }
+
+  if (daysLeft === 0) {
+    return "Termina hoje";
+  }
+
+  return daysLeft === 1 ? "1 dia restante" : `${daysLeft} dias restantes`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(date);
+}
+
 export function BillingManager({ companyId }: BillingManagerProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -204,10 +252,20 @@ export function BillingManager({ companyId }: BillingManagerProps) {
   );
 
   const currentPlan = subscription?.plan ?? "free";
-  const currentPlanName = planLabels[currentPlan];
+  const isTrialing = subscription?.status === "trialing";
+  const currentPlanName =
+    isTrialing && currentPlan === "pro"
+      ? "Pro grátis"
+      : planLabels[currentPlan];
   const currentStatus = subscription
-    ? subscriptionStatusLabels[subscription.status]
+    ? isTrialing
+      ? getTrialLabel(subscription.currentPeriodEnd)
+      : subscriptionStatusLabels[subscription.status]
     : "Carregando";
+  const trialEndDate =
+    subscription && isTrialing
+      ? formatDate(subscription.currentPeriodEnd)
+      : null;
 
   const reachedLimits = useMemo(() => {
     if (!subscription) {
@@ -296,6 +354,19 @@ export function BillingManager({ companyId }: BillingManagerProps) {
         </section>
       ) : subscription ? (
         <>
+          {isTrialing ? (
+            <section className="rounded-lg border border-[rgb(159_243_196/0.32)] bg-[rgb(159_243_196/0.09)] p-5 text-sm text-[var(--muted-foreground)] sm:p-6">
+              <p className="font-medium text-white">
+                Teste grátis do Pro ativo
+              </p>
+              <p className="mt-2 leading-6">
+                Você está usando os limites do plano Pro por 7 dias. Quando o
+                teste terminar{trialEndDate ? ` em ${trialEndDate}` : ""}, a
+                empresa volta automaticamente para o Free.
+              </p>
+            </section>
+          ) : null}
+
           <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -407,7 +478,9 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                     {isCurrent ? (
                       <Button className="w-full" disabled type="button">
                         <Check className="h-4 w-4" aria-hidden="true" />
-                        Plano atual
+                        {subscription.status === "trialing" && plan.id === "pro"
+                          ? "Teste ativo"
+                          : "Plano atual"}
                       </Button>
                     ) : plan.id === "enterprise" ? (
                       <Button

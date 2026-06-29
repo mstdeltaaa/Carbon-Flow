@@ -97,6 +97,14 @@ export function CompanyForm() {
         />
       </label>
 
+      <div className="rounded-md border border-[rgb(159_243_196/0.28)] bg-[rgb(159_243_196/0.08)] p-4 text-sm">
+        <p className="font-medium text-white">7 dias grátis do Pro</p>
+        <p className="mt-1 leading-6 text-[var(--muted-foreground)]">
+          A empresa começa com limites maiores para testar o Carbon Flow. Ao fim
+          do teste, o plano Free entra automaticamente.
+        </p>
+      </div>
+
       {message ? (
         <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)]">
           {message}

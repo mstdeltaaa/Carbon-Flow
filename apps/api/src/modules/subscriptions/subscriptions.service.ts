@@ -96,6 +96,16 @@ function mapSubscription(row: SubscriptionRow | null) {
   };
 }
 
+function isExpiredTrial(row: SubscriptionRow | null) {
+  if (row?.status !== "trialing" || !row.current_period_end) {
+    return false;
+  }
+
+  const trialEndsAt = Date.parse(row.current_period_end);
+
+  return Number.isFinite(trialEndsAt) && trialEndsAt <= Date.now();
+}
+
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
     error.message ?? "Nao foi possivel processar a assinatura."
@@ -167,7 +177,29 @@ export class SubscriptionsService {
       throwDatabaseError(error);
     }
 
-    return mapSubscription((data as SubscriptionRow | null) ?? null);
+    let subscription = (data as SubscriptionRow | null) ?? null;
+
+    if (isExpiredTrial(subscription)) {
+      const { data: updatedSubscription, error: updateError } = await supabase
+        .from("subscriptions")
+        .update({
+          current_period_end: null,
+          limits: defaultPlanLimits.free,
+          plan: "free",
+          status: "active"
+        })
+        .eq("company_id", companyId)
+        .select("plan, status, limits, current_period_end")
+        .maybeSingle();
+
+      if (updateError) {
+        throwDatabaseError(updateError);
+      }
+
+      subscription = (updatedSubscription as SubscriptionRow | null) ?? null;
+    }
+
+    return mapSubscription(subscription);
   }
 
   private async getUsage(companyId: string) {

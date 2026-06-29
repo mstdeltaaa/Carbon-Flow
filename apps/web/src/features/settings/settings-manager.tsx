@@ -119,6 +119,7 @@ const usageOrder: PlanLimitKey[] = [
   "budgets_per_month",
   "sales_per_month"
 ];
+const millisecondsInDay = 24 * 60 * 60 * 1000;
 
 const permissionLabels: Record<CompanyPermission, string> = {
   budgets: "Orçamentos",
@@ -186,6 +187,34 @@ function getUsagePercent(usage: number, limit: number | null) {
   }
 
   return Math.min(100, Math.round((usage / limit) * 100));
+}
+
+function getTrialDaysLeft(currentPeriodEnd: string | null) {
+  if (!currentPeriodEnd) {
+    return null;
+  }
+
+  const endsAt = Date.parse(currentPeriodEnd);
+
+  if (!Number.isFinite(endsAt)) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / millisecondsInDay));
+}
+
+function getTrialLabel(currentPeriodEnd: string | null) {
+  const daysLeft = getTrialDaysLeft(currentPeriodEnd);
+
+  if (daysLeft === null) {
+    return "Teste grátis ativo";
+  }
+
+  if (daysLeft === 0) {
+    return "Termina hoje";
+  }
+
+  return daysLeft === 1 ? "1 dia restante" : `${daysLeft} dias restantes`;
 }
 
 function isLimitReached(settings: SettingsPayload | null, key: PlanLimitKey) {
@@ -700,7 +729,10 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                     Plano
                   </p>
                   <p className="mt-2 break-words text-xl font-semibold text-white">
-                    {planLabels[settings.subscription.plan]}
+                    {settings.subscription.status === "trialing" &&
+                    settings.subscription.plan === "pro"
+                      ? "Pro grátis"
+                      : planLabels[settings.subscription.plan]}
                   </p>
                 </article>
                 <article className="min-w-0 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
@@ -711,6 +743,16 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                     {subscriptionStatusLabels[settings.subscription.status]}
                   </p>
                 </article>
+                {settings.subscription.status === "trialing" ? (
+                  <article className="min-w-0 rounded-md border border-[rgb(159_243_196/0.28)] bg-[rgb(159_243_196/0.08)] p-4">
+                    <p className="text-xs text-[var(--muted-foreground)]">
+                      Teste grátis
+                    </p>
+                    <p className="mt-2 break-words text-xl font-semibold text-white">
+                      {getTrialLabel(settings.subscription.currentPeriodEnd)}
+                    </p>
+                  </article>
+                ) : null}
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">

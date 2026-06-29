@@ -39,6 +39,7 @@ const planLabels: Record<SubscriptionPlan, string> = {
   free: "Free",
   pro: "Pro"
 };
+const millisecondsInDay = 24 * 60 * 60 * 1000;
 
 const resourceLabels: Record<PlanLimitKey, string> = {
   budgets_per_month: "Orçamentos neste mês",
@@ -85,6 +86,34 @@ function getUsagePercent(usage: number, limit: number | null) {
   }
 
   return Math.min(100, Math.round((usage / limit) * 100));
+}
+
+function getTrialDaysLeft(currentPeriodEnd: string | null) {
+  if (!currentPeriodEnd) {
+    return null;
+  }
+
+  const endsAt = Date.parse(currentPeriodEnd);
+
+  if (!Number.isFinite(endsAt)) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / millisecondsInDay));
+}
+
+function getTrialLabel(currentPeriodEnd: string | null) {
+  const daysLeft = getTrialDaysLeft(currentPeriodEnd);
+
+  if (daysLeft === null) {
+    return "teste ativo";
+  }
+
+  if (daysLeft === 0) {
+    return "termina hoje";
+  }
+
+  return daysLeft === 1 ? "1 dia restante" : `${daysLeft} dias restantes`;
 }
 
 export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
@@ -186,13 +215,22 @@ export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
       : resourceState.reached || resourceState.nearLimit
         ? AlertTriangle
         : CheckCircle2;
+  const planName =
+    overview.status === "trialing" && overview.plan === "pro"
+      ? "Teste Pro"
+      : `Plano ${planLabels[overview.plan]}`;
+  const trialLabel =
+    overview.status === "trialing"
+      ? getTrialLabel(overview.currentPeriodEnd)
+      : null;
 
   return (
     <section className={["rounded-lg border p-4", tone].join(" ")}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs text-[var(--muted-foreground)]">
-            Plano {planLabels[overview.plan]}
+            {planName}
+            {trialLabel ? ` · ${trialLabel}` : ""}
           </p>
           <h2 className="mt-1 text-sm font-semibold text-white">
             {resourceLabels[resource]}
