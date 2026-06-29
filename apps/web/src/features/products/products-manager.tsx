@@ -30,6 +30,7 @@ import {
   clearStoredAssistantAction,
   getStoredAssistantAction
 } from "@/features/assistant/assistant-actions";
+import { PlanLimitUsage } from "@/features/billing/plan-limit-usage";
 import {
   canManageProducts,
   type CompanyPermissionMap
@@ -601,6 +602,8 @@ export function ProductsManager({
           </Button>
         ) : null}
       </header>
+
+      <PlanLimitUsage companyId={companyId} resource="products" />
 
       <section
         className={

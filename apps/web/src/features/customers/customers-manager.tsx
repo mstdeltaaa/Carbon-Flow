@@ -32,6 +32,7 @@ import {
   clearStoredAssistantAction,
   getStoredAssistantAction
 } from "@/features/assistant/assistant-actions";
+import { PlanLimitUsage } from "@/features/billing/plan-limit-usage";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -401,7 +402,9 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
       await request<{ id: string }>(`/customers/${customer.id}`, {
         method: "DELETE"
       });
-      setCustomers((current) => current.filter((item) => item.id !== customer.id));
+      setCustomers((current) =>
+        current.filter((item) => item.id !== customer.id)
+      );
       if (selectedCustomerId === customer.id) {
         setSelectedCustomerId(null);
         setHistory(null);
@@ -458,6 +461,8 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
         </Button>
       </header>
 
+      <PlanLimitUsage companyId={companyId} resource="customers" />
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
@@ -473,8 +478,13 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Com contato</p>
-            <Phone className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Com contato
+            </p>
+            <Phone
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
           </div>
           <p className="mt-4 text-2xl font-semibold text-white">
             {withContactCount}
@@ -482,8 +492,13 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Compradores</p>
-            <History className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Compradores
+            </p>
+            <History
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
           </div>
           <p className="mt-4 text-2xl font-semibold text-white">
             {buyingCustomersCount}
@@ -491,7 +506,9 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Total vendido</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Total vendido
+            </p>
             <CircleDollarSign
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"

@@ -26,6 +26,7 @@ import {
   clearStoredAssistantAction,
   getStoredAssistantAction
 } from "@/features/assistant/assistant-actions";
+import { PlanLimitUsage } from "@/features/billing/plan-limit-usage";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -339,26 +340,31 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
         </Button>
       </header>
 
+      <PlanLimitUsage companyId={companyId} resource="ingredients" />
+
       <section className="grid gap-4 md:grid-cols-3">
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
             <p className="text-sm text-[var(--muted-foreground)]">Ativos</p>
-            <Boxes className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <Boxes
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
           </div>
           <p className="mt-4 text-2xl font-semibold text-white">
             {ingredients.length}
           </p>
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
-          <p className="text-sm text-[var(--muted-foreground)]">Estoque baixo</p>
+          <p className="text-sm text-[var(--muted-foreground)]">
+            Estoque baixo
+          </p>
           <p className="mt-4 text-2xl font-semibold text-white">
             {lowStockCount}
           </p>
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
-          <p className="text-sm text-[var(--muted-foreground)]">
-            Custo médio
-          </p>
+          <p className="text-sm text-[var(--muted-foreground)]">Custo médio</p>
           <p className="mt-4 text-2xl font-semibold text-white">
             {ingredients.length
               ? currencyFormatter.format(
@@ -609,15 +615,23 @@ export function IngredientsManager({ companyId }: IngredientsManagerProps) {
                                 title="Editar"
                                 type="button"
                               >
-                                <Pencil className="h-4 w-4" aria-hidden="true" />
+                                <Pencil
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
                               </button>
                               <button
                                 className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
-                                onClick={() => void archiveIngredient(ingredient)}
+                                onClick={() =>
+                                  void archiveIngredient(ingredient)
+                                }
                                 title="Arquivar"
                                 type="button"
                               >
-                                <Archive className="h-4 w-4" aria-hidden="true" />
+                                <Archive
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
                               </button>
                             </div>
                           </td>

@@ -66,7 +66,10 @@ function normalizeStoredLimit(value: unknown) {
   return undefined;
 }
 
-function mergeLimits(plan: SubscriptionPlan, storedLimits: Record<string, unknown> | null) {
+function mergeLimits(
+  plan: SubscriptionPlan,
+  storedLimits: Record<string, unknown> | null
+) {
   const limits: PlanLimits = {
     ...defaultPlanLimits[plan]
   };
@@ -89,7 +92,7 @@ function mapSubscription(row: SubscriptionRow | null) {
     currentPeriodEnd: row?.current_period_end ?? null,
     limits: mergeLimits(plan, row?.limits ?? null),
     plan,
-    status: row?.status ?? "inactive"
+    status: row?.status ?? "active"
   };
 }
 
@@ -108,9 +111,26 @@ export class SubscriptionsService {
       this.getSubscription(companyId),
       this.getUsage(companyId)
     ]);
+    const canCreate = planLimitKeys.reduce(
+      (result, key) => {
+        const limit = subscription.limits[key];
+
+        result[key] = limit === null || usage[key] < limit;
+
+        return result;
+      },
+      {} as Record<PlanLimitKey, boolean>
+    );
+    const reached = planLimitKeys.filter((key) => {
+      const limit = subscription.limits[key];
+
+      return limit !== null && usage[key] >= limit;
+    });
 
     return {
       ...subscription,
+      canCreate,
+      reached,
       usage
     };
   }
@@ -119,6 +139,12 @@ export class SubscriptionsService {
     const overview = await this.getOverview(companyId);
     const limit = overview.limits[resource];
     const currentUsage = overview.usage[resource];
+
+    if (!["active", "trialing"].includes(overview.status)) {
+      throw new BadRequestException(
+        "O plano da empresa precisa estar ativo para criar novos registros."
+      );
+    }
 
     if (limit === null || currentUsage < limit) {
       return overview;
@@ -149,44 +175,38 @@ export class SubscriptionsService {
     const monthStart = getCurrentMonthStartIso();
     const usage = createEmptyPlanUsage();
 
-    const [
-      users,
-      ingredients,
-      products,
-      customers,
-      budgets,
-      sales
-    ] = await Promise.all([
-      supabase
-        .from("company_users")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .neq("status", "disabled"),
-      supabase
-        .from("ingredients")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("is_active", true),
-      supabase
-        .from("products")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("is_active", true),
-      supabase
-        .from("customers")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId),
-      supabase
-        .from("budgets")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .gte("created_at", monthStart),
-      supabase
-        .from("sales")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .gte("created_at", monthStart)
-    ]);
+    const [users, ingredients, products, customers, budgets, sales] =
+      await Promise.all([
+        supabase
+          .from("company_users")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .neq("status", "disabled"),
+        supabase
+          .from("ingredients")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("is_active", true),
+        supabase
+          .from("products")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("is_active", true),
+        supabase
+          .from("customers")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId),
+        supabase
+          .from("budgets")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .gte("created_at", monthStart),
+        supabase
+          .from("sales")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .gte("created_at", monthStart)
+      ]);
 
     for (const result of [
       users,

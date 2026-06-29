@@ -15,11 +15,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type SubscriptionPlan = "free" | "pro" | "enterprise";
 type SubscriptionStatus =
-  | "active"
-  | "inactive"
-  | "trialing"
-  | "past_due"
-  | "cancelled";
+  "active" | "inactive" | "trialing" | "past_due" | "cancelled";
 type PlanLimitKey =
   | "users"
   | "ingredients"
@@ -56,10 +52,12 @@ type PlanCard = {
 
 const plans: PlanCard[] = [
   {
-    description: "Para validar o fluxo e controlar uma operacao pequena.",
+    description: "Para validar o fluxo e controlar uma operação pequena.",
     features: [
       "1 usuário",
+      "50 insumos",
       "20 produtos",
+      "50 clientes",
       "20 orçamentos por mês",
       "20 vendas por mês"
     ],
@@ -71,7 +69,9 @@ const plans: PlanCard[] = [
     description: "Para empresas que já operam com equipe e volume recorrente.",
     features: [
       "5 usuários",
+      "500 insumos",
       "200 produtos",
+      "500 clientes",
       "300 orçamentos por mês",
       "300 vendas por mês"
     ],
@@ -80,10 +80,12 @@ const plans: PlanCard[] = [
     price: "Em breve"
   },
   {
-    description: "Para operacoes com varias pessoas e necessidade de escala.",
+    description: "Para operações com várias pessoas e necessidade de escala.",
     features: [
       "Usuários ilimitados",
+      "Insumos ilimitados",
       "Produtos ilimitados",
+      "Clientes ilimitados",
       "Orçamentos ilimitados",
       "Vendas ilimitadas"
     ],
@@ -414,10 +416,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                         type="button"
                         variant="secondary"
                       >
-                        <MessageCircle
-                          className="h-4 w-4"
-                          aria-hidden="true"
-                        />
+                        <MessageCircle className="h-4 w-4" aria-hidden="true" />
                         Falar com suporte
                       </Button>
                     ) : (

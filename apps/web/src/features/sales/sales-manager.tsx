@@ -23,6 +23,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
+import { PlanLimitUsage } from "@/features/billing/plan-limit-usage";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -590,6 +591,8 @@ export function SalesManager({ companyId }: SalesManagerProps) {
           </Button>
         </div>
       </header>
+
+      <PlanLimitUsage companyId={companyId} resource="sales_per_month" />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">

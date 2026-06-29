@@ -404,6 +404,14 @@ export class CompaniesService {
 
     await this.ensureAdminWillRemain(companyId, member, dto);
 
+    if (
+      dto.status !== undefined &&
+      dto.status !== "disabled" &&
+      member.status === "disabled"
+    ) {
+      await this.subscriptionsService.assertCanCreate(companyId, "users");
+    }
+
     const supabase = this.supabaseFactory.createAdmin();
     const payload: Record<string, unknown> = {};
 
