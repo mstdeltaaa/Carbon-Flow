@@ -1255,8 +1255,9 @@ export class SalesService {
     const insufficient = stockPlan.find((plan) => plan.newStock < 0);
 
     if (insufficient) {
+      const missingQuantity = roundQuantity(Math.abs(insufficient.newStock));
       throw new BadRequestException(
-        `Estoque insuficiente para ${insufficient.ingredientName}. Disponivel: ${insufficient.currentStock} ${insufficient.inventoryUnit}.`
+        `Estoque insuficiente para ${insufficient.ingredientName}. Necessario: ${insufficient.quantityDelta} ${insufficient.inventoryUnit}. Disponivel: ${insufficient.currentStock} ${insufficient.inventoryUnit}. Falta: ${missingQuantity} ${insufficient.inventoryUnit}.`
       );
     }
 

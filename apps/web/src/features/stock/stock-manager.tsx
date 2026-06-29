@@ -4,13 +4,11 @@ import {
   AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
-  Boxes,
   History,
   Loader2,
   PackagePlus,
   Save,
   Search,
-  SlidersHorizontal,
   Warehouse
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
@@ -60,6 +58,10 @@ type StockFormState = {
   unitCost: string;
 };
 
+type StockStatus = "ok" | "low" | "out";
+type StockStatusFilter = "all" | StockStatus;
+type MovementTypeFilter = "all" | StockMovement["type"];
+
 type MovementResponse = {
   item: StockItem;
   movement: StockMovement;
@@ -99,6 +101,12 @@ const movementLabels: Record<StockMovement["type"], string> = {
   entry: "Entrada",
   reversal: "Estorno",
   sale: "Venda"
+};
+
+const stockStatusLabels: Record<StockStatus, string> = {
+  low: "Repor",
+  ok: "Ok",
+  out: "Zerado"
 };
 
 function parseDecimal(value: string, fallback = 0) {
@@ -151,14 +159,70 @@ function getMovementClass(type: StockMovement["type"], delta: number) {
   return "bg-[var(--secondary)] text-[var(--muted-foreground)]";
 }
 
+function getStockStatus(item: StockItem): StockStatus {
+  if (item.stockQuantity <= 0) {
+    return "out";
+  }
+
+  if (item.isLowStock) {
+    return "low";
+  }
+
+  return "ok";
+}
+
+function getStockStatusClass(status: StockStatus) {
+  if (status === "out") {
+    return "bg-[var(--destructive-soft)] text-[var(--destructive-text)]";
+  }
+
+  if (status === "low") {
+    return "bg-[rgb(245_158_11/0.14)] text-[rgb(251_191_36)]";
+  }
+
+  return "bg-[rgb(159_243_196/0.12)] text-[var(--primary)]";
+}
+
+function getReorderQuantity(item: StockItem) {
+  return Math.max(item.minimumStock - item.stockQuantity, 0);
+}
+
+function getCoveragePercent(item: StockItem) {
+  if (item.minimumStock <= 0) {
+    return item.stockQuantity > 0 ? 100 : 0;
+  }
+
+  return Math.min(
+    Math.max((item.stockQuantity / item.minimumStock) * 100, 0),
+    100
+  );
+}
+
+function getStockPriority(status: StockStatus) {
+  if (status === "out") {
+    return 0;
+  }
+
+  if (status === "low") {
+    return 1;
+  }
+
+  return 2;
+}
+
 export function StockManager({ companyId }: StockManagerProps) {
   const [form, setForm] = useState<StockFormState>(emptyForm);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [items, setItems] = useState<StockItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [movementSearch, setMovementSearch] = useState("");
+  const [movementTypeFilter, setMovementTypeFilter] =
+    useState<MovementTypeFilter>("all");
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [search, setSearch] = useState("");
+  const [stockStatusFilter, setStockStatusFilter] =
+    useState<StockStatusFilter>("all");
 
   const request = useCallback(
     async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -262,20 +326,58 @@ export function StockManager({ companyId }: StockManagerProps) {
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
 
-    if (!term) {
-      return items;
-    }
-
     return items.filter((item) =>
-      [item.name, item.category ?? "", item.inventoryUnit]
-        .join(" ")
-        .toLowerCase()
-        .includes(term)
+      (stockStatusFilter === "all" ||
+        getStockStatus(item) === stockStatusFilter) &&
+      (!term ||
+        [item.name, item.category ?? "", item.inventoryUnit]
+          .join(" ")
+          .toLowerCase()
+          .includes(term))
     );
-  }, [items, search]);
+  }, [items, search, stockStatusFilter]);
+
+  const filteredMovements = useMemo(() => {
+    const term = movementSearch.trim().toLowerCase();
+
+    return movements.filter(
+      (movement) =>
+        (movementTypeFilter === "all" ||
+          movement.type === movementTypeFilter) &&
+        (!term ||
+          [
+            movement.ingredientName,
+            movement.notes ?? "",
+            movement.sourceType ?? "",
+            movementLabels[movement.type]
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(term))
+    );
+  }, [movementSearch, movementTypeFilter, movements]);
 
   const selectedItem = items.find((item) => item.id === form.ingredientId);
   const lowStockCount = items.filter((item) => item.isLowStock).length;
+  const outOfStockCount = items.filter(
+    (item) => getStockStatus(item) === "out"
+  ).length;
+  const reorderItems = items
+    .filter((item) => getReorderQuantity(item) > 0)
+    .sort((a, b) => {
+      const statusPriority =
+        getStockPriority(getStockStatus(a)) - getStockPriority(getStockStatus(b));
+
+      if (getStockStatus(a) !== getStockStatus(b)) {
+        return statusPriority;
+      }
+
+      return getCoveragePercent(a) - getCoveragePercent(b);
+    });
+  const reorderValue = reorderItems.reduce(
+    (total, item) => total + getReorderQuantity(item) * item.unitCost,
+    0
+  );
   const totalStockValue = items.reduce((total, item) => total + item.stockValue, 0);
   const totalUnits = items.reduce((total, item) => total + item.stockQuantity, 0);
 
@@ -372,19 +474,26 @@ export function StockManager({ companyId }: StockManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Estoque baixo</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Itens em atenção
+            </p>
             <AlertTriangle
-              className="h-4 w-4 text-[var(--primary)]"
+              className="h-4 w-4 text-[var(--destructive-text)]"
               aria-hidden="true"
             />
           </div>
           <p className="mt-4 text-2xl font-semibold text-white">
             {lowStockCount}
           </p>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            {outOfStockCount} zerado{outOfStockCount === 1 ? "" : "s"}
+          </p>
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Valor estimado</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Valor estimado
+            </p>
             <PackagePlus
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
@@ -393,22 +502,114 @@ export function StockManager({ companyId }: StockManagerProps) {
           <p className="mt-4 text-2xl font-semibold text-white">
             {currencyFormatter.format(totalStockValue)}
           </p>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            {decimalFormatter.format(totalUnits)} unidades somadas
+          </p>
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Movimentos</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Reposição sugerida
+            </p>
             <History
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
             />
           </div>
           <p className="mt-4 text-2xl font-semibold text-white">
-            {movements.length}
+            {currencyFormatter.format(reorderValue)}
           </p>
           <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-            {decimalFormatter.format(totalUnits)} unidades somadas
+            {reorderItems.length} item{reorderItems.length === 1 ? "" : "s"} abaixo do mínimo
           </p>
         </article>
+      </section>
+
+      <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-white">
+              Alertas de reposição
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+              Priorize os insumos zerados e abaixo do estoque mínimo.
+            </p>
+          </div>
+          <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
+            Compra estimada:{" "}
+            <span className="font-medium text-white">
+              {currencyFormatter.format(reorderValue)}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {reorderItems.length === 0 ? (
+            <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)] md:col-span-2 xl:col-span-4">
+              Nenhum insumo abaixo do estoque mínimo no momento.
+            </p>
+          ) : null}
+
+          {reorderItems.slice(0, 4).map((item) => {
+            const status = getStockStatus(item);
+            const reorderQuantity = getReorderQuantity(item);
+            const coverage = getCoveragePercent(item);
+
+            return (
+              <article
+                className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-4"
+                key={item.id}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-white">
+                      {item.name}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                      {item.category ?? "Sem categoria"}
+                    </p>
+                  </div>
+                  <span
+                    className={[
+                      "shrink-0 rounded-md px-2 py-1 text-xs",
+                      getStockStatusClass(status)
+                    ].join(" ")}
+                  >
+                    {stockStatusLabels[status]}
+                  </span>
+                </div>
+
+                <div className="mt-4">
+                  <div className="mb-2 flex justify-between gap-3 text-xs text-[var(--muted-foreground)]">
+                    <span>Saldo vs. mínimo</span>
+                    <span>{decimalFormatter.format(coverage)}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                    <div
+                      className={[
+                        "h-full rounded-full",
+                        status === "out"
+                          ? "bg-[var(--destructive-text)]"
+                          : "bg-[rgb(251_191_36)]"
+                      ].join(" ")}
+                      style={{ width: `${Math.max(coverage, 4)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm text-[var(--muted-foreground)]">
+                  Repor{" "}
+                  <span className="font-medium text-white">
+                    {formatQuantity(reorderQuantity, item.inventoryUnit)}
+                  </span>
+                </p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                  Estimado em {currencyFormatter.format(reorderQuantity * item.unitCost)}
+                </p>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
@@ -450,14 +651,38 @@ export function StockManager({ companyId }: StockManagerProps) {
             </label>
 
             {selectedItem ? (
-              <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-3 text-sm text-[var(--muted-foreground)]">
-                Saldo atual:{" "}
-                <span className="font-medium text-white">
-                  {formatQuantity(
-                    selectedItem.stockQuantity,
-                    selectedItem.inventoryUnit
-                  )}
-                </span>
+              <div className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-3 text-sm text-[var(--muted-foreground)]">
+                <div className="flex items-center justify-between gap-3">
+                  <span>Saldo atual</span>
+                  <span className="font-medium text-white">
+                    {formatQuantity(
+                      selectedItem.stockQuantity,
+                      selectedItem.inventoryUnit
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span>Estoque mínimo</span>
+                  <span className="font-medium text-white">
+                    {formatQuantity(
+                      selectedItem.minimumStock,
+                      selectedItem.inventoryUnit
+                    )}
+                  </span>
+                </div>
+                {getReorderQuantity(selectedItem) > 0 ? (
+                  <div className="rounded-md bg-[var(--destructive-soft)] p-3 text-[var(--destructive-text)]">
+                    Reposição sugerida:{" "}
+                    {formatQuantity(
+                      getReorderQuantity(selectedItem),
+                      selectedItem.inventoryUnit
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-md bg-[rgb(159_243_196/0.12)] p-3 text-[var(--primary)]">
+                    Este insumo está acima do mínimo configurado.
+                  </div>
+                )}
               </div>
             ) : null}
 
@@ -547,28 +772,51 @@ export function StockManager({ companyId }: StockManagerProps) {
                 {filteredItems.length} registros
               </p>
             </div>
-            <label className="relative block sm:w-72 lg:w-80">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
-                aria-hidden="true"
-              />
-              <input
-                className="h-10 w-full rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar"
-                type="search"
-                value={search}
-              />
-            </label>
+            <div className="grid gap-2 sm:w-[26rem] sm:grid-cols-[1fr_9rem]">
+              <label className="relative block">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  aria-hidden="true"
+                />
+                <input
+                  className="h-10 w-full rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar"
+                  type="search"
+                  value={search}
+                />
+              </label>
+              <select
+                className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                onChange={(event) =>
+                  setStockStatusFilter(event.target.value as StockStatusFilter)
+                }
+                value={stockStatusFilter}
+              >
+                <option className="bg-[#101314] text-white" value="all">
+                  Todos
+                </option>
+                <option className="bg-[#101314] text-white" value="ok">
+                  Ok
+                </option>
+                <option className="bg-[#101314] text-white" value="low">
+                  Baixo
+                </option>
+                <option className="bg-[#101314] text-white" value="out">
+                  Zerado
+                </option>
+              </select>
+            </div>
           </div>
 
           <div className="mt-5 max-w-full overflow-x-auto rounded-md">
-            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+            <table className="w-full min-w-[960px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">
                   <th className="py-3 pr-4 font-medium">Insumo</th>
                   <th className="py-3 pr-4 font-medium">Saldo</th>
                   <th className="py-3 pr-4 font-medium">Mínimo</th>
+                  <th className="py-3 pr-4 font-medium">Reposição</th>
                   <th className="py-3 pr-4 font-medium">Custo</th>
                   <th className="py-3 pr-4 font-medium">Valor</th>
                   <th className="py-3 pr-4 font-medium">Status</th>
@@ -577,7 +825,7 @@ export function StockManager({ companyId }: StockManagerProps) {
               <tbody className="divide-y divide-[var(--border)]">
                 {isLoading ? (
                   <TableStateRow
-                    colSpan={6}
+                    colSpan={7}
                     isLoading
                     title="Carregando saldos"
                   />
@@ -585,14 +833,18 @@ export function StockManager({ companyId }: StockManagerProps) {
 
                 {!isLoading && filteredItems.length === 0 ? (
                   <TableStateRow
-                    colSpan={6}
+                    colSpan={7}
                     description="Cadastre insumos para acompanhar saldos, custos e alertas de reposição."
                     title="Nenhum saldo encontrado"
                   />
                 ) : null}
 
                 {!isLoading
-                  ? filteredItems.map((item) => (
+                  ? filteredItems.map((item) => {
+                      const status = getStockStatus(item);
+                      const reorderQuantity = getReorderQuantity(item);
+
+                      return (
                       <tr key={item.id}>
                         <td className="py-3 pr-4">
                           <p className="font-medium text-white">{item.name}</p>
@@ -606,6 +858,11 @@ export function StockManager({ companyId }: StockManagerProps) {
                         <td className="py-3 pr-4 text-[var(--muted-foreground)]">
                           {formatQuantity(item.minimumStock, item.inventoryUnit)}
                         </td>
+                        <td className="py-3 pr-4 text-[var(--muted-foreground)]">
+                          {reorderQuantity > 0
+                            ? formatQuantity(reorderQuantity, item.inventoryUnit)
+                            : "-"}
+                        </td>
                         <td className="py-3 pr-4 text-white">
                           {currencyFormatter.format(item.unitCost)}
                         </td>
@@ -616,16 +873,15 @@ export function StockManager({ companyId }: StockManagerProps) {
                           <span
                             className={[
                               "rounded-md px-2 py-1 text-xs",
-                              item.isLowStock
-                                ? "bg-[rgb(255_107_107/0.12)] text-[#ff8d8d]"
-                                : "bg-[rgb(159_243_196/0.12)] text-[var(--primary)]"
+                              getStockStatusClass(status)
                             ].join(" ")}
                           >
-                            {item.isLowStock ? "Repor" : "Ok"}
+                            {stockStatusLabels[status]}
                           </span>
                         </td>
                       </tr>
-                    ))
+                    );
+                    })
                   : null}
               </tbody>
             </table>
@@ -634,17 +890,51 @@ export function StockManager({ companyId }: StockManagerProps) {
       </div>
 
       <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-base font-semibold text-white">Histórico</h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              Últimas 100 movimentações
+              {filteredMovements.length} de {movements.length} movimentações
             </p>
           </div>
-          <SlidersHorizontal
-            className="h-5 w-5 text-[var(--primary)]"
-            aria-hidden="true"
-          />
+          <div className="grid gap-2 sm:grid-cols-[1fr_10rem] lg:w-[30rem]">
+            <label className="relative block">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
+                aria-hidden="true"
+              />
+              <input
+                className="h-10 w-full rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                onChange={(event) => setMovementSearch(event.target.value)}
+                placeholder="Buscar histórico"
+                type="search"
+                value={movementSearch}
+              />
+            </label>
+            <select
+              className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+              onChange={(event) =>
+                setMovementTypeFilter(event.target.value as MovementTypeFilter)
+              }
+              value={movementTypeFilter}
+            >
+              <option className="bg-[#101314] text-white" value="all">
+                Todos
+              </option>
+              <option className="bg-[#101314] text-white" value="entry">
+                Entrada
+              </option>
+              <option className="bg-[#101314] text-white" value="sale">
+                Venda
+              </option>
+              <option className="bg-[#101314] text-white" value="adjustment">
+                Ajuste
+              </option>
+              <option className="bg-[#101314] text-white" value="reversal">
+                Estorno
+              </option>
+            </select>
+          </div>
         </div>
 
         <div className="mt-5 max-w-full overflow-x-auto rounded-md">
@@ -660,7 +950,7 @@ export function StockManager({ companyId }: StockManagerProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)]">
-              {movements.length === 0 ? (
+              {filteredMovements.length === 0 ? (
                 <TableStateRow
                   colSpan={6}
                   description="Entradas, ajustes e baixas automáticas de vendas aparecerão neste histórico."
@@ -668,7 +958,7 @@ export function StockManager({ companyId }: StockManagerProps) {
                 />
               ) : null}
 
-              {movements.map((movement) => (
+              {filteredMovements.map((movement) => (
                 <tr key={movement.id}>
                   <td className="py-3 pr-4 text-[var(--muted-foreground)]">
                     {dateTimeFormatter.format(new Date(movement.createdAt))}
