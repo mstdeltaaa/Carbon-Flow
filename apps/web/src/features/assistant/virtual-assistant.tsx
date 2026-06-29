@@ -669,16 +669,16 @@ const navigationLinks = [
 }>;
 
 const fallbackAssistantAvatar =
-  "/brand/AvatarBrancoePreto/Design sem nome (4).png";
+  "/brand/AvatarBrancoePreto/BrancoePreto.png";
 
 const assistantAvatarByTheme: Record<string, string> = {
-  "brazil-2026": "/brand/AvatarBrasil2026/Design sem nome (6).png",
-  "blue-dark": "/brand/AvatarAzulePreto/Design sem nome (1).png",
-  "blue-light": "/brand/AvatarAzuleBranco/Design sem nome (5).png",
+  "brazil-2026": "/brand/AvatarBrasil2026/Copa2026Amarelo.png",
+  "blue-dark": "/brand/AvatarAzulePreto/AzulePreto.png",
+  "blue-light": "/brand/AvatarAzuleBranco/AzuleBranco.png",
   "carbon-dark": fallbackAssistantAvatar,
-  "carbon-light": "/brand/AvatarPretoeBranco/Design sem nome (2).png",
-  "green-dark": "/brand/AvatarVerdeePreto/Design sem nome.png",
-  "green-light": "/brand/AvatarVerdeeBranco/Design sem nome (3).png"
+  "carbon-light": "/brand/AvatarPretoeBranco/PretoeBranco.png",
+  "green-dark": "/brand/AvatarVerdeePreto/VerdeePreto.png",
+  "green-light": "/brand/AvatarVerdeeBranco/VerdeeBranco.png"
 };
 
 function getCurrentTheme() {
