@@ -24,7 +24,7 @@ export async function createNestApp() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle("Carbon Flow API")
-    .setDescription("API para gestao de producao, custos, estoque e vendas.")
+    .setDescription("API para gestão de produção, custos, estoque e vendas.")
     .setVersion("0.1.0")
     .addBearerAuth()
     .build();

@@ -11,6 +11,7 @@
   ShoppingCart,
   UserRound,
   UsersRound,
+  WalletCards,
   Warehouse
 } from "lucide-react";
 import Image from "next/image";
@@ -33,6 +34,7 @@ const navItems = [
   { label: "Clientes", href: "/customers", icon: UsersRound, id: "customers" },
   { label: "Orçamentos", href: "/budgets", icon: FileText, id: "budgets" },
   { label: "Vendas", href: "/sales", icon: ShoppingCart, id: "sales" },
+  { label: "Financeiro", href: "/finance", icon: WalletCards, id: "finance" },
   { label: "Histórico", href: "/history", icon: History, id: "history" },
   { label: "Planos", href: "/billing", icon: CreditCard, id: "billing" },
   { label: "Minha conta", href: "/account", icon: UserRound, id: "account" },

@@ -20,6 +20,7 @@ const sectionRoutes: Array<{ prefix: string; section: AppSection }> = [
   { prefix: "/customers", section: "customers" },
   { prefix: "/budgets", section: "budgets" },
   { prefix: "/sales", section: "sales" },
+  { prefix: "/finance", section: "finance" },
   { prefix: "/history", section: "history" },
   { prefix: "/billing", section: "billing" },
   { prefix: "/account", section: "account" },

@@ -2,6 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
 import { AuditService } from "../audit/audit.service";
+import {
+  FinanceService,
+  type FinanceTransactionRollback
+} from "../finance/finance.service";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { CreateSaleDto } from "./dto/create-sale.dto";
 
@@ -234,6 +238,7 @@ export class SalesService {
   constructor(
     private readonly supabaseFactory: SupabaseClientFactory,
     private readonly auditService: AuditService,
+    private readonly financeService: FinanceService,
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
@@ -418,6 +423,13 @@ export class SalesService {
         throwDatabaseError(movementError);
       }
 
+      await this.financeService.syncSaleIncome(accessToken, companyId, userId, {
+        number,
+        saleId: saleRow.id,
+        soldAt: saleRow.sold_at,
+        totalAmount: totals.totalAmount
+      });
+
       const savedSale = await this.findOne(accessToken, companyId, saleRow.id);
 
       await this.auditService.record({
@@ -588,6 +600,13 @@ export class SalesService {
         throwDatabaseError(movementError);
       }
 
+      await this.financeService.syncSaleIncome(accessToken, companyId, userId, {
+        number,
+        saleId: saleRow.id,
+        soldAt: saleRow.sold_at,
+        totalAmount: Number(budget.total_amount)
+      });
+
       const { error: budgetError } = await supabase
         .from("budgets")
         .update({
@@ -693,6 +712,7 @@ export class SalesService {
     let reversalIds: string[] = [];
     let saleWasUpdated = false;
     let budgetWasUpdated = false;
+    let financeRollback: FinanceTransactionRollback[] = [];
 
     try {
       for (const plan of restorationPlan) {
@@ -777,6 +797,12 @@ export class SalesService {
         budgetWasUpdated = true;
       }
 
+      financeRollback = await this.financeService.cancelSaleIncome(
+        accessToken,
+        companyId,
+        saleId
+      );
+
       const cancelledSale = await this.findOne(accessToken, companyId, saleId);
 
       await this.auditService.record({
@@ -798,6 +824,7 @@ export class SalesService {
       await this.rollbackCancellation(accessToken, companyId, {
         budgetId: sale.budget_id,
         budgetWasUpdated,
+        financeRollback,
         restoredStocks,
         reversalIds,
         saleId,
@@ -1278,6 +1305,12 @@ export class SalesService {
     }
 
     if (saleId) {
+      await this.financeService.deleteSaleTransactions(
+        accessToken,
+        companyId,
+        saleId
+      );
+
       await supabase
         .from("ingredient_stock_movements")
         .delete()
@@ -1299,6 +1332,7 @@ export class SalesService {
     context: {
       budgetId: string | null;
       budgetWasUpdated: boolean;
+      financeRollback: FinanceTransactionRollback[];
       restoredStocks: Array<{ currentStock: number; ingredientId: string }>;
       reversalIds: string[];
       saleId: string;
@@ -1306,6 +1340,12 @@ export class SalesService {
     }
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
+
+    await this.financeService.restoreTransactions(
+      accessToken,
+      companyId,
+      context.financeRollback
+    );
 
     if (context.budgetWasUpdated && context.budgetId) {
       await supabase

@@ -9,6 +9,7 @@ import { BudgetsModule } from "./modules/budgets/budgets.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
 import { CustomersModule } from "./modules/customers/customers.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { FinanceModule } from "./modules/finance/finance.module";
 import { HealthModule } from "./modules/health/health.module";
 import { IngredientsModule } from "./modules/ingredients/ingredients.module";
 import { ProductsModule } from "./modules/products/products.module";
@@ -33,6 +34,7 @@ import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.modul
     StockModule,
     CustomersModule,
     BudgetsModule,
+    FinanceModule,
     SalesModule,
     AuditModule,
     SubscriptionsModule

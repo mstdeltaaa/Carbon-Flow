@@ -137,7 +137,7 @@ const budgetStatusLabels: Record<BudgetStatus, string> = {
 
 const saleStatusLabels: Record<SaleStatus, string> = {
   cancelled: "Cancelada",
-  completed: "Concluida",
+  completed: "Concluída",
   refunded: "Estornada"
 };
 

@@ -8,6 +8,7 @@ export type AppSection =
   | "customers"
   | "budgets"
   | "sales"
+  | "finance"
   | "history"
   | "billing"
   | "account"
@@ -28,6 +29,7 @@ const sectionPermissions: Record<CompanyRole, AppSection[]> = {
     "customers",
     "budgets",
     "sales",
+    "finance",
     "history",
     "billing",
     "account",
@@ -41,6 +43,7 @@ const sectionPermissions: Record<CompanyRole, AppSection[]> = {
     "customers",
     "budgets",
     "sales",
+    "finance",
     "account"
   ],
   seller: ["customers", "products", "budgets", "account"]

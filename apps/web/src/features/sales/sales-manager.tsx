@@ -114,7 +114,7 @@ const dateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
 
 const statusLabels: Record<Sale["status"], string> = {
   cancelled: "Cancelada",
-  completed: "Concluida",
+  completed: "Concluída",
   refunded: "Estornada"
 };
 
@@ -425,7 +425,7 @@ export function SalesManager({ companyId }: SalesManagerProps) {
       );
       resetForm();
       setMessage(
-        `Venda ${saved.numberLabel} criada e estoque baixado automáticamente.`
+        `Venda ${saved.numberLabel} criada e estoque baixado automaticamente.`
       );
     } catch (error) {
       setMessage(

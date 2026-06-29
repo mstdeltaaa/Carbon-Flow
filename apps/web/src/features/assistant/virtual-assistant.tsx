@@ -18,6 +18,7 @@ import {
   Trash2,
   UserRound,
   UsersRound,
+  WalletCards,
   Warehouse,
   X
 } from "lucide-react";
@@ -211,6 +212,8 @@ const pageTips: Record<string, string> = {
     "Em Clientes você guarda contatos, observações e histórico comercial de cada pessoa ou empresa.",
   dashboard:
     "No Dashboard você acompanha faturamento, vendas, lucro estimado, produtos vendidos e alertas.",
+  finance:
+    "Em Financeiro você acompanha receitas, despesas, saldo do período e lançamentos gerados pelas vendas.",
   history:
     "No Histórico ficam registradas ações importantes, ajudando na auditoria e segurança da empresa.",
   ingredients:
@@ -515,6 +518,13 @@ const quickActionById = {
     reply: "Vou abrir o histórico.",
     section: "history"
   },
+  finance: {
+    href: "/finance#app-content",
+    icon: WalletCards,
+    label: "Financeiro",
+    reply: "Vou abrir o financeiro.",
+    section: "finance"
+  },
   openStockList: {
     actionId: "open-stock-list",
     href: "/stock#stock-list",
@@ -584,6 +594,11 @@ const quickActionsByPage: Record<string, QuickAction[]> = {
     quickActionById.openStockList,
     quickActionById.settings
   ],
+  finance: [
+    quickActionById.finance,
+    quickActionById.sales,
+    quickActionById.dashboard
+  ],
   ingredients: [
     quickActionById.createIngredient,
     quickActionById.openStockMovement,
@@ -615,7 +630,8 @@ const navigationLinks = [
   { href: "/ingredients#app-content", label: "Insumos", section: "ingredients" },
   { href: "/products#app-content", label: "Produtos", section: "products" },
   { href: "/budgets#app-content", label: "Orçamentos", section: "budgets" },
-  { href: "/sales#app-content", label: "Vendas", section: "sales" }
+  { href: "/sales#app-content", label: "Vendas", section: "sales" },
+  { href: "/finance#app-content", label: "Financeiro", section: "finance" }
 ] satisfies Array<{
   href: string;
   label: string;
@@ -1072,6 +1088,22 @@ function getDirectQuickAction(prompt: string) {
 
   if (wantsNavigation && hasAnyTerm(normalized, ["venda", "vendas"])) {
     return quickActionById.sales;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, [
+      "caixa",
+      "despesa",
+      "despesas",
+      "financeiro",
+      "financas",
+      "receita",
+      "receitas",
+      "saldo"
+    ])
+  ) {
+    return quickActionById.finance;
   }
 
   if (
