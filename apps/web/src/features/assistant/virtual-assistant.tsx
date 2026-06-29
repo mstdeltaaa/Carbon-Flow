@@ -2693,7 +2693,7 @@ export function VirtualAssistant({
   return (
     <div className="fixed inset-x-2 bottom-2 z-40 flex flex-col items-end justify-end sm:inset-x-auto sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6">
       {isOpen ? (
-        <section className="mb-2 flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:mb-3 sm:h-auto sm:max-h-[calc(100vh-7rem)] sm:w-[24rem] md:max-h-[calc(100vh-8rem)] xl:max-h-[calc(100vh-17rem)] xl:w-[24rem]">
+        <section className="flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]">
           <header className="flex items-start justify-between gap-2 border-b border-[var(--border)] p-3 sm:items-center sm:gap-3 sm:p-4">
             <div className="flex min-w-0 items-center gap-3">
               <AssistantAvatar
@@ -2970,33 +2970,37 @@ export function VirtualAssistant({
         </section>
       ) : null}
 
-      <button
-        aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
-        className="relative ml-auto flex h-16 w-16 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
-        onClick={() => {
-          setMessages((current) => (current.length ? current : [introMessage]));
-          setIsOpen((current) => !current);
-        }}
-        type="button"
-      >
-        {!isOpen && proactiveAlerts.length ? (
-          <span
-            className={[
-              "absolute right-0 top-0 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-lg sm:right-2 sm:top-2 sm:h-6 sm:min-w-6 sm:text-xs md:right-3 md:top-3 xl:right-8 xl:top-8",
-              hasWarningAlert
-                ? "bg-[rgb(245_158_11)] text-black"
-                : "bg-[var(--primary)] text-[var(--background)]"
-            ].join(" ")}
-          >
-            {proactiveAlerts.length}
-          </span>
-        ) : null}
-        <AssistantAvatar
-          className="h-14 w-14 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
-          sizes="(min-width: 1280px) 216px, (min-width: 1024px) 112px, (min-width: 768px) 96px, (min-width: 640px) 80px, 72px"
-          src={avatarSrc}
-        />
-      </button>
+      {!isOpen ? (
+        <button
+          aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
+          className="relative ml-auto flex h-16 w-16 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
+          onClick={() => {
+            setMessages((current) =>
+              current.length ? current : [introMessage]
+            );
+            setIsOpen(true);
+          }}
+          type="button"
+        >
+          {proactiveAlerts.length ? (
+            <span
+              className={[
+                "absolute right-0 top-0 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-lg sm:right-2 sm:top-2 sm:h-6 sm:min-w-6 sm:text-xs md:right-3 md:top-3 xl:right-8 xl:top-8",
+                hasWarningAlert
+                  ? "bg-[rgb(245_158_11)] text-black"
+                  : "bg-[var(--primary)] text-[var(--background)]"
+              ].join(" ")}
+            >
+              {proactiveAlerts.length}
+            </span>
+          ) : null}
+          <AssistantAvatar
+            className="h-14 w-14 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
+            sizes="(min-width: 1280px) 216px, (min-width: 1024px) 112px, (min-width: 768px) 96px, (min-width: 640px) 80px, 72px"
+            src={avatarSrc}
+          />
+        </button>
+      ) : null}
     </div>
   );
 }
