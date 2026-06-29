@@ -135,6 +135,26 @@ export class CompaniesService {
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
+  async getDocumentProfile(accessToken: string, companyId: string) {
+    const supabase = this.supabaseFactory.createForUser(accessToken);
+
+    const { data, error } = await supabase
+      .from("companies")
+      .select("id, name, slug, document, email, phone, updated_at")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    if (!data) {
+      throw new NotFoundException("Empresa nao encontrada.");
+    }
+
+    return mapCompany(data as CompanyRow);
+  }
+
   async getSettings(accessToken: string, companyId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
 

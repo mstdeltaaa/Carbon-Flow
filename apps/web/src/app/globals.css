@@ -584,14 +584,26 @@ html[data-theme="green-light"] option {
     border-radius: 0 !important;
     overflow: visible !important;
     box-shadow: none !important;
+    color: #101314 !important;
     margin: 0 !important;
     max-width: none !important;
     padding: 0 !important;
+    print-color-adjust: exact;
     width: 100% !important;
+    -webkit-print-color-adjust: exact;
   }
 
   .budget-document > div:last-child {
     padding: 0 !important;
+  }
+
+  .budget-document-cover {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .budget-document-table {
+    overflow: visible !important;
   }
 
   .budget-document table {
@@ -602,6 +614,7 @@ html[data-theme="green-light"] option {
   .budget-document section,
   .budget-document article,
   .budget-document aside,
+  .budget-document header,
   .budget-document tr {
     break-inside: avoid;
   }

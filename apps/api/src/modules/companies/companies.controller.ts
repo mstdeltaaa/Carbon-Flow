@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/co
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
+import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -26,6 +27,16 @@ import {
 @UseGuards(SupabaseAuthGuard, CompanyMembershipGuard, CompanyRoleGuard)
 export class CompaniesController {
   constructor(private readonly companiesService: CompaniesService) {}
+
+  @Get("document-profile")
+  @CompanyRoles("admin", "employee", "seller")
+  @CompanyPermissions("budgets")
+  getDocumentProfile(
+    @AccessToken() accessToken: string,
+    @CurrentCompany() company: CurrentCompanyPayload
+  ) {
+    return this.companiesService.getDocumentProfile(accessToken, company.id);
+  }
 
   @Get("settings")
   getSettings(
