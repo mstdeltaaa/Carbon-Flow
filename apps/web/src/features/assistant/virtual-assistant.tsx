@@ -74,6 +74,12 @@ type VirtualAssistantProps = {
   userEmail: string;
 };
 
+type AssistantChatResponse = {
+  answer: string;
+  model?: string;
+  source: "ai" | "fallback" | "not_configured";
+};
+
 type DashboardSummary = {
   period: {
     label: string;
@@ -1778,7 +1784,7 @@ function formatModeFirstStepsReply(context: ReplyContext) {
   return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
 }
 
-function getAssistantReply(prompt: string, context: ReplyContext) {
+function getAssistantReply(prompt: string, context: ReplyContext): string | null {
   const normalized = normalizePrompt(prompt);
 
   if (
@@ -1994,7 +2000,7 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
     return "Você pode trocar a aparência pelo seletor de tema. A escolha fica salva no navegador para os próximos acessos.";
   }
 
-  return "Posso ajudar com insumos, produtos, estoque, clientes, orçamentos, vendas, usuários e planos. Me diga o que você quer fazer que eu te oriento pelo fluxo.";
+  return null;
 }
 
 export function VirtualAssistant({
@@ -2015,6 +2021,7 @@ export function VirtualAssistant({
   const [salesError, setSalesError] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [isAiThinking, setIsAiThinking] = useState(false);
   const [isBudgetsLoading, setIsBudgetsLoading] = useState(true);
   const [isCustomersLoading, setIsCustomersLoading] = useState(true);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
@@ -2458,10 +2465,51 @@ export function VirtualAssistant({
     };
   }, [canReadSales, companyId]);
 
-  function sendPrompt(prompt: string) {
+  async function requestAiReply(prompt: string) {
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { session }
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      throw new Error("Sessão expirada. Entre novamente.");
+    }
+
+    const response = await fetch(`${env.apiUrl}/assistant/chat`, {
+      body: JSON.stringify({
+        activeItem,
+        mode: assistantMode,
+        prompt
+      }),
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+        "x-company-id": companyId
+      },
+      method: "POST"
+    });
+    const payload = (await response.json().catch(() => null)) as
+      | AssistantChatResponse
+      | { message?: string | string[] }
+      | null;
+
+    if (!response.ok || !payload || !("answer" in payload)) {
+      throw new Error(
+        getApiMessage(payload, "Não foi possível acionar a IA do Carbon.")
+      );
+    }
+
+    return payload;
+  }
+
+  async function sendPrompt(prompt: string) {
     const cleanPrompt = prompt.trim();
 
     if (!cleanPrompt) {
+      return;
+    }
+
+    if (isAiThinking) {
       return;
     }
 
@@ -2508,22 +2556,65 @@ export function VirtualAssistant({
       return;
     }
 
+    const localReply = getAssistantReply(cleanPrompt, assistantContext);
+
+    if (localReply) {
+      setMessages((current) =>
+        limitConversation([
+          ...current,
+          { author: "user", text: cleanPrompt },
+          {
+            author: "assistant",
+            text: localReply
+          }
+        ])
+      );
+      setInput("");
+      return;
+    }
+
     setMessages((current) =>
       limitConversation([
         ...current,
-        { author: "user", text: cleanPrompt },
-        {
-          author: "assistant",
-          text: getAssistantReply(cleanPrompt, assistantContext)
-        }
+        { author: "user", text: cleanPrompt }
       ])
     );
     setInput("");
+    setIsAiThinking(true);
+
+    try {
+      const aiReply = await requestAiReply(cleanPrompt);
+
+      setMessages((current) =>
+        limitConversation([
+          ...current,
+          {
+            author: "assistant",
+            text: aiReply.answer
+          }
+        ])
+      );
+    } catch (error) {
+      setMessages((current) =>
+        limitConversation([
+          ...current,
+          {
+            author: "assistant",
+            text:
+              error instanceof Error
+                ? error.message
+                : "Não foi possível acionar a IA do Carbon agora."
+          }
+        ])
+      );
+    } finally {
+      setIsAiThinking(false);
+    }
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    sendPrompt(input);
+    void sendPrompt(input);
   }
 
   function clearConversation() {
@@ -2798,6 +2889,11 @@ export function VirtualAssistant({
                 {message.text}
               </div>
             ))}
+            {isAiThinking ? (
+              <div className="mr-8 rounded-md bg-[var(--surface-soft)] px-3 py-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                Carbon está pensando...
+              </div>
+            ) : null}
             <div ref={messagesEndRef} />
           </div>
 
@@ -2826,8 +2922,9 @@ export function VirtualAssistant({
               {visibleQuickPrompts.map((item) => (
                 <button
                   className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-2 text-left text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                  disabled={isAiThinking}
                   key={item.label}
-                  onClick={() => sendPrompt(item.prompt)}
+                  onClick={() => void sendPrompt(item.prompt)}
                   type="button"
                 >
                   <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -2858,11 +2955,14 @@ export function VirtualAssistant({
             <form className="flex gap-2" onSubmit={handleSubmit}>
               <input
                 className="h-10 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                disabled={isAiThinking}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Pergunte algo..."
+                placeholder={
+                  isAiThinking ? "Carbon está pensando..." : "Pergunte algo..."
+                }
                 value={input}
               />
-              <Button size="icon" type="submit">
+              <Button disabled={isAiThinking} size="icon" type="submit">
                 <Send className="h-4 w-4" aria-hidden="true" />
               </Button>
             </form>

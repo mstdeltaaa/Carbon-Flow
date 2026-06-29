@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 
 import { AccessControlModule } from "./common/access-control/access-control.module";
 import { AuditModule } from "./modules/audit/audit.module";
+import { AssistantModule } from "./modules/assistant/assistant.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { BudgetsModule } from "./modules/budgets/budgets.module";
 import { CompaniesModule } from "./modules/companies/companies.module";
@@ -23,6 +24,7 @@ import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.modul
     }),
     AccessControlModule,
     HealthModule,
+    AssistantModule,
     AuthModule,
     CompaniesModule,
     DashboardModule,
