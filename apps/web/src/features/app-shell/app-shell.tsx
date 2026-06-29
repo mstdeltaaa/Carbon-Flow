@@ -71,17 +71,20 @@ export function AppShell({
   const visibleNavItems = navItems.filter((item) =>
     canAccessSection(role, item.id as AppSection, permissions)
   );
+  const activeCompanyLogoUrl =
+    memberships.find((membership) => membership.companyId === activeCompanyId)
+      ?.company.logoUrl ?? null;
 
   return (
     <main className="min-h-screen">
       <div className="flex w-full max-w-none flex-col gap-4 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4 lg:flex-row lg:px-6 xl:px-8 2xl:px-10">
         <aside className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.86)] p-3 shadow-2xl shadow-[color:var(--shadow-color)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
-          <div className="flex min-w-0 items-center gap-3 px-2 py-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-transparent">
+          <div className="flex min-w-0 items-start gap-3 px-2 py-3">
+            <div className="-ml-1 -mt-1 flex h-12 w-12 shrink-0 items-start justify-start bg-transparent pt-1">
               <Image
                 alt=""
                 aria-hidden="true"
-                className="brand-logo-dark h-8 w-8 object-contain"
+                className="brand-logo-dark h-8 w-8 object-contain object-left-top"
                 height={40}
                 src="/brand/carbon-flow-logo-on-dark-v2.png"
                 width={40}
@@ -89,17 +92,33 @@ export function AppShell({
               <Image
                 alt=""
                 aria-hidden="true"
-                className="brand-logo-light h-8 w-8 object-contain"
+                className="brand-logo-light h-8 w-8 object-contain object-left-top"
                 height={40}
                 src="/brand/carbon-flow-logo-on-light-v2.png"
                 width={40}
               />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1 pt-1">
               <p className="text-sm font-semibold text-white">Carbon Flow</p>
               <p className="text-xs text-[var(--muted-foreground)]">
                 Fluxo de produção
               </p>
+            </div>
+            <div
+              className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-[var(--border)] bg-[rgb(8_10_11/0.52)] p-1 text-center"
+              title="Logo da empresa nos documentos"
+            >
+              {activeCompanyLogoUrl ? (
+                <img
+                  alt={`Logo de ${companyName}`}
+                  className="h-full w-full object-contain"
+                  src={activeCompanyLogoUrl}
+                />
+              ) : (
+                <span className="text-[9px] font-medium leading-3 text-[var(--muted-foreground)]">
+                  Sua logo
+                </span>
+              )}
             </div>
           </div>
 

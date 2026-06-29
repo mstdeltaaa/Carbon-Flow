@@ -4,11 +4,13 @@ import {
   ArrowUpRight,
   Building2,
   CreditCard,
+  ImagePlus,
   KeyRound,
   Loader2,
   Mail,
   Save,
   ShieldCheck,
+  Trash2,
   UserPlus,
   UsersRound
 } from "lucide-react";
@@ -46,6 +48,7 @@ type Company = {
   document: string | null;
   email: string | null;
   id: string;
+  logoUrl: string | null;
   name: string;
   phone: string | null;
   slug: string;
@@ -120,6 +123,13 @@ const usageOrder: PlanLimitKey[] = [
   "sales_per_month"
 ];
 const millisecondsInDay = 24 * 60 * 60 * 1000;
+const maxLogoFileSize = 2 * 1024 * 1024;
+const acceptedLogoTypes = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml"
+];
 
 const permissionLabels: Record<CompanyPermission, string> = {
   budgets: "Orçamentos",
@@ -299,6 +309,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
   });
   const [isInviting, setIsInviting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [isResendingMemberId, setIsResendingMemberId] = useState<string | null>(
     null
   );
@@ -450,6 +461,91 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function updateCompanyLogo(logoUrl: string | null) {
+    const company = await request<Company>("/companies/settings", {
+      body: JSON.stringify({ logoUrl }),
+      method: "PATCH"
+    });
+
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            company
+          }
+        : current
+    );
+  }
+
+  async function handleLogoUpload(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+
+    setMessage(null);
+
+    if (!acceptedLogoTypes.includes(file.type)) {
+      setMessage("Envie uma logo em PNG, JPG, WebP ou SVG.");
+      return;
+    }
+
+    if (file.size > maxLogoFileSize) {
+      setMessage("A logo deve ter no máximo 2 MB.");
+      return;
+    }
+
+    setIsUploadingLogo(true);
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const extension = file.name.split(".").pop()?.toLowerCase() || "png";
+      const filePath = `companies/${companyId}/logo-${Date.now()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("company-assets")
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: true
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data } = supabase.storage
+        .from("company-assets")
+        .getPublicUrl(filePath);
+
+      await updateCompanyLogo(data.publicUrl);
+      setMessage("Logo da empresa atualizada.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível enviar a logo."
+      );
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  }
+
+  async function removeCompanyLogo() {
+    setIsUploadingLogo(true);
+    setMessage(null);
+
+    try {
+      await updateCompanyLogo(null);
+      setMessage("Logo da empresa removida.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível remover a logo."
+      );
+    } finally {
+      setIsUploadingLogo(false);
     }
   }
 
@@ -625,6 +721,85 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
             </div>
 
             <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
+              <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">
+                      Logo da empresa
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                      Usada como marca principal em orçamentos, vendas, fichas
+                      técnicas e impressões.
+                    </p>
+                  </div>
+
+                  <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-2 text-center">
+                    {settings.company.logoUrl ? (
+                      <img
+                        alt={`Logo de ${settings.company.name}`}
+                        className="h-full w-full object-contain"
+                        src={settings.company.logoUrl}
+                      />
+                    ) : (
+                      <span className="text-[10px] font-medium leading-4 text-[var(--muted-foreground)]">
+                        Sua logo aqui
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                  <label
+                    className={[
+                      "inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-[var(--border)] px-4 text-sm font-medium text-white transition hover:bg-[var(--secondary)]",
+                      !isAdmin || isUploadingLogo
+                        ? "pointer-events-none opacity-55"
+                        : ""
+                    ].join(" ")}
+                    htmlFor="company-logo-upload"
+                  >
+                    {isUploadingLogo ? (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    Enviar logo
+                  </label>
+                  <input
+                    accept={acceptedLogoTypes.join(",")}
+                    className="sr-only"
+                    disabled={!isAdmin || isUploadingLogo}
+                    id="company-logo-upload"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = "";
+                      void handleLogoUpload(file);
+                    }}
+                    type="file"
+                  />
+
+                  {settings.company.logoUrl ? (
+                    <Button
+                      disabled={!isAdmin || isUploadingLogo}
+                      onClick={() => void removeCompanyLogo()}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Remover logo
+                    </Button>
+                  ) : null}
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-[var(--muted-foreground)]">
+                  PNG, JPG, WebP ou SVG até 2 MB. Se nenhuma logo for enviada,
+                  os documentos usam a marca do Carbon Flow.
+                </p>
+              </div>
+
               <label className="grid gap-2 text-sm text-white">
                 Nome da empresa
                 <input

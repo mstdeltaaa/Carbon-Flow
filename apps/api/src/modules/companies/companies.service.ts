@@ -27,6 +27,7 @@ type CompanyRow = {
   document: string | null;
   email: string | null;
   id: string;
+  logo_url?: string | null;
   name: string;
   phone: string | null;
   slug: string;
@@ -88,6 +89,7 @@ function mapCompany(row: CompanyRow) {
     document: row.document,
     email: row.email,
     id: row.id,
+    logoUrl: row.logo_url ?? null,
     name: row.name,
     phone: row.phone,
     slug: row.slug,
@@ -152,7 +154,10 @@ export class CompaniesService {
       throw new NotFoundException("Empresa nao encontrada.");
     }
 
-    return mapCompany(data as CompanyRow);
+    return {
+      ...mapCompany(data as CompanyRow),
+      logoUrl: await this.getCompanyLogoUrl(supabase, companyId)
+    };
   }
 
   async getSettings(accessToken: string, companyId: string) {
@@ -203,8 +208,13 @@ export class CompaniesService {
       }
     }
 
+    const companyLogoUrl = await this.getCompanyLogoUrl(supabase, companyId);
+
     return {
-      company: mapCompany(companyResult.data as CompanyRow),
+      company: {
+        ...mapCompany(companyResult.data as CompanyRow),
+        logoUrl: companyLogoUrl
+      },
       members: memberRows.map((member) =>
         mapMember({
           ...member,
@@ -246,6 +256,10 @@ export class CompaniesService {
       payload.phone = normalizeText(dto.phone);
     }
 
+    if (dto.logoUrl !== undefined) {
+      payload.logo_url = normalizeText(dto.logoUrl);
+    }
+
     const { data, error } = await supabase
       .from("companies")
       .update(payload)
@@ -261,7 +275,31 @@ export class CompaniesService {
       throw new NotFoundException("Empresa nao encontrada.");
     }
 
-    return mapCompany(data as CompanyRow);
+    return {
+      ...mapCompany(data as CompanyRow),
+      logoUrl:
+        dto.logoUrl !== undefined
+          ? normalizeText(dto.logoUrl)
+          : await this.getCompanyLogoUrl(supabase, companyId)
+    };
+  }
+
+  private async getCompanyLogoUrl(
+    supabase: ReturnType<SupabaseClientFactory["createForUser"]>,
+    companyId: string
+  ) {
+    const { data, error } = await supabase
+      .from("companies")
+      .select("logo_url")
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (error) {
+      return null;
+    }
+
+    return ((data as Pick<CompanyRow, "logo_url"> | null)?.logo_url ?? null) as
+      string | null;
   }
 
   async inviteMember(

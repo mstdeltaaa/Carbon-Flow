@@ -13,6 +13,7 @@ export const ACTIVE_COMPANY_COOKIE = "carbon_flow_company_id";
 
 export type CompanySummary = {
   id: string;
+  logoUrl: string | null;
   name: string;
   slug: string;
 };
@@ -75,13 +76,17 @@ export async function getActiveCompanyContext() {
     .eq("status", "active")
     .order("created_at", { ascending: true });
 
-  const memberships = (
+  const memberships: CompanyMembership[] = (
     (data ?? []) as unknown as Array<{
       id: string;
       company_id: string;
       permissions: Record<string, unknown> | null;
       role: string;
-      companies: CompanySummary | null;
+      companies: {
+        id: string;
+        name: string;
+        slug: string;
+      } | null;
     }>
   )
     .filter((membership) => membership.companies)
@@ -93,8 +98,33 @@ export async function getActiveCompanyContext() {
         membership.permissions
       ),
       role: membership.role,
-      company: membership.companies as CompanySummary
+      company: {
+        id: membership.companies!.id,
+        logoUrl: null,
+        name: membership.companies!.name,
+        slug: membership.companies!.slug
+      }
     }));
+
+  const companyIds = memberships.map((membership) => membership.companyId);
+
+  if (companyIds.length > 0) {
+    const { data: logoRows } = await supabase
+      .from("companies")
+      .select("id, logo_url")
+      .in("id", companyIds);
+
+    for (const row of (logoRows ?? []) as Array<{
+      id: string;
+      logo_url: string | null;
+    }>) {
+      const membership = memberships.find((item) => item.companyId === row.id);
+
+      if (membership) {
+        membership.company.logoUrl = row.logo_url;
+      }
+    }
+  }
 
   const cookieStore = await cookies();
   const activeCompanyId = cookieStore.get(ACTIVE_COMPANY_COOKIE)?.value;

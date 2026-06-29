@@ -1,11 +1,14 @@
 "use client";
 
 import { ArrowLeft, Loader2, Printer, RefreshCcw } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  CarbonDocumentSignature,
+  DocumentPrimaryLogo
+} from "@/features/documents/document-branding";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -18,6 +21,7 @@ type ProductTechnicalSheetProps = {
 type CompanyDetails = {
   document: string | null;
   email: string | null;
+  logoUrl: string | null;
   name: string;
   phone: string | null;
 };
@@ -361,17 +365,10 @@ export function ProductTechnicalSheet({
           <header className="product-sheet-cover bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-[#dfe5e3] bg-white">
-                  <Image
-                    alt=""
-                    aria-hidden="true"
-                    className="h-10 w-10 object-contain"
-                    height={40}
-                    priority
-                    src="/brand/carbon-flow-logo-on-light-v2.png"
-                    width={40}
-                  />
-                </div>
+                <DocumentPrimaryLogo
+                  companyName={displayCompanyName}
+                  logoUrl={companyDetails?.logoUrl}
+                />
 
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9ff3c4]">
@@ -665,9 +662,12 @@ export function ProductTechnicalSheet({
                 Documento gerado pelo Carbon Flow com base na composição e no
                 estoque atual do produto.
               </span>
-              <span className="font-semibold text-[#101314]">
-                {product.sku ?? product.name}
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <CarbonDocumentSignature />
+                <span className="font-semibold text-[#101314]">
+                  {product.sku ?? product.name}
+                </span>
+              </div>
             </footer>
           </div>
         </section>

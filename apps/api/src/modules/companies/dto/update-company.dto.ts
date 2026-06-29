@@ -27,4 +27,9 @@ export class UpdateCompanyDto {
   @IsString()
   @MaxLength(40)
   phone?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  logoUrl?: string | null;
 }
