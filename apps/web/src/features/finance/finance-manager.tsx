@@ -6,12 +6,15 @@ import {
   CalendarRange,
   CheckCircle2,
   CircleDollarSign,
+  Clock3,
+  Filter,
   Loader2,
   Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
+  Tags,
   WalletCards,
 } from "lucide-react";
 import {
@@ -84,6 +87,9 @@ type FinanceFormState = {
   transactionDate: string;
   type: FinancialTransactionType;
 };
+
+type TransactionStatusFilter = "all" | FinancialTransactionStatus;
+type TransactionTypeFilter = "all" | FinancialTransactionType;
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
@@ -195,9 +201,12 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<TransactionStatusFilter>("all");
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [to, setTo] = useState(initialPeriod.to);
   const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
+  const [typeFilter, setTypeFilter] = useState<TransactionTypeFilter>("all");
   const formSectionRef = useRef<HTMLElement | null>(null);
 
   const request = useCallback(
@@ -267,11 +276,19 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
   const filteredTransactions = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
 
-    if (!normalizedSearch) {
-      return transactions;
-    }
-
     return transactions.filter((transaction) => {
+      if (typeFilter !== "all" && transaction.type !== typeFilter) {
+        return false;
+      }
+
+      if (statusFilter !== "all" && transaction.status !== statusFilter) {
+        return false;
+      }
+
+      if (!normalizedSearch) {
+        return true;
+      }
+
       return [
         transaction.category,
         transaction.description,
@@ -283,7 +300,27 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         .toLowerCase()
         .includes(normalizedSearch);
     });
-  }, [search, transactions]);
+  }, [search, statusFilter, transactions, typeFilter]);
+
+  const categorySummary = useMemo(() => {
+    return summary?.byCategory ?? [];
+  }, [summary]);
+
+  const maxCategoryAmount = useMemo(() => {
+    return Math.max(...categorySummary.map((category) => category.amount), 1);
+  }, [categorySummary]);
+
+  const pendingDueTransactions = useMemo(() => {
+    return transactions
+      .filter(
+        (transaction) =>
+          transaction.status === "pending" && transaction.dueDate,
+      )
+      .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+      .slice(0, 5);
+  }, [transactions]);
+
+  const today = toInputDate(new Date());
 
   const totals = summary?.totals ?? {
     balance: 0,
@@ -556,6 +593,145 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         </div>
       </section>
 
+      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-white">Categorias</h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Maiores valores no período
+              </p>
+            </div>
+            <Tags
+              className="h-5 w-5 shrink-0 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="mt-5 grid gap-4">
+            {categorySummary.length === 0 ? (
+              <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)]">
+                Crie lançamentos para acompanhar receitas e despesas por
+                categoria.
+              </p>
+            ) : null}
+
+            {categorySummary.slice(0, 6).map((category) => {
+              const percentage = Math.max(
+                (category.amount / maxCategoryAmount) * 100,
+                6,
+              );
+
+              return (
+                <div
+                  className="grid gap-2"
+                  key={`${category.type}:${category.category}`}
+                >
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-white">
+                        {category.category}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        {typeLabels[category.type]} · {category.count} registro
+                        {category.count === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    <p
+                      className={[
+                        "shrink-0 font-semibold",
+                        getTypeClass(category.type),
+                      ].join(" ")}
+                    >
+                      {currencyFormatter.format(category.amount)}
+                    </p>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]">
+                    <div
+                      className={[
+                        "h-full rounded-full",
+                        category.type === "income"
+                          ? "bg-[var(--primary)]"
+                          : "bg-[var(--destructive-text)]",
+                      ].join(" ")}
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-base font-semibold text-white">
+                Vencimentos
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Pendências com data definida
+              </p>
+            </div>
+            <Clock3
+              className="h-5 w-5 shrink-0 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {pendingDueTransactions.length === 0 ? (
+              <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)]">
+                Nenhum lançamento pendente com vencimento neste período.
+              </p>
+            ) : null}
+
+            {pendingDueTransactions.map((transaction) => {
+              const isOverdue = Boolean(
+                transaction.dueDate && transaction.dueDate < today,
+              );
+
+              return (
+                <div
+                  className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3"
+                  key={transaction.id}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-white">
+                        {transaction.description}
+                      </p>
+                      <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                        {transaction.category} ·{" "}
+                        {formatDate(transaction.dueDate)}
+                      </p>
+                    </div>
+                    <p
+                      className={[
+                        "shrink-0 text-sm font-semibold",
+                        getTypeClass(transaction.type),
+                      ].join(" ")}
+                    >
+                      {currencyFormatter.format(transaction.amount)}
+                    </p>
+                  </div>
+                  <p
+                    className={[
+                      "mt-3 inline-flex rounded-md px-2 py-1 text-xs",
+                      isOverdue
+                        ? "bg-[var(--destructive-soft)] text-[var(--destructive-text)]"
+                        : "bg-[rgb(245_158_11/0.14)] text-[rgb(251_191_36)]",
+                    ].join(" ")}
+                  >
+                    {isOverdue ? "Vencido" : "Pendente"}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
         <section
           className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
@@ -721,28 +897,81 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         </section>
 
         <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-base font-semibold text-white">
-                Movimentações
-              </h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                {filteredTransactions.length} registros
-              </p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  Movimentações
+                </h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  {filteredTransactions.length} registros
+                </p>
+              </div>
+              <label className="relative block sm:w-72 lg:w-80">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
+                  aria-hidden="true"
+                />
+                <input
+                  className="h-10 w-full rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Buscar"
+                  type="search"
+                  value={search}
+                />
+              </label>
             </div>
-            <label className="relative block sm:w-72 lg:w-80">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
-                aria-hidden="true"
-              />
-              <input
-                className="h-10 w-full rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] pl-9 pr-3 text-sm text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar"
-                type="search"
-                value={search}
-              />
-            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-xs text-white">
+                <span className="flex items-center gap-2">
+                  <Filter className="h-3.5 w-3.5" aria-hidden="true" />
+                  Tipo
+                </span>
+                <select
+                  className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                  onChange={(event) =>
+                    setTypeFilter(event.target.value as TransactionTypeFilter)
+                  }
+                  value={typeFilter}
+                >
+                  <option className="bg-[#101314] text-white" value="all">
+                    Todos
+                  </option>
+                  <option className="bg-[#101314] text-white" value="income">
+                    Receitas
+                  </option>
+                  <option className="bg-[#101314] text-white" value="expense">
+                    Despesas
+                  </option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-xs text-white">
+                Status
+                <select
+                  className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                  onChange={(event) =>
+                    setStatusFilter(
+                      event.target.value as TransactionStatusFilter,
+                    )
+                  }
+                  value={statusFilter}
+                >
+                  <option className="bg-[#101314] text-white" value="all">
+                    Todos
+                  </option>
+                  <option className="bg-[#101314] text-white" value="paid">
+                    Pagos
+                  </option>
+                  <option className="bg-[#101314] text-white" value="pending">
+                    Pendentes
+                  </option>
+                  <option className="bg-[#101314] text-white" value="cancelled">
+                    Cancelados
+                  </option>
+                </select>
+              </label>
+            </div>
           </div>
 
           <div className="mt-5 max-w-full overflow-x-auto rounded-md">
