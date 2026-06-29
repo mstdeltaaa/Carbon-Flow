@@ -1,4 +1,4 @@
-import { IsIn, IsOptional } from "class-validator";
+import { IsIn, IsObject, IsOptional } from "class-validator";
 
 const companyRoles = ["admin", "employee", "seller"] as const;
 const companyUserStatuses = ["active", "invited", "disabled"] as const;
@@ -11,4 +11,8 @@ export class UpdateMemberDto {
   @IsOptional()
   @IsIn(companyUserStatuses)
   status?: (typeof companyUserStatuses)[number];
+
+  @IsOptional()
+  @IsObject()
+  permissions?: Record<string, boolean>;
 }

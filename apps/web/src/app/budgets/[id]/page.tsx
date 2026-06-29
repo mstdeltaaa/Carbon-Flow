@@ -26,7 +26,7 @@ export default async function BudgetDocumentPage({
     redirect("/onboarding");
   }
 
-  if (!canAccessSection(context.role, "budgets")) {
+  if (!canAccessSection(context.role, "budgets", context.permissions)) {
     redirect("/");
   }
 

@@ -23,10 +23,11 @@ export default async function SettingsPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "settings") ? (
+      {canAccessSection(context.role, "settings", context.permissions) ? (
         <SettingsManager companyId={context.company.id} role={context.role} />
       ) : (
         <AccessDenied />

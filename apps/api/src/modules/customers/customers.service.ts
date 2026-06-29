@@ -1,5 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 
+import { hasCompanyPermission } from "../../common/access-control/permissions";
+import { type CurrentCompany } from "../../common/decorators/current-company.decorator";
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
@@ -187,7 +193,7 @@ export class CustomersService {
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
-  async findAll(accessToken: string, companyId: string) {
+  async findAll(accessToken: string, company: CurrentCompany) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
 
     const { data, error } = await supabase
@@ -195,7 +201,7 @@ export class CustomersService {
       .select(
         "id, company_id, name, phone, email, address, notes, created_at, updated_at"
       )
-      .eq("company_id", companyId)
+      .eq("company_id", company.id)
       .order("name", { ascending: true });
 
     if (error) {
@@ -205,7 +211,7 @@ export class CustomersService {
     const customers = (data ?? []) as CustomerRow[];
     const summaries = await this.getCustomerSummaries(
       accessToken,
-      companyId,
+      company,
       customers.map((customer) => customer.id)
     );
 
@@ -247,7 +253,7 @@ export class CustomersService {
 
   async update(
     accessToken: string,
-    companyId: string,
+    company: CurrentCompany,
     customerId: string,
     dto: UpdateCustomerDto
   ) {
@@ -277,7 +283,7 @@ export class CustomersService {
     const { data, error } = await supabase
       .from("customers")
       .update(payload)
-      .eq("company_id", companyId)
+      .eq("company_id", company.id)
       .eq("id", customerId)
       .select(
         "id, company_id, name, phone, email, address, notes, created_at, updated_at"
@@ -292,44 +298,41 @@ export class CustomersService {
       throw new NotFoundException("Cliente nao encontrado.");
     }
 
-    const summaries = await this.getCustomerSummaries(accessToken, companyId, [
+    const summaries = await this.getCustomerSummaries(accessToken, company, [
       customerId
     ]);
 
     return mapCustomer(data as CustomerRow, summaries.get(customerId));
   }
 
-  async findHistory(accessToken: string, companyId: string, customerId: string) {
-    const customer = await this.getCustomerRow(accessToken, companyId, customerId);
+  async findHistory(
+    accessToken: string,
+    company: CurrentCompany,
+    customerId: string
+  ) {
+    const customer = await this.getCustomerRow(
+      accessToken,
+      company.id,
+      customerId
+    );
     const supabase = this.supabaseFactory.createForUser(accessToken);
+    const canReadBudgets = hasCompanyPermission(
+      company.role,
+      company.permissions,
+      "budgets"
+    );
+    const canReadSales = hasCompanyPermission(
+      company.role,
+      company.permissions,
+      "sales"
+    );
 
-    const [budgetsResult, salesResult] = await Promise.all([
-      supabase
-        .from("budgets")
-        .select("id, customer_id, number, status, valid_until, total_amount, created_at")
-        .eq("company_id", companyId)
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("sales")
-        .select(
-          "id, customer_id, number, status, total_amount, estimated_profit, sold_at, created_at"
-        )
-        .eq("company_id", companyId)
-        .eq("customer_id", customerId)
-        .order("sold_at", { ascending: false })
-    ]);
-
-    if (budgetsResult.error) {
-      throwDatabaseError(budgetsResult.error);
-    }
-
-    if (salesResult.error) {
-      throwDatabaseError(salesResult.error);
-    }
-
-    const budgets = (budgetsResult.data ?? []) as BudgetHistoryRow[];
-    const sales = (salesResult.data ?? []) as SaleHistoryRow[];
+    const budgets = canReadBudgets
+      ? await this.getCustomerBudgets(supabase, company.id, customerId)
+      : [];
+    const sales = canReadSales
+      ? await this.getCustomerSales(supabase, company.id, customerId)
+      : [];
     const summary = buildSummary(budgets, sales);
 
     return {
@@ -390,7 +393,7 @@ export class CustomersService {
 
   private async getCustomerSummaries(
     accessToken: string,
-    companyId: string,
+    company: CurrentCompany,
     customerIds: string[]
   ) {
     const summaries = new Map<string, CustomerSummary>();
@@ -404,31 +407,28 @@ export class CustomersService {
     }
 
     const supabase = this.supabaseFactory.createForUser(accessToken);
-    const [budgetsResult, salesResult] = await Promise.all([
-      supabase
-        .from("budgets")
-        .select("customer_id, status, total_amount")
-        .eq("company_id", companyId)
-        .in("customer_id", customerIds),
-      supabase
-        .from("sales")
-        .select("customer_id, status, total_amount, estimated_profit, sold_at")
-        .eq("company_id", companyId)
-        .in("customer_id", customerIds)
-    ]);
+    const canReadBudgets = hasCompanyPermission(
+      company.role,
+      company.permissions,
+      "budgets"
+    );
+    const canReadSales = hasCompanyPermission(
+      company.role,
+      company.permissions,
+      "sales"
+    );
 
-    if (budgetsResult.error) {
-      throwDatabaseError(budgetsResult.error);
-    }
-
-    if (salesResult.error) {
-      throwDatabaseError(salesResult.error);
-    }
+    const budgets = canReadBudgets
+      ? await this.getCustomerBudgetSummaries(supabase, company.id, customerIds)
+      : [];
+    const sales = canReadSales
+      ? await this.getCustomerSaleSummaries(supabase, company.id, customerIds)
+      : [];
 
     const budgetsByCustomer = new Map<string, BudgetSummaryRow[]>();
     const salesByCustomer = new Map<string, SaleSummaryRow[]>();
 
-    for (const budget of (budgetsResult.data ?? []) as BudgetSummaryRow[]) {
+    for (const budget of budgets) {
       if (!budget.customer_id) {
         continue;
       }
@@ -439,7 +439,7 @@ export class CustomersService {
       ]);
     }
 
-    for (const sale of (salesResult.data ?? []) as SaleSummaryRow[]) {
+    for (const sale of sales) {
       if (!sale.customer_id) {
         continue;
       }
@@ -461,5 +461,83 @@ export class CustomersService {
     }
 
     return summaries;
+  }
+
+  private async getCustomerBudgetSummaries(
+    supabase: ReturnType<SupabaseClientFactory["createForUser"]>,
+    companyId: string,
+    customerIds: string[]
+  ) {
+    const { data, error } = await supabase
+      .from("budgets")
+      .select("customer_id, status, total_amount")
+      .eq("company_id", companyId)
+      .in("customer_id", customerIds);
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return (data ?? []) as BudgetSummaryRow[];
+  }
+
+  private async getCustomerSaleSummaries(
+    supabase: ReturnType<SupabaseClientFactory["createForUser"]>,
+    companyId: string,
+    customerIds: string[]
+  ) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select("customer_id, status, total_amount, estimated_profit, sold_at")
+      .eq("company_id", companyId)
+      .in("customer_id", customerIds);
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return (data ?? []) as SaleSummaryRow[];
+  }
+
+  private async getCustomerBudgets(
+    supabase: ReturnType<SupabaseClientFactory["createForUser"]>,
+    companyId: string,
+    customerId: string
+  ) {
+    const { data, error } = await supabase
+      .from("budgets")
+      .select(
+        "id, customer_id, number, status, valid_until, total_amount, created_at"
+      )
+      .eq("company_id", companyId)
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return (data ?? []) as BudgetHistoryRow[];
+  }
+
+  private async getCustomerSales(
+    supabase: ReturnType<SupabaseClientFactory["createForUser"]>,
+    companyId: string,
+    customerId: string
+  ) {
+    const { data, error } = await supabase
+      .from("sales")
+      .select(
+        "id, customer_id, number, status, total_amount, estimated_profit, sold_at, created_at"
+      )
+      .eq("company_id", companyId)
+      .eq("customer_id", customerId)
+      .order("sold_at", { ascending: false });
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return (data ?? []) as SaleHistoryRow[];
   }
 }

@@ -23,10 +23,11 @@ export default async function BillingPage() {
       activeItem="billing"
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "billing") ? (
+      {canAccessSection(context.role, "billing", context.permissions) ? (
         <BillingManager companyId={context.company.id} />
       ) : (
         <AccessDenied />

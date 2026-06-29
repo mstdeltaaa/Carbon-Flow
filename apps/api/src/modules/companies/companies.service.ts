@@ -7,6 +7,13 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+import {
+  createDefaultEmployeePermissionMap,
+  createEmptyPermissionMap,
+  normalizePermissionMap,
+  sanitizeEmployeePermissions,
+  type CompanyPermissionMap
+} from "../../common/access-control/permissions";
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { InviteMemberDto } from "./dto/invite-member.dto";
@@ -35,6 +42,7 @@ type UserJoin = {
 type CompanyUserRow = {
   created_at: string;
   id: string;
+  permissions: Record<string, unknown> | null;
   role: CompanyRole;
   status: CompanyUserStatus;
   user_id: string;
@@ -55,7 +63,9 @@ function normalizeEmail(value: string | null | undefined) {
 
 function requireAdmin(role: string) {
   if (role !== "admin") {
-    throw new ForbiddenException("Apenas administradores podem gerenciar usuarios.");
+    throw new ForbiddenException(
+      "Apenas administradores podem gerenciar usuarios."
+    );
   }
 }
 
@@ -91,6 +101,7 @@ function mapMember(row: CompanyUserRow) {
   return {
     id: row.id,
     createdAt: row.created_at,
+    permissions: normalizePermissionMap(row.permissions),
     role: row.role,
     status: row.status,
     user: user
@@ -101,6 +112,19 @@ function mapMember(row: CompanyUserRow) {
         }
       : null
   };
+}
+
+function getPermissionsForRole(
+  role: CompanyRole,
+  permissions?: Record<string, boolean>
+): CompanyPermissionMap {
+  if (role === "employee") {
+    return permissions
+      ? sanitizeEmployeePermissions(permissions)
+      : createDefaultEmployeePermissionMap();
+  }
+
+  return createEmptyPermissionMap();
 }
 
 @Injectable()
@@ -114,20 +138,19 @@ export class CompaniesService {
   async getSettings(accessToken: string, companyId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
 
-    const [companyResult, membersResult, subscription] =
-      await Promise.all([
-        supabase
-          .from("companies")
-          .select("id, name, slug, document, email, phone, updated_at")
-          .eq("id", companyId)
-          .maybeSingle(),
-        supabase
-          .from("company_users")
-          .select("id, user_id, role, status, created_at")
-          .eq("company_id", companyId)
-          .order("created_at", { ascending: true }),
-        this.subscriptionsService.getOverview(companyId)
-      ]);
+    const [companyResult, membersResult, subscription] = await Promise.all([
+      supabase
+        .from("companies")
+        .select("id, name, slug, document, email, phone, updated_at")
+        .eq("id", companyId)
+        .maybeSingle(),
+      supabase
+        .from("company_users")
+        .select("id, user_id, role, status, permissions, created_at")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: true }),
+      this.subscriptionsService.getOverview(companyId)
+    ]);
 
     if (companyResult.error) {
       throwDatabaseError(companyResult.error);
@@ -179,7 +202,9 @@ export class CompaniesService {
     dto: UpdateCompanyDto
   ) {
     if (role !== "admin") {
-      throw new ForbiddenException("Apenas administradores podem editar a empresa.");
+      throw new ForbiddenException(
+        "Apenas administradores podem editar a empresa."
+      );
     }
 
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -277,12 +302,13 @@ export class CompaniesService {
         .from("company_users")
         .update({
           invited_by: invitedBy,
+          permissions: getPermissionsForRole(dto.role, dto.permissions),
           role: dto.role,
           status: "active"
         })
         .eq("company_id", companyId)
         .eq("id", existingMember.id)
-        .select("id, user_id, role, status, created_at")
+        .select("id, user_id, role, status, permissions, created_at")
         .maybeSingle();
 
       if (error) {
@@ -304,11 +330,12 @@ export class CompaniesService {
       .insert({
         company_id: companyId,
         invited_by: invitedBy,
+        permissions: getPermissionsForRole(dto.role, dto.permissions),
         role: dto.role,
         status: "active",
         user_id: user.id
       })
-      .select("id, user_id, role, status, created_at")
+      .select("id, user_id, role, status, permissions, created_at")
       .single();
 
     if (error) {
@@ -365,7 +392,11 @@ export class CompaniesService {
   ) {
     requireAdmin(currentRole);
 
-    if (dto.role === undefined && dto.status === undefined) {
+    if (
+      dto.role === undefined &&
+      dto.status === undefined &&
+      dto.permissions === undefined
+    ) {
       throw new BadRequestException("Informe perfil ou status para atualizar.");
     }
 
@@ -380,6 +411,18 @@ export class CompaniesService {
       payload.role = dto.role;
     }
 
+    const nextRole = dto.role ?? member.role;
+
+    if (dto.permissions !== undefined || dto.role !== undefined) {
+      const nextPermissions =
+        dto.permissions ??
+        (dto.role === "employee"
+          ? createDefaultEmployeePermissionMap()
+          : normalizePermissionMap(member.permissions));
+
+      payload.permissions = getPermissionsForRole(nextRole, nextPermissions);
+    }
+
     if (dto.status !== undefined) {
       payload.status = dto.status;
     }
@@ -389,7 +432,7 @@ export class CompaniesService {
       .update(payload)
       .eq("company_id", companyId)
       .eq("id", memberId)
-      .select("id, user_id, role, status, created_at")
+      .select("id, user_id, role, status, permissions, created_at")
       .maybeSingle();
 
     if (error) {
@@ -442,7 +485,7 @@ export class CompaniesService {
     const supabase = this.supabaseFactory.createAdmin();
     const { data, error } = await supabase
       .from("company_users")
-      .select("id, user_id, role, status, created_at")
+      .select("id, user_id, role, status, permissions, created_at")
       .eq("company_id", companyId)
       .eq("user_id", userId)
       .maybeSingle();
@@ -458,7 +501,7 @@ export class CompaniesService {
     const supabase = this.supabaseFactory.createAdmin();
     const { data, error } = await supabase
       .from("company_users")
-      .select("id, user_id, role, status, created_at")
+      .select("id, user_id, role, status, permissions, created_at")
       .eq("company_id", companyId)
       .eq("id", memberId)
       .maybeSingle();
@@ -481,7 +524,7 @@ export class CompaniesService {
   ) {
     const willRemoveAdmin =
       member.role === "admin" &&
-      (dto.role !== undefined && dto.role !== "admin" ||
+      ((dto.role !== undefined && dto.role !== "admin") ||
         dto.status === "disabled");
 
     if (!willRemoveAdmin) {
@@ -509,7 +552,10 @@ export class CompaniesService {
     }
   }
 
-  private getSetPasswordUrl(companyId?: string, type: "invite" | "recovery" = "invite") {
+  private getSetPasswordUrl(
+    companyId?: string,
+    type: "invite" | "recovery" = "invite"
+  ) {
     const appUrl = this.config.get<string>(
       "NEXT_PUBLIC_APP_URL",
       "http://localhost:3000"

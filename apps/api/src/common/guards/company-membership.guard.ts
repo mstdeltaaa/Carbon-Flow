@@ -9,6 +9,8 @@ import {
 import { ConfigService } from "@nestjs/config";
 import { createClient } from "@supabase/supabase-js";
 
+import { normalizePermissionMap } from "../access-control/permissions";
+
 @Injectable()
 export class CompanyMembershipGuard implements CanActivate {
   constructor(private readonly config: ConfigService) {}
@@ -16,7 +18,11 @@ export class CompanyMembershipGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       accessToken?: string;
-      company?: { id: string; role: string };
+      company?: {
+        id: string;
+        permissions: Record<string, boolean>;
+        role: string;
+      };
       headers: Record<string, string | string[] | undefined>;
       user?: { id: string; email?: string };
     }>();
@@ -60,7 +66,7 @@ export class CompanyMembershipGuard implements CanActivate {
 
     const { data, error } = await supabase
       .from("company_users")
-      .select("role")
+      .select("role, permissions")
       .eq("company_id", companyId)
       .eq("user_id", request.user.id)
       .eq("status", "active")
@@ -72,6 +78,7 @@ export class CompanyMembershipGuard implements CanActivate {
 
     request.company = {
       id: companyId,
+      permissions: normalizePermissionMap(data.permissions),
       role: String(data.role)
     };
 

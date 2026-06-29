@@ -23,11 +23,16 @@ export default async function BudgetsPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "budgets") ? (
-        <BudgetsManager companyId={context.company.id} role={context.role} />
+      {canAccessSection(context.role, "budgets", context.permissions) ? (
+        <BudgetsManager
+          companyId={context.company.id}
+          permissions={context.permissions}
+          role={context.role}
+        />
       ) : (
         <AccessDenied />
       )}

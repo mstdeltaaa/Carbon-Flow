@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
+import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -21,6 +22,7 @@ import { SalesService } from "./sales.service";
 @ApiBearerAuth()
 @Controller("sales")
 @CompanyRoles("admin", "employee")
+@CompanyPermissions("sales")
 @UseGuards(SupabaseAuthGuard, CompanyMembershipGuard, CompanyRoleGuard)
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}

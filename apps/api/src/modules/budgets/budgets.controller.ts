@@ -1,7 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
+import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -22,6 +32,7 @@ import { UpdateBudgetDto } from "./dto/update-budget.dto";
 @ApiBearerAuth()
 @Controller("budgets")
 @CompanyRoles("admin", "employee", "seller")
+@CompanyPermissions("budgets")
 @UseGuards(SupabaseAuthGuard, CompanyMembershipGuard, CompanyRoleGuard)
 export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
@@ -77,6 +88,11 @@ export class BudgetsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param("id") budgetId: string
   ) {
-    return this.budgetsService.remove(accessToken, company.id, user.id, budgetId);
+    return this.budgetsService.remove(
+      accessToken,
+      company.id,
+      user.id,
+      budgetId
+    );
   }
 }

@@ -1,7 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
+import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -27,6 +37,7 @@ export class ProductsController {
 
   @Get()
   @CompanyRoles("admin", "employee", "seller")
+  @CompanyPermissions("products")
   findAll(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload
@@ -36,6 +47,7 @@ export class ProductsController {
 
   @Post()
   @CompanyRoles("admin", "employee")
+  @CompanyPermissions("products")
   create(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
@@ -47,6 +59,7 @@ export class ProductsController {
 
   @Patch(":id")
   @CompanyRoles("admin", "employee")
+  @CompanyPermissions("products")
   update(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
@@ -58,6 +71,7 @@ export class ProductsController {
 
   @Delete(":id")
   @CompanyRoles("admin", "employee")
+  @CompanyPermissions("products")
   deactivate(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,

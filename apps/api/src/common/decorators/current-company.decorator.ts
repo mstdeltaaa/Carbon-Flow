@@ -2,6 +2,7 @@ import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 
 export type CurrentCompany = {
   id: string;
+  permissions: Record<string, boolean>;
   role: string;
 };
 
@@ -14,4 +15,3 @@ export const CurrentCompany = createParamDecorator(
     return request.company;
   }
 );
-

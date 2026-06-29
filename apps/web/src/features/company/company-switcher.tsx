@@ -38,7 +38,10 @@ type CompanySwitcherProps = {
   memberships: CompanyMembership[];
 };
 
-function getPathAfterCompanyChange(pathname: string, role: string) {
+function getPathAfterCompanyChange(
+  pathname: string,
+  membership: CompanyMembership
+) {
   if (pathname.startsWith("/budgets/")) {
     return "/budgets";
   }
@@ -47,11 +50,14 @@ function getPathAfterCompanyChange(pathname: string, role: string) {
     pathname.startsWith(route.prefix)
   )?.section;
 
-  if (currentSection && canAccessSection(role, currentSection)) {
+  if (
+    currentSection &&
+    canAccessSection(membership.role, currentSection, membership.permissions)
+  ) {
     return pathname;
   }
 
-  return getDefaultPathForRole(role);
+  return getDefaultPathForRole(membership.role, membership.permissions);
 }
 
 export function CompanySwitcher({
@@ -87,7 +93,7 @@ export function CompanySwitcher({
         return;
       }
 
-      const nextPath = getPathAfterCompanyChange(pathname, membership.role);
+      const nextPath = getPathAfterCompanyChange(pathname, membership);
 
       if (nextPath === pathname) {
         router.refresh();

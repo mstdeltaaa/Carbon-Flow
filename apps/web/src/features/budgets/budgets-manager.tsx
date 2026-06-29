@@ -33,7 +33,10 @@ import {
   clearStoredAssistantAction,
   getStoredAssistantAction
 } from "@/features/assistant/assistant-actions";
-import { canConvertBudgets } from "@/lib/access-control";
+import {
+  canConvertBudgets,
+  type CompanyPermissionMap
+} from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -109,6 +112,7 @@ type BudgetFormState = {
 
 type BudgetsManagerProps = {
   companyId: string;
+  permissions: CompanyPermissionMap | null;
   role: string | null;
 };
 
@@ -220,7 +224,11 @@ function getStatusClass(status: BudgetStatus) {
   return "bg-[var(--secondary)] text-[var(--muted-foreground)]";
 }
 
-export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
+export function BudgetsManager({
+  companyId,
+  permissions,
+  role
+}: BudgetsManagerProps) {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -233,7 +241,7 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const formSectionRef = useRef<HTMLElement | null>(null);
-  const canConvert = canConvertBudgets(role);
+  const canConvert = canConvertBudgets(role, permissions);
 
   const request = useCallback(
     async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -390,7 +398,9 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
         };
 
         if (field === "productId") {
-          const product = products.find((currentProduct) => currentProduct.id === value);
+          const product = products.find(
+            (currentProduct) => currentProduct.id === value
+          );
           nextItem.unitPrice = product ? String(product.salePrice) : "0";
         }
 
@@ -489,7 +499,9 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
   function buildPayload() {
     const cleanedItems = form.items
       .map((item) => {
-        const product = products.find((current) => current.id === item.productId);
+        const product = products.find(
+          (current) => current.id === item.productId
+        );
         const quantity = parseDecimal(item.quantity);
         const unitPrice = parseDecimal(item.unitPrice);
 
@@ -688,7 +700,10 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
             <p className="text-sm text-[var(--muted-foreground)]">Em aberto</p>
-            <Send className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
+            <Send
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
           </div>
           <p className="mt-4 text-2xl font-semibold text-white">
             {openBudgets}
@@ -814,7 +829,8 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
                 <div>
                   <h3 className="text-sm font-semibold text-white">Produtos</h3>
                   <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                    {products.length} disponíveis / {preview.itemCount} no orçamento
+                    {products.length} disponíveis / {preview.itemCount} no
+                    orçamento
                   </p>
                 </div>
                 <button

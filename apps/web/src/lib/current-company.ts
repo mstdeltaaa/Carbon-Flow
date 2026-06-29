@@ -1,5 +1,11 @@
 import { cookies } from "next/headers";
 
+import {
+  createDefaultEmployeePermissionMap,
+  createEmptyPermissionMap,
+  normalizePermissionMap,
+  type CompanyPermissionMap
+} from "@/lib/access-control";
 import { hasSupabaseEnv } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -14,9 +20,34 @@ export type CompanySummary = {
 export type CompanyMembership = {
   id: string;
   companyId: string;
+  permissions: CompanyPermissionMap;
   role: string;
   company: CompanySummary;
 };
+
+function getPermissionsForRole(role: string, permissions: unknown) {
+  if (role === "admin") {
+    return createDefaultEmployeePermissionMap();
+  }
+
+  if (role === "seller") {
+    return {
+      ...createEmptyPermissionMap(),
+      budgets: true,
+      customers: true,
+      products: true
+    };
+  }
+
+  if (role === "employee") {
+    return normalizePermissionMap(
+      permissions,
+      createDefaultEmployeePermissionMap()
+    );
+  }
+
+  return createEmptyPermissionMap();
+}
 
 export async function getActiveCompanyContext() {
   if (!hasSupabaseEnv) {
@@ -39,21 +70,28 @@ export async function getActiveCompanyContext() {
 
   const { data } = await supabase
     .from("company_users")
-    .select("id, company_id, role, companies(id, name, slug)")
+    .select("id, company_id, role, permissions, companies(id, name, slug)")
     .eq("user_id", user.id)
     .eq("status", "active")
     .order("created_at", { ascending: true });
 
-  const memberships = ((data ?? []) as unknown as Array<{
-    id: string;
-    company_id: string;
-    role: string;
-    companies: CompanySummary | null;
-  }>)
+  const memberships = (
+    (data ?? []) as unknown as Array<{
+      id: string;
+      company_id: string;
+      permissions: Record<string, unknown> | null;
+      role: string;
+      companies: CompanySummary | null;
+    }>
+  )
     .filter((membership) => membership.companies)
     .map((membership) => ({
       id: membership.id,
       companyId: membership.company_id,
+      permissions: getPermissionsForRole(
+        membership.role,
+        membership.permissions
+      ),
       role: membership.role,
       company: membership.companies as CompanySummary
     }));
@@ -78,6 +116,7 @@ export async function getActiveCompanyContext() {
     user,
     company,
     memberships,
+    permissions: membership.permissions,
     role: membership.role
   };
 }

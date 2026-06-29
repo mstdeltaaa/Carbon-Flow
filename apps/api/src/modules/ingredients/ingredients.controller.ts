@@ -1,7 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
+import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -22,6 +32,7 @@ import { IngredientsService } from "./ingredients.service";
 @ApiBearerAuth()
 @Controller("ingredients")
 @CompanyRoles("admin", "employee")
+@CompanyPermissions("ingredients")
 @UseGuards(SupabaseAuthGuard, CompanyMembershipGuard, CompanyRoleGuard)
 export class IngredientsController {
   constructor(private readonly ingredientsService: IngredientsService) {}
@@ -41,7 +52,12 @@ export class IngredientsController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateIngredientDto
   ) {
-    return this.ingredientsService.create(accessToken, company.id, user.id, dto);
+    return this.ingredientsService.create(
+      accessToken,
+      company.id,
+      user.id,
+      dto
+    );
   }
 
   @Patch(":id")

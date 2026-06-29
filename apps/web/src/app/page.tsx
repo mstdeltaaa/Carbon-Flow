@@ -14,5 +14,5 @@ export default async function HomePage() {
     redirect("/onboarding");
   }
 
-  redirect(getDefaultPathForRole(context.role));
+  redirect(getDefaultPathForRole(context.role, context.permissions));
 }

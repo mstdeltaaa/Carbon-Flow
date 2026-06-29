@@ -23,10 +23,11 @@ export default async function DashboardPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "dashboard") ? (
+      {canAccessSection(context.role, "dashboard", context.permissions) ? (
         <DashboardScreen companyId={context.company.id} />
       ) : (
         <AccessDenied />

@@ -1,7 +1,17 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
+import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -22,6 +32,7 @@ import { UpdateCustomerDto } from "./dto/update-customer.dto";
 @ApiBearerAuth()
 @Controller("customers")
 @CompanyRoles("admin", "employee", "seller")
+@CompanyPermissions("customers")
 @UseGuards(SupabaseAuthGuard, CompanyMembershipGuard, CompanyRoleGuard)
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
@@ -31,7 +42,7 @@ export class CustomersController {
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload
   ) {
-    return this.customersService.findAll(accessToken, company.id);
+    return this.customersService.findAll(accessToken, company);
   }
 
   @Get(":id/history")
@@ -40,11 +51,7 @@ export class CustomersController {
     @CurrentCompany() company: CurrentCompanyPayload,
     @Param("id") customerId: string
   ) {
-    return this.customersService.findHistory(
-      accessToken,
-      company.id,
-      customerId
-    );
+    return this.customersService.findHistory(accessToken, company, customerId);
   }
 
   @Post()
@@ -64,7 +71,7 @@ export class CustomersController {
     @Param("id") customerId: string,
     @Body() dto: UpdateCustomerDto
   ) {
-    return this.customersService.update(accessToken, company.id, customerId, dto);
+    return this.customersService.update(accessToken, company, customerId, dto);
   }
 
   @Delete(":id")

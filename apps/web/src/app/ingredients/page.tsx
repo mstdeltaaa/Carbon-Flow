@@ -23,10 +23,11 @@ export default async function IngredientsPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "ingredients") ? (
+      {canAccessSection(context.role, "ingredients", context.permissions) ? (
         <IngredientsManager companyId={context.company.id} />
       ) : (
         <AccessDenied />

@@ -23,10 +23,11 @@ export default async function FinancePage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "finance") ? (
+      {canAccessSection(context.role, "finance", context.permissions) ? (
         <FinanceManager companyId={context.company.id} />
       ) : (
         <AccessDenied />

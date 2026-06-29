@@ -23,10 +23,11 @@ export default async function HistoryPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "history") ? (
+      {canAccessSection(context.role, "history", context.permissions) ? (
         <HistoryManager companyId={context.company.id} role={context.role} />
       ) : (
         <AccessDenied />

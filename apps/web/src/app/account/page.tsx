@@ -23,11 +23,15 @@ export default async function AccountPage() {
       activeItem="account"
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "account") ? (
-        <AccountManager companyName={context.company.name} role={context.role} />
+      {canAccessSection(context.role, "account", context.permissions) ? (
+        <AccountManager
+          companyName={context.company.name}
+          role={context.role}
+        />
       ) : (
         <AccessDenied />
       )}

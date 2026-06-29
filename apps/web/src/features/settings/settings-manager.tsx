@@ -16,6 +16,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  companyPermissions,
+  createDefaultEmployeePermissionMap,
+  createEmptyPermissionMap,
+  normalizePermissionMap,
+  type CompanyPermission,
+  type CompanyPermissionMap
+} from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -23,11 +31,7 @@ type CompanyRole = "admin" | "employee" | "seller";
 type CompanyUserStatus = "active" | "invited" | "disabled";
 type SubscriptionPlan = "free" | "pro" | "enterprise";
 type SubscriptionStatus =
-  | "active"
-  | "inactive"
-  | "trialing"
-  | "past_due"
-  | "cancelled";
+  "active" | "inactive" | "trialing" | "past_due" | "cancelled";
 type PlanLimitKey =
   | "users"
   | "ingredients"
@@ -51,6 +55,7 @@ type Company = {
 type Member = {
   createdAt: string;
   id: string;
+  permissions: CompanyPermissionMap;
   role: CompanyRole;
   status: CompanyUserStatus;
   user: {
@@ -83,6 +88,7 @@ type CompanyFormState = {
 
 type InviteFormState = {
   email: string;
+  permissions: CompanyPermissionMap;
   role: CompanyRole;
 };
 
@@ -113,6 +119,23 @@ const usageOrder: PlanLimitKey[] = [
   "budgets_per_month",
   "sales_per_month"
 ];
+
+const permissionLabels: Record<CompanyPermission, string> = {
+  budgets: "Orçamentos",
+  customers: "Clientes",
+  dashboard: "Dashboard",
+  finance: "Financeiro",
+  ingredients: "Insumos",
+  products: "Produtos",
+  sales: "Vendas",
+  stock: "Estoque"
+};
+
+const fixedRolePermissionText: Record<CompanyRole, string> = {
+  admin: "Acesso total",
+  employee: "Personalizado",
+  seller: "Clientes, produtos e orçamentos"
+};
 
 function getApiMessage(payload: unknown, fallback: string) {
   if (
@@ -165,10 +188,7 @@ function getUsagePercent(usage: number, limit: number | null) {
   return Math.min(100, Math.round((usage / limit) * 100));
 }
 
-function isLimitReached(
-  settings: SettingsPayload | null,
-  key: PlanLimitKey
-) {
+function isLimitReached(settings: SettingsPayload | null, key: PlanLimitKey) {
   if (!settings) {
     return false;
   }
@@ -210,6 +230,32 @@ function createFormState(company: Company): CompanyFormState {
   };
 }
 
+function getNormalizedMemberPermissions(member: Member) {
+  return normalizePermissionMap(member.permissions, createEmptyPermissionMap());
+}
+
+function getPermissionSummary(member: Member) {
+  if (member.role !== "employee") {
+    return fixedRolePermissionText[member.role];
+  }
+
+  const enabledPermissions = companyPermissions.filter(
+    (permission) => getNormalizedMemberPermissions(member)[permission]
+  );
+
+  if (enabledPermissions.length === 0) {
+    return "Sem módulos liberados";
+  }
+
+  if (enabledPermissions.length === companyPermissions.length) {
+    return "Todos os módulos operacionais";
+  }
+
+  return enabledPermissions
+    .map((permission) => permissionLabels[permission])
+    .join(", ");
+}
+
 export function SettingsManager({ companyId, role }: SettingsManagerProps) {
   const [form, setForm] = useState<CompanyFormState>({
     document: "",
@@ -219,6 +265,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
   });
   const [inviteForm, setInviteForm] = useState<InviteFormState>({
     email: "",
+    permissions: createDefaultEmployeePermissionMap(),
     role: "seller"
   });
   const [isInviting, setIsInviting] = useState(false);
@@ -300,9 +347,15 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
   function updateInviteField(field: "role", value: CompanyRole): void;
   function updateInviteField(field: keyof InviteFormState, value: string) {
     if (field === "role") {
+      const nextRole = value as CompanyRole;
+
       setInviteForm((current) => ({
         ...current,
-        role: value as CompanyRole
+        permissions:
+          nextRole === "employee"
+            ? current.permissions
+            : createDefaultEmployeePermissionMap(),
+        role: nextRole
       }));
       return;
     }
@@ -311,6 +364,29 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
       ...current,
       email: value
     }));
+  }
+
+  function updateInvitePermission(
+    permission: CompanyPermission,
+    checked: boolean
+  ) {
+    setInviteForm((current) => ({
+      ...current,
+      permissions: {
+        ...current.permissions,
+        [permission]: checked
+      }
+    }));
+  }
+
+  function getMemberRolePermissions(member: Member, nextRole: CompanyRole) {
+    if (nextRole === "employee") {
+      return member.role === "employee"
+        ? getNormalizedMemberPermissions(member)
+        : createDefaultEmployeePermissionMap();
+    }
+
+    return createEmptyPermissionMap();
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -357,6 +433,10 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
       const member = await request<Member>("/companies/members/invite", {
         body: JSON.stringify({
           email: inviteForm.email.trim(),
+          permissions:
+            inviteForm.role === "employee"
+              ? inviteForm.permissions
+              : createEmptyPermissionMap(),
           role: inviteForm.role
         }),
         method: "POST"
@@ -374,6 +454,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
       );
       setInviteForm({
         email: "",
+        permissions: createDefaultEmployeePermissionMap(),
         role: "seller"
       });
       setMessage("Convite enviado e acesso criado.");
@@ -388,7 +469,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
 
   async function updateMember(
     member: Member,
-    payload: Partial<Pick<Member, "role" | "status">>
+    payload: Partial<Pick<Member, "permissions" | "role" | "status">>
   ) {
     setIsUpdatingMemberId(member.id);
     setMessage(null);
@@ -422,6 +503,26 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
     } finally {
       setIsUpdatingMemberId(null);
     }
+  }
+
+  async function handleMemberRoleChange(member: Member, nextRole: CompanyRole) {
+    await updateMember(member, {
+      permissions: getMemberRolePermissions(member, nextRole),
+      role: nextRole
+    });
+  }
+
+  async function handleMemberPermissionChange(
+    member: Member,
+    permission: CompanyPermission,
+    checked: boolean
+  ) {
+    await updateMember(member, {
+      permissions: {
+        ...getNormalizedMemberPermissions(member),
+        [permission]: checked
+      }
+    });
   }
 
   async function resendAccess(member: Member) {
@@ -730,6 +831,46 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                   </label>
                 </div>
 
+                {inviteForm.role === "employee" ? (
+                  <div className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.48)] p-3">
+                    <p className="text-sm font-medium text-white">
+                      Módulos liberados para o funcionário
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                      {companyPermissions.map((permission) => (
+                        <label
+                          className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.48)] px-3 py-2 text-sm text-white"
+                          key={permission}
+                        >
+                          <input
+                            checked={inviteForm.permissions[permission]}
+                            className="h-4 w-4 accent-[var(--primary)]"
+                            disabled={
+                              !isAdmin || isInviting || userLimitReached
+                            }
+                            onChange={(event) =>
+                              updateInvitePermission(
+                                permission,
+                                event.target.checked
+                              )
+                            }
+                            type="checkbox"
+                          />
+                          <span className="truncate">
+                            {permissionLabels[permission]}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    {inviteForm.role === "admin"
+                      ? "Administradores têm acesso total ao ambiente."
+                      : "Vendedores acessam clientes, produtos e orçamentos."}
+                  </p>
+                )}
+
                 {userLimitReached ? (
                   <p className="text-sm text-[var(--muted-foreground)]">
                     O plano atual atingiu o limite de usuários.
@@ -756,15 +897,16 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
               </form>
 
               <div className="mt-5 max-w-full min-w-0 overflow-x-auto rounded-md">
-                <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+                <table className="w-full min-w-[1080px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">
-                      <th className="w-[40%] py-3 pr-4 font-medium">
-                        Usuário
+                      <th className="w-[30%] py-3 pr-4 font-medium">Usuário</th>
+                      <th className="w-[18%] py-3 pr-4 font-medium">Perfil</th>
+                      <th className="w-[30%] py-3 pr-4 font-medium">
+                        Permissões
                       </th>
-                      <th className="w-[23%] py-3 pr-4 font-medium">Perfil</th>
-                      <th className="w-[23%] py-3 pr-4 font-medium">Acesso</th>
-                      <th className="w-[14%] py-3 text-right font-medium">
+                      <th className="w-[14%] py-3 pr-4 font-medium">Acesso</th>
+                      <th className="w-[8%] py-3 text-right font-medium">
                         Ações
                       </th>
                     </tr>
@@ -803,9 +945,10 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                               !isAdmin || isUpdatingMemberId === member.id
                             }
                             onChange={(event) =>
-                              void updateMember(member, {
-                                role: event.target.value as CompanyRole
-                              })
+                              void handleMemberRoleChange(
+                                member,
+                                event.target.value as CompanyRole
+                              )
                             }
                             value={member.role}
                           >
@@ -830,6 +973,51 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                           </select>
                         </td>
                         <td className="py-3 pr-4">
+                          {member.role === "employee" ? (
+                            <div className="grid gap-2">
+                              <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+                                {getPermissionSummary(member)}
+                              </p>
+                              <div className="grid grid-cols-2 gap-2">
+                                {companyPermissions.map((permission) => (
+                                  <label
+                                    className="flex min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.48)] px-2 py-1.5 text-xs text-white"
+                                    key={permission}
+                                  >
+                                    <input
+                                      checked={
+                                        getNormalizedMemberPermissions(member)[
+                                          permission
+                                        ]
+                                      }
+                                      className="h-3.5 w-3.5 accent-[var(--primary)]"
+                                      disabled={
+                                        !isAdmin ||
+                                        isUpdatingMemberId === member.id
+                                      }
+                                      onChange={(event) =>
+                                        void handleMemberPermissionChange(
+                                          member,
+                                          permission,
+                                          event.target.checked
+                                        )
+                                      }
+                                      type="checkbox"
+                                    />
+                                    <span className="truncate">
+                                      {permissionLabels[permission]}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-[var(--muted-foreground)]">
+                              {getPermissionSummary(member)}
+                            </p>
+                          )}
+                        </td>
+                        <td className="py-3 pr-4">
                           <select
                             className="h-10 w-full min-w-[9.5rem] rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
                             disabled={
@@ -837,8 +1025,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                             }
                             onChange={(event) =>
                               void updateMember(member, {
-                                status: event.target
-                                  .value as CompanyUserStatus
+                                status: event.target.value as CompanyUserStatus
                               })
                             }
                             value={member.status}

@@ -39,6 +39,7 @@ import {
   canManageProducts,
   normalizeRole,
   type AppSection,
+  type CompanyPermissionMap,
   type CompanyRole
 } from "@/lib/access-control";
 import { env } from "@/lib/env";
@@ -71,6 +72,7 @@ type QuickAction = {
 type VirtualAssistantProps = {
   activeItem: string;
   companyId: string;
+  permissions: CompanyPermissionMap | null;
   role: string | null;
   userEmail: string;
 };
@@ -199,6 +201,7 @@ type ReplyContext = {
   isDashboardLoading: boolean;
   isSalesLoading: boolean;
   mode: AssistantMode;
+  permissions: CompanyPermissionMap | null;
   role: string | null;
   sales: AssistantSale[];
   salesError: string | null;
@@ -874,62 +877,89 @@ function writeStoredAssistantPreferences(
   }
 }
 
-function canUseQuickAction(action: QuickAction, role: string | null) {
-  if (!canAccessSection(role, action.section)) {
+function canUseQuickAction(
+  action: QuickAction,
+  role: string | null,
+  permissions: CompanyPermissionMap | null
+) {
+  if (!canAccessSection(role, action.section, permissions)) {
     return false;
   }
 
-  if (action.requiresProductManagement && !canManageProducts(role)) {
+  if (
+    action.requiresProductManagement &&
+    !canManageProducts(role, permissions)
+  ) {
     return false;
   }
 
   return true;
 }
 
-function canUseQuickPrompt(prompt: QuickPrompt, role: string | null) {
+function canUseQuickPrompt(
+  prompt: QuickPrompt,
+  role: string | null,
+  permissions: CompanyPermissionMap | null
+) {
   if (
-    prompt.sections?.some((section) => !canAccessSection(role, section)) ??
+    prompt.sections?.some(
+      (section) => !canAccessSection(role, section, permissions)
+    ) ??
     false
   ) {
     return false;
   }
 
-  if (prompt.requiresBudgetConversion && !canConvertBudgets(role)) {
+  if (
+    prompt.requiresBudgetConversion &&
+    !canConvertBudgets(role, permissions)
+  ) {
     return false;
   }
 
-  if (prompt.requiresProductManagement && !canManageProducts(role)) {
+  if (
+    prompt.requiresProductManagement &&
+    !canManageProducts(role, permissions)
+  ) {
     return false;
   }
 
   return true;
 }
 
-function canUseAssistantMode(mode: AssistantMode, role: string | null) {
+function canUseAssistantMode(
+  mode: AssistantMode,
+  role: string | null,
+  permissions: CompanyPermissionMap | null
+) {
   if (mode === "general") {
     return true;
   }
 
   if (mode === "pricing") {
-    return canAccessSection(role, "products");
+    return canAccessSection(role, "products", permissions);
   }
 
   if (mode === "stock") {
     return (
-      canAccessSection(role, "stock") || canAccessSection(role, "ingredients")
+      canAccessSection(role, "stock", permissions) ||
+      canAccessSection(role, "ingredients", permissions)
     );
   }
 
   return (
-    canAccessSection(role, "sales") ||
-    canAccessSection(role, "budgets") ||
-    canAccessSection(role, "customers")
+    canAccessSection(role, "sales", permissions) ||
+    canAccessSection(role, "budgets", permissions) ||
+    canAccessSection(role, "customers", permissions)
   );
 }
 
-function getAvailableAssistantModes(role: string | null) {
+function getAvailableAssistantModes(
+  role: string | null,
+  permissions: CompanyPermissionMap | null
+) {
   return assistantModeOptions.filter((mode) =>
-    canUseAssistantMode(mode.id, role)
+    canUseAssistantMode(mode.id, role, permissions)
   );
 }
 
@@ -1187,7 +1217,11 @@ function uniqueByLabel<T extends { label: string }>(items: T[]) {
   });
 }
 
-function getVisibleQuickActions(activeItem: string, role: string | null) {
+function getVisibleQuickActions(
+  activeItem: string,
+  role: string | null,
+  permissions: CompanyPermissionMap | null
+) {
   return uniqueByLabel([
     ...(quickActionsByPage[activeItem] ?? defaultQuickActions),
     ...defaultQuickActions,
@@ -1195,13 +1229,14 @@ function getVisibleQuickActions(activeItem: string, role: string | null) {
     quickActionById.customers,
     quickActionById.account
   ])
-    .filter((action) => canUseQuickAction(action, role))
+    .filter((action) => canUseQuickAction(action, role, permissions))
     .slice(0, 3);
 }
 
 function getVisibleQuickPrompts(
   activeItem: string,
   role: string | null,
+  permissions: CompanyPermissionMap | null,
   mode: AssistantMode
 ) {
   return uniqueByLabel([
@@ -1215,12 +1250,17 @@ function getVisibleQuickPrompts(
     quickPromptById.customerHistory,
     quickPromptById.firstSteps
   ])
-    .filter((prompt) => canUseQuickPrompt(prompt, role))
+    .filter((prompt) => canUseQuickPrompt(prompt, role, permissions))
     .slice(0, 4);
 }
 
-function getVisibleNavigationLinks(role: string | null) {
-  return navigationLinks.filter((item) => canAccessSection(role, item.section));
+function getVisibleNavigationLinks(
+  role: string | null,
+  permissions: CompanyPermissionMap | null
+) {
+  return navigationLinks.filter((item) =>
+    canAccessSection(role, item.section, permissions)
+  );
 }
 
 function getRoleLabel(role: string | null) {
@@ -1356,7 +1396,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
   const alerts: ProactiveAlert[] = [];
 
   if (
-    canAccessSection(context.role, "stock") &&
+    canAccessSection(context.role, "stock", context.permissions) &&
     context.dashboard &&
     !context.dashboardError &&
     context.dashboard.metrics.lowStockCount > 0
@@ -1376,7 +1416,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
   }
 
   if (
-    canAccessSection(context.role, "budgets") &&
+    canAccessSection(context.role, "budgets", context.permissions) &&
     !context.isBudgetsLoading &&
     !context.budgetsError
   ) {
@@ -1400,7 +1440,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
         (total, budget) => total + budget.totalAmount,
         0
       );
-      const detail = canConvertBudgets(context.role)
+      const detail = canConvertBudgets(context.role, context.permissions)
         ? `${approvedBudgets.length} orçamento(s) aprovado(s) somando ${currencyFormatter.format(
             approvedTotal
           )} já podem virar venda.`
@@ -1410,7 +1450,9 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
         action: quickActionById.budgets,
         detail,
         id: `approved-budgets:${approvedBudgets.length}:${approvedTotal}`,
-        severity: canConvertBudgets(context.role) ? "warning" : "info",
+        severity: canConvertBudgets(context.role, context.permissions)
+          ? "warning"
+          : "info",
         title: "Orçamentos aprovados"
       });
     }
@@ -1427,7 +1469,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
   }
 
   if (
-    canAccessSection(context.role, "customers") &&
+    canAccessSection(context.role, "customers", context.permissions) &&
     !context.isCustomersLoading &&
     !context.customersError &&
     context.customers.length > 0
@@ -1482,9 +1524,10 @@ function getRealDataUnavailableReply({
   dashboard,
   dashboardError,
   isDashboardLoading,
+  permissions,
   role
 }: ReplyContext) {
-  if (!canAccessSection(role, "dashboard")) {
+  if (!canAccessSection(role, "dashboard", permissions)) {
     return getRestrictedReply("os dados do dashboard");
   }
 
@@ -1615,7 +1658,11 @@ function formatLowStockReply(context: ReplyContext) {
     dashboard.metrics.lowStockCount > dashboard.lowStock.length
       ? `\n+ ${dashboard.metrics.lowStockCount - dashboard.lowStock.length} outro(s) item(ns) abaixo do mínimo`
       : "";
-  const actionHint = canAccessSection(context.role, "stock")
+  const actionHint = canAccessSection(
+    context.role,
+    "stock",
+    context.permissions
+  )
     ? "Ação recomendada: abrir Estoque e lançar entrada ou ajuste nos itens críticos."
     : "Ação recomendada: peça para um administrador ou funcionário revisar a reposição.";
 
@@ -1650,7 +1697,7 @@ function formatBestSellersReply(context: ReplyContext) {
 }
 
 function formatPendingBudgetsReply(context: ReplyContext) {
-  if (!canAccessSection(context.role, "budgets")) {
+  if (!canAccessSection(context.role, "budgets", context.permissions)) {
     return getRestrictedReply("orçamentos");
   }
 
@@ -1690,7 +1737,7 @@ function formatPendingBudgetsReply(context: ReplyContext) {
   const hiddenCount =
     openBudgets.length > 5 ? `\n+ ${openBudgets.length - 5} outro(s)` : "";
   const nextStep =
-    approvedCount > 0 && canConvertBudgets(context.role)
+    approvedCount > 0 && canConvertBudgets(context.role, context.permissions)
       ? `${approvedCount} orçamento(s) aprovado(s) já podem virar venda.`
       : approvedCount > 0
         ? `${approvedCount} orçamento(s) aprovado(s) dependem de administrador ou funcionário para virar venda.`
@@ -1703,7 +1750,7 @@ ${nextStep}`;
 }
 
 function formatTopCustomersReply(context: ReplyContext) {
-  if (!canAccessSection(context.role, "customers")) {
+  if (!canAccessSection(context.role, "customers", context.permissions)) {
     return getRestrictedReply("clientes");
   }
 
@@ -1745,7 +1792,7 @@ ${ranking}${hiddenCount}`;
 }
 
 function formatCustomerOpportunitiesReply(context: ReplyContext) {
-  if (!canAccessSection(context.role, "customers")) {
+  if (!canAccessSection(context.role, "customers", context.permissions)) {
     return getRestrictedReply("clientes");
   }
 
@@ -1794,7 +1841,7 @@ function formatCustomerOpportunitiesReply(context: ReplyContext) {
 }
 
 function formatRecentSalesReply(context: ReplyContext) {
-  if (!canAccessSection(context.role, "sales")) {
+  if (!canAccessSection(context.role, "sales", context.permissions)) {
     return getRestrictedReply("vendas");
   }
 
@@ -1848,7 +1895,7 @@ ${items}${hiddenCount}`;
 
 function formatModeFirstStepsReply(context: ReplyContext) {
   if (context.mode === "pricing") {
-    if (!canAccessSection(context.role, "products")) {
+    if (!canAccessSection(context.role, "products", context.permissions)) {
       return getRestrictedReply("produtos e precificação");
     }
 
@@ -1856,7 +1903,7 @@ function formatModeFirstStepsReply(context: ReplyContext) {
   }
 
   if (context.mode === "stock") {
-    if (!canAccessSection(context.role, "stock")) {
+    if (!canAccessSection(context.role, "stock", context.permissions)) {
       return getRestrictedReply("estoque");
     }
 
@@ -1865,8 +1912,8 @@ function formatModeFirstStepsReply(context: ReplyContext) {
 
   if (context.mode === "sales") {
     if (
-      !canAccessSection(context.role, "budgets") &&
-      !canAccessSection(context.role, "customers")
+      !canAccessSection(context.role, "budgets", context.permissions) &&
+      !canAccessSection(context.role, "customers", context.permissions)
     ) {
       return getRestrictedReply("clientes, orçamentos e vendas");
     }
@@ -1903,7 +1950,12 @@ function formatLocalAlertSummary(context: ReplyContext) {
 }
 
 function getLocalPromptSuggestions(activeItem: string, context: ReplyContext) {
-  return getVisibleQuickPrompts(activeItem, context.role, context.mode)
+  return getVisibleQuickPrompts(
+    activeItem,
+    context.role,
+    context.permissions,
+    context.mode
+  )
     .slice(0, 3)
     .map((prompt) => prompt.prompt);
 }
@@ -2089,7 +2141,7 @@ function getAssistantReply(
     normalized.includes("ponto de reposicao") ||
     normalized.includes("quando repor")
   ) {
-    if (!canAccessSection(context.role, "ingredients")) {
+    if (!canAccessSection(context.role, "ingredients", context.permissions)) {
       return getRestrictedReply("o cadastro de insumos e estoque mínimo");
     }
 
@@ -2101,7 +2153,7 @@ function getAssistantReply(
     normalized.includes("margem") ||
     normalized.includes("precificacao")
   ) {
-    if (!canAccessSection(context.role, "products")) {
+    if (!canAccessSection(context.role, "products", context.permissions)) {
       return getRestrictedReply("produtos e precificação");
     }
 
@@ -2112,7 +2164,7 @@ function getAssistantReply(
     normalized.includes("historico") &&
     (normalized.includes("cliente") || normalized.includes("compras"))
   ) {
-    if (!canAccessSection(context.role, "customers")) {
+    if (!canAccessSection(context.role, "customers", context.permissions)) {
       return getRestrictedReply("clientes");
     }
 
@@ -2124,7 +2176,7 @@ function getAssistantReply(
   }
 
   if (normalized.includes("insumo") || normalized.includes("materia")) {
-    if (!canAccessSection(context.role, "ingredients")) {
+    if (!canAccessSection(context.role, "ingredients", context.permissions)) {
       return getRestrictedReply("insumos");
     }
 
@@ -2132,7 +2184,7 @@ function getAssistantReply(
   }
 
   if (normalized.includes("produto") || normalized.includes("composicao")) {
-    if (!canAccessSection(context.role, "products")) {
+    if (!canAccessSection(context.role, "products", context.permissions)) {
       return getRestrictedReply("produtos");
     }
 
@@ -2140,7 +2192,7 @@ function getAssistantReply(
       (normalized.includes("criar") ||
         normalized.includes("cadastrar") ||
         normalized.includes("montar")) &&
-      !canManageProducts(context.role)
+      !canManageProducts(context.role, context.permissions)
     ) {
       return "Seu perfil pode consultar produtos, mas criar ou editar produtos fica para administradores e funcionários.";
     }
@@ -2149,7 +2201,7 @@ function getAssistantReply(
   }
 
   if (normalized.includes("estoque") || normalized.includes("baixa")) {
-    if (!canAccessSection(context.role, "stock")) {
+    if (!canAccessSection(context.role, "stock", context.permissions)) {
       return getRestrictedReply("estoque");
     }
 
@@ -2157,13 +2209,13 @@ function getAssistantReply(
   }
 
   if (normalized.includes("orcamento") || normalized.includes("proposta")) {
-    if (!canAccessSection(context.role, "budgets")) {
+    if (!canAccessSection(context.role, "budgets", context.permissions)) {
       return getRestrictedReply("orçamentos");
     }
 
     if (
       (normalized.includes("converter") || normalized.includes("venda")) &&
-      !canConvertBudgets(context.role)
+      !canConvertBudgets(context.role, context.permissions)
     ) {
       return "Seu perfil pode trabalhar com orçamentos, mas converter orçamento em venda e baixar estoque fica para administradores e funcionários.";
     }
@@ -2172,11 +2224,14 @@ function getAssistantReply(
   }
 
   if (normalized.includes("venda") || normalized.includes("converter")) {
-    if (normalized.includes("converter") && !canConvertBudgets(context.role)) {
+    if (
+      normalized.includes("converter") &&
+      !canConvertBudgets(context.role, context.permissions)
+    ) {
       return "Seu perfil pode trabalhar com orçamentos, mas converter orçamento em venda e baixar estoque fica para administradores e funcionários.";
     }
 
-    if (!canAccessSection(context.role, "sales")) {
+    if (!canAccessSection(context.role, "sales", context.permissions)) {
       return getRestrictedReply("vendas");
     }
 
@@ -2184,7 +2239,7 @@ function getAssistantReply(
   }
 
   if (normalized.includes("cliente")) {
-    if (!canAccessSection(context.role, "customers")) {
+    if (!canAccessSection(context.role, "customers", context.permissions)) {
       return getRestrictedReply("clientes");
     }
 
@@ -2196,7 +2251,7 @@ function getAssistantReply(
     normalized.includes("convite") ||
     normalized.includes("permiss")
   ) {
-    if (!canAccessSection(context.role, "settings")) {
+    if (!canAccessSection(context.role, "settings", context.permissions)) {
       return getRestrictedReply("configurações e permissões");
     }
 
@@ -2204,7 +2259,7 @@ function getAssistantReply(
   }
 
   if (normalized.includes("plano") || normalized.includes("assinatura")) {
-    if (!canAccessSection(context.role, "billing")) {
+    if (!canAccessSection(context.role, "billing", context.permissions)) {
       return getRestrictedReply("planos e assinatura");
     }
 
@@ -2221,6 +2276,7 @@ function getAssistantReply(
 export function VirtualAssistant({
   activeItem,
   companyId,
+  permissions,
   role,
   userEmail
 }: VirtualAssistantProps) {
@@ -2268,22 +2324,27 @@ export function VirtualAssistant({
     () => getPreferencesStorageKey(companyId, userEmail),
     [companyId, userEmail]
   );
-  const canReadBudgets = canAccessSection(role, "budgets");
-  const canReadCustomers = canAccessSection(role, "customers");
-  const canReadDashboard = canAccessSection(role, "dashboard");
-  const canReadSales = canAccessSection(role, "sales");
+  const canReadBudgets = canAccessSection(role, "budgets", permissions);
+  const canReadCustomers = canAccessSection(role, "customers", permissions);
+  const canReadDashboard = canAccessSection(role, "dashboard", permissions);
+  const canReadSales = canAccessSection(role, "sales", permissions);
   const avatarSrc = assistantAvatarByTheme[theme] ?? fallbackAssistantAvatar;
   const assistantStatus = getAssistantStatus({
     canReadDashboard,
     dashboardError,
     isDashboardLoading
   });
-  const availableAssistantModes = getAvailableAssistantModes(role);
-  const visibleNavigationLinks = getVisibleNavigationLinks(role);
-  const visibleQuickActions = getVisibleQuickActions(activeItem, role);
+  const availableAssistantModes = getAvailableAssistantModes(role, permissions);
+  const visibleNavigationLinks = getVisibleNavigationLinks(role, permissions);
+  const visibleQuickActions = getVisibleQuickActions(
+    activeItem,
+    role,
+    permissions
+  );
   const visibleQuickPrompts = getVisibleQuickPrompts(
     activeItem,
     role,
+    permissions,
     assistantMode
   );
   const assistantContext = useMemo<ReplyContext>(
@@ -2299,6 +2360,7 @@ export function VirtualAssistant({
       isDashboardLoading,
       isSalesLoading,
       mode: assistantMode,
+      permissions,
       role,
       sales,
       salesError
@@ -2315,6 +2377,7 @@ export function VirtualAssistant({
       isDashboardLoading,
       isSalesLoading,
       assistantMode,
+      permissions,
       role,
       sales,
       salesError
@@ -2354,10 +2417,10 @@ export function VirtualAssistant({
   }, []);
 
   useEffect(() => {
-    if (!canUseAssistantMode(assistantMode, role)) {
+    if (!canUseAssistantMode(assistantMode, role, permissions)) {
       setAssistantMode("general");
     }
-  }, [assistantMode, role]);
+  }, [assistantMode, permissions, role]);
 
   useEffect(() => {
     setLoadedPreferencesKey(null);
@@ -2368,11 +2431,13 @@ export function VirtualAssistant({
     const storedMode = storedPreferences?.mode ?? "general";
 
     setAssistantMode(
-      canUseAssistantMode(storedMode, role) ? storedMode : "general"
+      canUseAssistantMode(storedMode, role, permissions)
+        ? storedMode
+        : "general"
     );
     setDismissedAlertIds(storedPreferences?.dismissedAlertIds ?? []);
     setLoadedPreferencesKey(preferencesStorageKey);
-  }, [preferencesStorageKey, role]);
+  }, [permissions, preferencesStorageKey, role]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2729,7 +2794,7 @@ export function VirtualAssistant({
     const requestedMode = getRequestedAssistantMode(cleanPrompt);
 
     if (requestedMode) {
-      if (!canUseAssistantMode(requestedMode, role)) {
+      if (!canUseAssistantMode(requestedMode, role, permissions)) {
         setMessages((current) =>
           limitConversation([
             ...current,
@@ -2890,7 +2955,7 @@ export function VirtualAssistant({
   }
 
   function runQuickAction(action: QuickAction, userText = action.label) {
-    if (!canUseQuickAction(action, role)) {
+    if (!canUseQuickAction(action, role, permissions)) {
       setMessages((current) =>
         limitConversation([
           ...current,

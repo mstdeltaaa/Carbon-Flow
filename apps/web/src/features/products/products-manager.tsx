@@ -30,7 +30,10 @@ import {
   clearStoredAssistantAction,
   getStoredAssistantAction
 } from "@/features/assistant/assistant-actions";
-import { canManageProducts } from "@/lib/access-control";
+import {
+  canManageProducts,
+  type CompanyPermissionMap
+} from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -87,6 +90,7 @@ type ProductFormState = {
 
 type ProductsManagerProps = {
   companyId: string;
+  permissions: CompanyPermissionMap | null;
   role: string | null;
 };
 
@@ -176,7 +180,11 @@ function average(values: number[]) {
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
 
-export function ProductsManager({ companyId, role }: ProductsManagerProps) {
+export function ProductsManager({
+  companyId,
+  permissions,
+  role
+}: ProductsManagerProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormState>(() => cloneEmptyForm());
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -186,7 +194,7 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const formSectionRef = useRef<HTMLElement | null>(null);
-  const canManage = canManageProducts(role);
+  const canManage = canManageProducts(role, permissions);
 
   const request = useCallback(
     async <T,>(path: string, init?: RequestInit): Promise<T> => {
@@ -242,9 +250,7 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
     }
 
     const errors = [ingredientsResult, productsResult]
-      .filter((result): result is NonNullable<typeof result> =>
-        Boolean(result)
-      )
+      .filter((result): result is NonNullable<typeof result> => Boolean(result))
       .filter((result) => result.status === "rejected")
       .map((result) =>
         result.status === "rejected" && result.reason instanceof Error
@@ -309,7 +315,9 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
       calculatedItems.reduce((total, item) => total + item.cost, 0)
     );
     const marginPercent = parseDecimal(form.marginPercent, 30);
-    const suggestedPrice = roundMoney(estimatedCost * (1 + marginPercent / 100));
+    const suggestedPrice = roundMoney(
+      estimatedCost * (1 + marginPercent / 100)
+    );
     const salePrice = form.salePrice.trim()
       ? parseDecimal(form.salePrice)
       : suggestedPrice;
@@ -326,7 +334,9 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
   }, [form, ingredients]);
 
   const averageCost = average(products.map((product) => product.estimatedCost));
-  const averageSalePrice = average(products.map((product) => product.salePrice));
+  const averageSalePrice = average(
+    products.map((product) => product.salePrice)
+  );
   const averageMarkup = average(
     products.map((product) =>
       product.estimatedCost > 0
@@ -489,7 +499,8 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
     }
 
     const ingredientIds = cleanedItems.map((item) => item.ingredientId);
-    const hasDuplicatedIngredient = new Set(ingredientIds).size !== ingredientIds.length;
+    const hasDuplicatedIngredient =
+      new Set(ingredientIds).size !== ingredientIds.length;
 
     if (hasDuplicatedIngredient) {
       throw new Error("Use cada insumo apenas uma vez na composição.");
@@ -557,7 +568,9 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
       await request<Product>(`/products/${product.id}`, {
         method: "DELETE"
       });
-      setProducts((current) => current.filter((item) => item.id !== product.id));
+      setProducts((current) =>
+        current.filter((item) => item.id !== product.id)
+      );
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Não foi possível arquivar."
@@ -626,7 +639,9 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
         ) : null}
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Preço médio</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Preço médio
+            </p>
             <CircleDollarSign
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
@@ -660,281 +675,296 @@ export function ProductsManager({ companyId, role }: ProductsManagerProps) {
         }
       >
         {canManage ? (
-        <section
-          className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
-          id="product-form"
-          ref={formSectionRef}
-        >
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold text-white">
-                {editingId ? "Editar produto" : "Novo produto"}
-              </h2>
-              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                Composição, custo e preço
-              </p>
-            </div>
-            {editingId ? (
-              <button
-                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
-                onClick={resetForm}
-                title="Limpar edição"
-                type="button"
-              >
-                <RotateCcw className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-
-          <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
-            <label className="grid gap-2 text-sm text-white">
-              Nome
-              <input
-                className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                onChange={(event) => updateField("name", event.target.value)}
-                placeholder="Bolo de chocolate"
-                required
-                type="text"
-                value={form.name}
-              />
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-white">
-                SKU
-                <input
-                  className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                  onChange={(event) => updateField("sku", event.target.value)}
-                  placeholder="BOLO-CHOC-P"
-                  type="text"
-                  value={form.sku}
-                />
-              </label>
-
-              <label className="grid gap-2 text-sm text-white">
-                Margem %
-                <input
-                  className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition focus:border-[var(--primary)]"
-                  min="0"
-                  onChange={(event) =>
-                    updateField("marginPercent", event.target.value)
-                  }
-                  step="0.01"
-                  type="number"
-                  value={form.marginPercent}
-                />
-              </label>
-            </div>
-
-            <label className="grid gap-2 text-sm text-white">
-              Descrição
-              <textarea
-                className="min-h-24 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                onChange={(event) =>
-                  updateField("description", event.target.value)
-                }
-                placeholder="Detalhes internos de produção"
-                value={form.description}
-              />
-            </label>
-
-            <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-white">
-                    Composição
-                  </h3>
-                  <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                    {ingredients.length} disponíveis / {preview.itemCount} na
-                    receita
-                  </p>
-                </div>
+          <section
+            className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
+            id="product-form"
+            ref={formSectionRef}
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  {editingId ? "Editar produto" : "Novo produto"}
+                </h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  Composição, custo e preço
+                </p>
+              </div>
+              {editingId ? (
                 <button
                   className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
-                  onClick={addItem}
-                  title="Adicionar insumo"
+                  onClick={resetForm}
+                  title="Limpar edição"
                   type="button"
                 >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 </button>
-              </div>
-
-              {ingredients.length > 0 ? (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {ingredientPreviewNames.map((name) => (
-                    <span
-                      className="rounded-md bg-[rgb(159_243_196/0.1)] px-2 py-1 text-xs text-[var(--primary)]"
-                      key={name}
-                    >
-                      {name}
-                    </span>
-                  ))}
-                  {ingredients.length > ingredientPreviewNames.length ? (
-                    <span className="rounded-md bg-[var(--secondary)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
-                      +{ingredients.length - ingredientPreviewNames.length}
-                    </span>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="mt-4 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-3 text-sm text-[var(--muted-foreground)]">
-                  Nenhum insumo ativo encontrado para montar produtos.
-                </p>
-              )}
-
-              <div className="mt-4 grid gap-3">
-                {form.items.map((item, index) => {
-                  const selectedIngredient = ingredients.find(
-                    (ingredient) => ingredient.id === item.ingredientId
-                  );
-
-                  return (
-                    <div
-                      className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-3 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.7fr_0.56fr_0.7fr_2.5rem] xl:items-end"
-                      key={`${index}-${item.ingredientId}`}
-                    >
-                      <label className="grid min-w-0 gap-2 text-xs text-white sm:col-span-2 xl:col-span-1">
-                        Insumo
-                        <select
-                          className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
-                          onChange={(event) =>
-                            updateItem(index, "ingredientId", event.target.value)
-                          }
-                          required
-                          value={item.ingredientId}
-                        >
-                          <option className="bg-[#101314] text-white" value="">
-                            Selecione
-                          </option>
-                          {ingredients.map((ingredient) => (
-                            <option
-                              className="bg-[#101314] text-white"
-                              key={ingredient.id}
-                              value={ingredient.id}
-                            >
-                              {ingredient.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label className="grid gap-2 text-xs text-white">
-                        Quantidade
-                        <input
-                          className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
-                          min="0.0001"
-                          onChange={(event) =>
-                            updateItem(index, "quantity", event.target.value)
-                          }
-                          required
-                          step="0.0001"
-                          type="number"
-                          value={item.quantity}
-                        />
-                      </label>
-
-                      <label className="grid gap-2 text-xs text-white">
-                        Unidade
-                        <input
-                          className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
-                          onChange={(event) =>
-                            updateItem(index, "unit", event.target.value)
-                          }
-                          placeholder={selectedIngredient?.inventoryUnit ?? "un"}
-                          type="text"
-                          value={item.unit}
-                        />
-                      </label>
-
-                      <label className="grid gap-2 text-xs text-white">
-                        Fator
-                        <input
-                          className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
-                          min="0.00000001"
-                          onChange={(event) =>
-                            updateItem(
-                              index,
-                              "conversionFactorToInventory",
-                              event.target.value
-                            )
-                          }
-                          required
-                          step="0.00000001"
-                          type="number"
-                          value={item.conversionFactorToInventory}
-                        />
-                      </label>
-
-                      <button
-                        className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white sm:self-end"
-                        onClick={() => removeItem(index)}
-                        title="Remover insumo"
-                        type="button"
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+              ) : null}
             </div>
 
-            <div className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Custo calculado
-                </p>
-                <p className="mt-1 text-lg font-semibold text-white">
-                  {currencyFormatter.format(preview.estimatedCost)}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Preço sugerido
-                </p>
-                <p className="mt-1 text-lg font-semibold text-[var(--primary)]">
-                  {currencyFormatter.format(preview.suggestedPrice)}
-                </p>
-              </div>
+            <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
               <label className="grid gap-2 text-sm text-white">
-                Preço manual
+                Nome
                 <input
-                  className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition focus:border-[var(--primary)]"
-                  min="0"
-                  onChange={(event) =>
-                    updateField("salePrice", event.target.value)
-                  }
-                  placeholder={String(preview.suggestedPrice)}
-                  step="0.01"
-                  type="number"
-                  value={form.salePrice}
+                  className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                  onChange={(event) => updateField("name", event.target.value)}
+                  placeholder="Bolo de chocolate"
+                  required
+                  type="text"
+                  value={form.name}
                 />
               </label>
-              <div>
-                <p className="text-xs text-[var(--muted-foreground)]">
-                  Lucro previsto
-                </p>
-                <p className="mt-3 text-lg font-semibold text-white">
-                  {currencyFormatter.format(preview.profit)}
-                </p>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-2 text-sm text-white">
+                  SKU
+                  <input
+                    className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                    onChange={(event) => updateField("sku", event.target.value)}
+                    placeholder="BOLO-CHOC-P"
+                    type="text"
+                    value={form.sku}
+                  />
+                </label>
+
+                <label className="grid gap-2 text-sm text-white">
+                  Margem %
+                  <input
+                    className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition focus:border-[var(--primary)]"
+                    min="0"
+                    onChange={(event) =>
+                      updateField("marginPercent", event.target.value)
+                    }
+                    step="0.01"
+                    type="number"
+                    value={form.marginPercent}
+                  />
+                </label>
               </div>
-            </div>
 
-            {message ? (
-              <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)]">
-                {message}
-              </p>
-            ) : null}
+              <label className="grid gap-2 text-sm text-white">
+                Descrição
+                <textarea
+                  className="min-h-24 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                  onChange={(event) =>
+                    updateField("description", event.target.value)
+                  }
+                  placeholder="Detalhes internos de produção"
+                  value={form.description}
+                />
+              </label>
 
-            <Button disabled={isSaving || ingredients.length === 0} type="submit">
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <Save className="h-4 w-4" aria-hidden="true" />
-              )}
-              {editingId ? "Salvar alterações" : "Salvar produto"}
-            </Button>
-          </form>
-        </section>
+              <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">
+                      Composição
+                    </h3>
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                      {ingredients.length} disponíveis / {preview.itemCount} na
+                      receita
+                    </p>
+                  </div>
+                  <button
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
+                    onClick={addItem}
+                    title="Adicionar insumo"
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
+
+                {ingredients.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {ingredientPreviewNames.map((name) => (
+                      <span
+                        className="rounded-md bg-[rgb(159_243_196/0.1)] px-2 py-1 text-xs text-[var(--primary)]"
+                        key={name}
+                      >
+                        {name}
+                      </span>
+                    ))}
+                    {ingredients.length > ingredientPreviewNames.length ? (
+                      <span className="rounded-md bg-[var(--secondary)] px-2 py-1 text-xs text-[var(--muted-foreground)]">
+                        +{ingredients.length - ingredientPreviewNames.length}
+                      </span>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="mt-4 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-3 text-sm text-[var(--muted-foreground)]">
+                    Nenhum insumo ativo encontrado para montar produtos.
+                  </p>
+                )}
+
+                <div className="mt-4 grid gap-3">
+                  {form.items.map((item, index) => {
+                    const selectedIngredient = ingredients.find(
+                      (ingredient) => ingredient.id === item.ingredientId
+                    );
+
+                    return (
+                      <div
+                        className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-3 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.7fr_0.56fr_0.7fr_2.5rem] xl:items-end"
+                        key={`${index}-${item.ingredientId}`}
+                      >
+                        <label className="grid min-w-0 gap-2 text-xs text-white sm:col-span-2 xl:col-span-1">
+                          Insumo
+                          <select
+                            className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                            onChange={(event) =>
+                              updateItem(
+                                index,
+                                "ingredientId",
+                                event.target.value
+                              )
+                            }
+                            required
+                            value={item.ingredientId}
+                          >
+                            <option
+                              className="bg-[#101314] text-white"
+                              value=""
+                            >
+                              Selecione
+                            </option>
+                            {ingredients.map((ingredient) => (
+                              <option
+                                className="bg-[#101314] text-white"
+                                key={ingredient.id}
+                                value={ingredient.id}
+                              >
+                                {ingredient.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label className="grid gap-2 text-xs text-white">
+                          Quantidade
+                          <input
+                            className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                            min="0.0001"
+                            onChange={(event) =>
+                              updateItem(index, "quantity", event.target.value)
+                            }
+                            required
+                            step="0.0001"
+                            type="number"
+                            value={item.quantity}
+                          />
+                        </label>
+
+                        <label className="grid gap-2 text-xs text-white">
+                          Unidade
+                          <input
+                            className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                            onChange={(event) =>
+                              updateItem(index, "unit", event.target.value)
+                            }
+                            placeholder={
+                              selectedIngredient?.inventoryUnit ?? "un"
+                            }
+                            type="text"
+                            value={item.unit}
+                          />
+                        </label>
+
+                        <label className="grid gap-2 text-xs text-white">
+                          Fator
+                          <input
+                            className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
+                            min="0.00000001"
+                            onChange={(event) =>
+                              updateItem(
+                                index,
+                                "conversionFactorToInventory",
+                                event.target.value
+                              )
+                            }
+                            required
+                            step="0.00000001"
+                            type="number"
+                            value={item.conversionFactorToInventory}
+                          />
+                        </label>
+
+                        <button
+                          className="flex h-10 w-10 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white sm:self-end"
+                          onClick={() => removeItem(index)}
+                          title="Remover insumo"
+                          type="button"
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Custo calculado
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-white">
+                    {currencyFormatter.format(preview.estimatedCost)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Preço sugerido
+                  </p>
+                  <p className="mt-1 text-lg font-semibold text-[var(--primary)]">
+                    {currencyFormatter.format(preview.suggestedPrice)}
+                  </p>
+                </div>
+                <label className="grid gap-2 text-sm text-white">
+                  Preço manual
+                  <input
+                    className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition focus:border-[var(--primary)]"
+                    min="0"
+                    onChange={(event) =>
+                      updateField("salePrice", event.target.value)
+                    }
+                    placeholder={String(preview.suggestedPrice)}
+                    step="0.01"
+                    type="number"
+                    value={form.salePrice}
+                  />
+                </label>
+                <div>
+                  <p className="text-xs text-[var(--muted-foreground)]">
+                    Lucro previsto
+                  </p>
+                  <p className="mt-3 text-lg font-semibold text-white">
+                    {currencyFormatter.format(preview.profit)}
+                  </p>
+                </div>
+              </div>
+
+              {message ? (
+                <p className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] p-3 text-sm text-[var(--muted-foreground)]">
+                  {message}
+                </p>
+              ) : null}
+
+              <Button
+                disabled={isSaving || ingredients.length === 0}
+                type="submit"
+              >
+                {isSaving ? (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <Save className="h-4 w-4" aria-hidden="true" />
+                )}
+                {editingId ? "Salvar alterações" : "Salvar produto"}
+              </Button>
+            </form>
+          </section>
         ) : null}
 
         <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">

@@ -23,10 +23,11 @@ export default async function CustomersPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "customers") ? (
+      {canAccessSection(context.role, "customers", context.permissions) ? (
         <CustomersManager companyId={context.company.id} />
       ) : (
         <AccessDenied />

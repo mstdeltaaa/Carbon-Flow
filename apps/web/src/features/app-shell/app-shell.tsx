@@ -23,7 +23,11 @@ import { Button } from "@/components/ui/button";
 import { VirtualAssistant } from "@/features/assistant/virtual-assistant";
 import { CompanySwitcher } from "@/features/company/company-switcher";
 import { ThemeSelector } from "@/features/theme/theme-selector";
-import { canAccessSection, type AppSection } from "@/lib/access-control";
+import {
+  canAccessSection,
+  type AppSection,
+  type CompanyPermissionMap
+} from "@/lib/access-control";
 import type { CompanyMembership } from "@/lib/current-company";
 
 const navItems = [
@@ -49,6 +53,7 @@ type AppShellProps = {
   children: ReactNode;
   companyName: string;
   memberships: CompanyMembership[];
+  permissions: CompanyPermissionMap | null;
   role: string | null;
   userEmail: string;
 };
@@ -59,11 +64,12 @@ export function AppShell({
   children,
   companyName,
   memberships,
+  permissions,
   role,
   userEmail
 }: AppShellProps) {
   const visibleNavItems = navItems.filter((item) =>
-    canAccessSection(role, item.id as AppSection)
+    canAccessSection(role, item.id as AppSection, permissions)
   );
 
   return (
@@ -160,6 +166,7 @@ export function AppShell({
       <VirtualAssistant
         activeItem={activeItem}
         companyId={activeCompanyId}
+        permissions={permissions}
         role={role}
         userEmail={userEmail}
       />

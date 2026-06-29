@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
+import { hasCompanyPermission } from "../../common/access-control/permissions";
 import { type CurrentCompany } from "../../common/decorators/current-company.decorator";
 import { type CurrentUser } from "../../common/decorators/current-user.decorator";
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
@@ -35,12 +36,8 @@ function isCompanyRole(role: string): role is CompanyRole {
   return role === "admin" || role === "employee" || role === "seller";
 }
 
-function canReadCosts(role: CompanyRole) {
-  return role === "admin" || role === "employee";
-}
-
-function canReadSales(role: CompanyRole) {
-  return role === "admin" || role === "employee";
+function canReadSales(company: CurrentCompany) {
+  return hasCompanyPermission(company.role, company.permissions, "sales");
 }
 
 function roundMoney(value: number) {
@@ -144,7 +141,7 @@ export class AssistantService {
       };
     }
 
-    const context = await this.buildContext(accessToken, company.id, role, dto);
+    const context = await this.buildContext(accessToken, company, role, dto);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -164,9 +161,9 @@ export class AssistantService {
         }
       })
     });
-    const payload = (await response.json().catch(() => null)) as
-      | OpenAiResponsePayload
-      | null;
+    const payload = (await response
+      .json()
+      .catch(() => null)) as OpenAiResponsePayload | null;
 
     if (!response.ok || !payload) {
       return {
@@ -217,11 +214,12 @@ export class AssistantService {
 
   private async buildContext(
     accessToken: string,
-    companyId: string,
+    company: CurrentCompany,
     role: CompanyRole,
     dto: AssistantChatDto
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
+    const companyId = company.id;
     const safe = async <T>(loader: () => Promise<T>) => {
       try {
         return await loader();
@@ -232,18 +230,28 @@ export class AssistantService {
 
     const [dashboard, products, ingredients, budgets, customers, sales] =
       await Promise.all([
-        canReadSales(role)
+        hasCompanyPermission(company.role, company.permissions, "dashboard")
           ? safe(() => this.loadDashboardContext(supabase, companyId))
           : Promise.resolve({ skipped: "Perfil sem acesso ao dashboard." }),
-        safe(() => this.loadProductsContext(supabase, companyId, role)),
-        canReadCosts(role)
+        hasCompanyPermission(company.role, company.permissions, "products")
+          ? safe(() => this.loadProductsContext(supabase, companyId, role))
+          : Promise.resolve({ skipped: "Perfil sem acesso a produtos." }),
+        hasCompanyPermission(company.role, company.permissions, "ingredients")
           ? safe(() => this.loadIngredientsContext(supabase, companyId))
-          : Promise.resolve({ skipped: "Perfil sem acesso a custos e estoque." }),
-        safe(() => this.loadBudgetsContext(supabase, companyId)),
-        safe(() => this.loadCustomersContext(supabase, companyId)),
-        canReadSales(role)
+          : Promise.resolve({
+              skipped: "Perfil sem acesso a custos e estoque."
+            }),
+        hasCompanyPermission(company.role, company.permissions, "budgets")
+          ? safe(() => this.loadBudgetsContext(supabase, companyId))
+          : Promise.resolve({ skipped: "Perfil sem acesso a orçamentos." }),
+        hasCompanyPermission(company.role, company.permissions, "customers")
+          ? safe(() => this.loadCustomersContext(supabase, companyId))
+          : Promise.resolve({ skipped: "Perfil sem acesso a clientes." }),
+        canReadSales(company)
           ? safe(() => this.loadSalesContext(supabase, companyId))
-          : Promise.resolve({ skipped: "Perfil sem acesso a vendas finalizadas." })
+          : Promise.resolve({
+              skipped: "Perfil sem acesso a vendas finalizadas."
+            })
       ]);
 
     return {
@@ -285,10 +293,7 @@ export class AssistantService {
       saleRows.reduce((total, sale) => total + Number(sale.total_amount), 0)
     );
     const estimatedProfit = roundMoney(
-      saleRows.reduce(
-        (total, sale) => total + Number(sale.estimated_profit),
-        0
-      )
+      saleRows.reduce((total, sale) => total + Number(sale.estimated_profit), 0)
     );
     const { data: openBudgets, error: budgetsError } = await supabase
       .from("budgets")
@@ -324,7 +329,7 @@ export class AssistantService {
     companyId: string,
     role: CompanyRole
   ) {
-    const includeCosts = canReadCosts(role);
+    const includeCosts = role !== "seller";
     const selectColumns = includeCosts
       ? "name,sale_price,estimated_cost,suggested_price,margin_percent"
       : "name,sale_price";

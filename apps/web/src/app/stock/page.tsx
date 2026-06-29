@@ -23,10 +23,11 @@ export default async function StockPage() {
       activeCompanyId={context.company.id}
       companyName={context.company.name}
       memberships={context.memberships}
+      permissions={context.permissions}
       role={context.role}
       userEmail={context.user.email ?? "Usuário autenticado"}
     >
-      {canAccessSection(context.role, "stock") ? (
+      {canAccessSection(context.role, "stock", context.permissions) ? (
         <StockManager companyId={context.company.id} />
       ) : (
         <AccessDenied />
