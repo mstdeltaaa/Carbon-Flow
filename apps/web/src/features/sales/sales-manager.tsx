@@ -18,6 +18,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent
 } from "react";
@@ -25,6 +26,11 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
+import {
+  assistantActionEvent,
+  clearStoredAssistantAction,
+  getStoredAssistantAction
+} from "@/features/assistant/assistant-actions";
 import { PlanLimitUsage } from "@/features/billing/plan-limit-usage";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -252,6 +258,7 @@ function downloadCsv(fileName: string, content: string) {
 }
 
 export function SalesManager({ companyId }: SalesManagerProps) {
+  const formSectionRef = useRef<HTMLElement | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [form, setForm] = useState<SaleFormState>(() => cloneEmptyForm());
   const [isCancellingId, setIsCancellingId] = useState<string | null>(null);
@@ -447,6 +454,43 @@ export function SalesManager({ companyId }: SalesManagerProps) {
     setMessage(null);
   }
 
+  function scrollToForm() {
+    window.requestAnimationFrame(() => {
+      formSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }
+
+  function createSale() {
+    resetForm();
+    scrollToForm();
+  }
+
+  useEffect(() => {
+    function runAssistantAction() {
+      clearStoredAssistantAction("create-sale");
+      createSale();
+    }
+
+    if (getStoredAssistantAction() === "create-sale") {
+      runAssistantAction();
+    }
+
+    function handleAssistantAction(event: Event) {
+      if (event instanceof CustomEvent && event.detail === "create-sale") {
+        runAssistantAction();
+      }
+    }
+
+    window.addEventListener(assistantActionEvent, handleAssistantAction);
+
+    return () => {
+      window.removeEventListener(assistantActionEvent, handleAssistantAction);
+    };
+  }, []);
+
   function buildPayload() {
     const cleanedItems = form.items
       .map((item) => {
@@ -585,7 +629,7 @@ export function SalesManager({ companyId }: SalesManagerProps) {
           </Button>
           <Button
             className="w-full sm:w-auto"
-            onClick={resetForm}
+            onClick={createSale}
             type="button"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -653,7 +697,11 @@ export function SalesManager({ companyId }: SalesManagerProps) {
         </article>
       </section>
 
-      <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
+      <section
+        className="scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6"
+        id="sale-form"
+        ref={formSectionRef}
+      >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-base font-semibold text-white">Venda direta</h2>

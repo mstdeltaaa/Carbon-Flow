@@ -19,6 +19,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  OnboardingGuide,
+  type DashboardOnboardingSummary
+} from "@/features/dashboard/onboarding-guide";
+import {
+  canAccessSection,
+  type CompanyPermissionMap
+} from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -79,10 +87,13 @@ type DashboardSummary = {
     title: string;
     type: string;
   }>;
+  onboarding?: DashboardOnboardingSummary;
 };
 
 type DashboardScreenProps = {
   companyId: string;
+  permissions: CompanyPermissionMap | null;
+  role: string | null;
 };
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
@@ -179,7 +190,11 @@ function PanelState({
   );
 }
 
-export function DashboardScreen({ companyId }: DashboardScreenProps) {
+export function DashboardScreen({
+  companyId,
+  permissions,
+  role
+}: DashboardScreenProps) {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -280,6 +295,7 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
     pendingIncome: 0,
     upcomingDue: []
   };
+  const canAccessSettings = canAccessSection(role, "settings", permissions);
 
   return (
     <>
@@ -311,6 +327,12 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
           {message}
         </p>
       ) : null}
+
+      <OnboardingGuide
+        canAccessSettings={canAccessSettings}
+        isLoading={isLoading}
+        onboarding={data?.onboarding}
+      />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => (

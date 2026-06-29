@@ -43,6 +43,11 @@ type FinancialTransactionRow = {
   type: "income" | "expense";
 };
 
+type CountResult = {
+  count: number | null;
+  error: { message?: string } | null;
+};
+
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
     error.message ?? "Não foi possível carregar o dashboard."
@@ -111,6 +116,68 @@ export class DashboardService {
     if (lowStockError) {
       throwDatabaseError(lowStockError);
     }
+
+    const [
+      ingredientCountResult,
+      productCountResult,
+      customerCountResult,
+      budgetCountResult,
+      saleCountResult
+    ] = await Promise.all([
+      supabase
+        .from("ingredients")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("is_active", true),
+      supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("is_active", true),
+      supabase
+        .from("customers")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId),
+      supabase
+        .from("budgets")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId),
+      supabase
+        .from("sales")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .eq("status", "completed")
+    ]);
+    const countResults = [
+      ingredientCountResult,
+      productCountResult,
+      customerCountResult,
+      budgetCountResult,
+      saleCountResult
+    ] as CountResult[];
+    const countError = countResults.find((result) => result.error)?.error;
+
+    if (countError) {
+      throwDatabaseError(countError);
+    }
+
+    const onboardingCounts = {
+      budgets: budgetCountResult.count ?? 0,
+      company: 1,
+      customers: customerCountResult.count ?? 0,
+      ingredients: ingredientCountResult.count ?? 0,
+      products: productCountResult.count ?? 0,
+      sales: saleCountResult.count ?? 0
+    };
+    const onboardingCompletedSteps = [
+      onboardingCounts.company > 0,
+      onboardingCounts.ingredients > 0,
+      onboardingCounts.products > 0,
+      onboardingCounts.customers > 0,
+      onboardingCounts.budgets > 0,
+      onboardingCounts.sales > 0
+    ].filter(Boolean).length;
+    const onboardingTotalSteps = 6;
 
     const lowStock = ((lowStockData ?? []) as IngredientRow[])
       .filter(
@@ -339,6 +406,15 @@ export class DashboardService {
         pendingExpense,
         pendingIncome,
         upcomingDue
+      },
+      onboarding: {
+        completedSteps: onboardingCompletedSteps,
+        counts: onboardingCounts,
+        isComplete: onboardingCompletedSteps === onboardingTotalSteps,
+        progress: Math.round(
+          (onboardingCompletedSteps / onboardingTotalSteps) * 100
+        ),
+        totalSteps: onboardingTotalSteps
       },
       bestSellers,
       lowStock: lowStock.slice(0, 5),

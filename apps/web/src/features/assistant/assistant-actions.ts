@@ -6,6 +6,7 @@ export type AssistantActionId =
   | "create-customer"
   | "create-ingredient"
   | "create-product"
+  | "create-sale"
   | "open-stock-list"
   | "open-stock-movement";
 
@@ -14,9 +15,7 @@ export function clearStoredAssistantAction(actionId?: AssistantActionId) {
     return;
   }
 
-  const storedAction = window.sessionStorage.getItem(
-    assistantActionStorageKey
-  );
+  const storedAction = window.sessionStorage.getItem(assistantActionStorageKey);
 
   if (!actionId || storedAction === actionId) {
     window.sessionStorage.removeItem(assistantActionStorageKey);
