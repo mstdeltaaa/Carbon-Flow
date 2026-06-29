@@ -10,7 +10,9 @@ type CompanyRole = "admin" | "employee" | "seller";
 
 type OpenAiResponsePayload = {
   error?: {
+    code?: string;
     message?: string;
+    type?: string;
   };
   output?: Array<{
     content?: Array<{
@@ -84,6 +86,39 @@ function getApiErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Falha ao carregar contexto.";
 }
 
+function getOpenAiFailureMessage(
+  payload: OpenAiResponsePayload | null,
+  status: number
+) {
+  const message = payload?.error?.message ?? "";
+  const normalizedMessage = message.toLowerCase();
+  const errorCode = payload?.error?.code;
+  const errorType = payload?.error?.type;
+
+  if (
+    status === 429 &&
+    (errorCode === "insufficient_quota" ||
+      errorType === "insufficient_quota" ||
+      normalizedMessage.includes("exceeded your current quota") ||
+      normalizedMessage.includes("billing"))
+  ) {
+    return "A IA do Carbon está configurada, mas a conta da OpenAI está sem cota ou sem créditos ativos. Verifique o billing/créditos da OpenAI e tente novamente.";
+  }
+
+  if (status === 401) {
+    return "A chave da OpenAI configurada na API não foi aceita. Gere uma nova chave, atualize OPENAI_API_KEY na Vercel da API e faça redeploy.";
+  }
+
+  if (status === 429) {
+    return "A IA do Carbon atingiu um limite temporário de uso. Tente novamente em alguns instantes.";
+  }
+
+  return (
+    message ||
+    "Não consegui acionar a IA do Carbon agora. Tente novamente em instantes."
+  );
+}
+
 @Injectable()
 export class AssistantService {
   constructor(
@@ -135,9 +170,7 @@ export class AssistantService {
 
     if (!response.ok || !payload) {
       return {
-        answer:
-          payload?.error?.message ??
-          "Não consegui acionar a IA do Carbon agora. Tente novamente em instantes.",
+        answer: getOpenAiFailureMessage(payload, response.status),
         model,
         source: "fallback" as const
       };
