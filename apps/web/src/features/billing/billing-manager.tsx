@@ -262,7 +262,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </p>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:min-w-[26rem]">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[24rem] xl:min-w-[28rem]">
             <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
                 Plano atual
@@ -355,14 +355,14 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </div>
           </section>
 
-          <section className="grid min-w-0 gap-4 2xl:grid-cols-3">
+          <section className="grid min-w-0 gap-4 xl:grid-cols-3">
             {plans.map((plan) => {
               const isCurrent = currentPlan === plan.id;
               const isFeatured = plan.id === "pro";
 
               return (
                 <article
-                  className="flex min-h-[28rem] flex-col rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 transition hover:border-[var(--primary)] hover:shadow-2xl hover:shadow-[color:var(--shadow-color)] focus-within:border-[var(--primary)] focus-within:shadow-2xl focus-within:shadow-[color:var(--shadow-color)] sm:p-6"
+                  className="flex min-h-[28rem] flex-col rounded-lg border border-transparent bg-[rgb(16_19_20/0.78)] p-5 transition hover:border-[var(--primary)] hover:shadow-2xl hover:shadow-[color:var(--shadow-color)] focus-within:border-[var(--primary)] focus-within:shadow-2xl focus-within:shadow-[color:var(--shadow-color)] sm:p-6"
                   key={plan.id}
                 >
                   <div className="flex items-start justify-between gap-4">
@@ -441,7 +441,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
               Pagamentos futuros
             </h2>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {["Checkout", "Webhook", "Atualizacao do plano"].map((item) => (
+              {["Checkout", "Webhook", "Atualização do plano"].map((item) => (
                 <article
                   className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 text-sm text-[var(--muted-foreground)]"
                   key={item}

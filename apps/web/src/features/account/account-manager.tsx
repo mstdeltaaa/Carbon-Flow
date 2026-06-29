@@ -237,7 +237,7 @@ export function AccountManager({ companyName, role }: AccountManagerProps) {
           Carregando conta
         </section>
       ) : (
-        <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)]">
           <form
             className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6"
             onSubmit={handleProfileSubmit}

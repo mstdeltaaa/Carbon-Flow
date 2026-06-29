@@ -230,8 +230,8 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
 
   return (
     <>
-      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-5 sm:flex-row sm:items-center">
-        <div>
+      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
+        <div className="min-w-0">
           <p className="text-sm text-[var(--muted-foreground)]">Visao geral</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-normal text-white sm:text-3xl">
             Dashboard da empresa

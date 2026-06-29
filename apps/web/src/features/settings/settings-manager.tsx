@@ -450,10 +450,10 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
 
   return (
     <>
-      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-5 sm:flex-row sm:items-center">
-        <div>
+      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
+        <div className="min-w-0">
           <p className="text-sm text-[var(--muted-foreground)]">
-            Administracao
+            Administração
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-white sm:text-3xl">
             Configurações
@@ -477,7 +477,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
       ) : null}
 
       {!isLoading && settings ? (
-        <div className="grid min-w-0 gap-5 2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
@@ -755,7 +755,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                 </div>
               </form>
 
-              <div className="mt-5 min-w-0 overflow-x-auto rounded-md">
+              <div className="mt-5 max-w-full min-w-0 overflow-x-auto rounded-md">
                 <table className="w-full min-w-[820px] border-collapse text-left text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">

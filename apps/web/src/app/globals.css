@@ -302,6 +302,15 @@ textarea {
   max-width: 100%;
 }
 
+img,
+svg {
+  max-width: 100%;
+}
+
+a {
+  overflow-wrap: anywhere;
+}
+
 table {
   overflow-wrap: anywhere;
 }
@@ -316,6 +325,10 @@ header {
 td,
 th {
   vertical-align: top;
+}
+
+[class*="overflow-x-auto"] {
+  scrollbar-gutter: stable;
 }
 
 .brand-logo-light {

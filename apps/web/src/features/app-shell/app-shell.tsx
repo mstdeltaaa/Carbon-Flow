@@ -66,9 +66,9 @@ export function AppShell({
 
   return (
     <main className="min-h-screen">
-      <div className="flex w-full max-w-none flex-col gap-5 px-4 py-4 sm:px-6 lg:flex-row lg:px-8 2xl:px-10">
-        <aside className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.86)] p-3 shadow-2xl shadow-[color:var(--shadow-color)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
-          <div className="flex items-center gap-3 px-2 py-3">
+      <div className="flex w-full max-w-none flex-col gap-4 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4 lg:flex-row lg:px-6 xl:px-8 2xl:px-10">
+        <aside className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.86)] p-3 shadow-2xl shadow-[color:var(--shadow-color)] lg:sticky lg:top-4 lg:h-[calc(100vh-2rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
+          <div className="flex min-w-0 items-center gap-3 px-2 py-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-transparent">
               <Image
                 alt=""
@@ -87,7 +87,7 @@ export function AppShell({
                 width={40}
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-white">Carbon Flow</p>
               <p className="text-xs text-[var(--muted-foreground)]">
                 Fluxo de produção
@@ -118,14 +118,14 @@ export function AppShell({
             </Button>
           </div>
 
-          <nav className="mt-5 grid gap-1">
+          <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:mt-5 lg:grid lg:overflow-visible lg:pb-0">
             {visibleNavItems.map((item) => {
               const isActive = activeItem === item.id;
 
               return (
                 <Link
                   className={[
-                    "flex h-10 min-w-0 items-center gap-3 rounded-md px-3 text-left text-sm transition",
+                    "flex h-10 min-w-fit shrink-0 items-center gap-3 whitespace-nowrap rounded-md px-3 text-left text-sm transition lg:min-w-0 lg:shrink",
                     isActive
                       ? "bg-[rgb(159_243_196/0.14)] text-[var(--primary)]"
                       : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-white"
@@ -149,7 +149,7 @@ export function AppShell({
         </aside>
 
         <section
-          className="flex min-w-0 scroll-mt-4 flex-1 flex-col gap-5"
+          className="flex min-w-0 scroll-mt-4 flex-1 flex-col gap-4 pb-24 sm:gap-5 lg:pb-8"
           id={contentAnchor}
         >
           {children}

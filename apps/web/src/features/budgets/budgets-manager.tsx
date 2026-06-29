@@ -652,8 +652,8 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
 
   return (
     <>
-      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-5 sm:flex-row sm:items-center">
-        <div>
+      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
+        <div className="min-w-0">
           <p className="text-sm text-[var(--muted-foreground)]">
             Comercial e vendas
           </p>
@@ -661,7 +661,12 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
             Orçamentos
           </h1>
         </div>
-        <Button onClick={resetForm} type="button" variant="secondary">
+        <Button
+          className="w-full sm:w-auto"
+          onClick={resetForm}
+          type="button"
+          variant="secondary"
+        >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Novo orçamento
         </Button>
@@ -715,7 +720,7 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
         </article>
       </section>
 
-      <div className="grid gap-4 2xl:grid-cols-[0.92fr_1.08fr]">
+      <div className="grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
         <section
           className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
           id="budget-form"
@@ -836,10 +841,10 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
 
                   return (
                     <div
-                      className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-3 md:grid-cols-2 2xl:grid-cols-[1.4fr_0.6fr_0.72fr_0.72fr_2.5rem] 2xl:items-end"
+                      className="grid gap-3 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.68)] p-3 md:grid-cols-2 xl:grid-cols-[1.4fr_0.6fr_0.72fr_0.72fr_2.5rem] xl:items-end"
                       key={`${index}-${item.productId}`}
                     >
-                      <label className="grid min-w-0 gap-2 text-xs text-white md:col-span-2 2xl:col-span-1">
+                      <label className="grid min-w-0 gap-2 text-xs text-white md:col-span-2 xl:col-span-1">
                         Produto
                         <select
                           className="h-10 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-sm text-white outline-none transition focus:border-[var(--primary)]"
@@ -984,7 +989,7 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
                 {filteredBudgets.length} registros
               </p>
             </div>
-            <label className="relative block sm:w-72">
+            <label className="relative block sm:w-72 lg:w-80">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
                 aria-hidden="true"
@@ -999,7 +1004,7 @@ export function BudgetsManager({ companyId, role }: BudgetsManagerProps) {
             </label>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 max-w-full overflow-x-auto rounded-md">
             <table className="w-full min-w-[900px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">

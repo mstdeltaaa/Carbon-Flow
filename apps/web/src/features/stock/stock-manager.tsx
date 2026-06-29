@@ -346,10 +346,10 @@ export function StockManager({ companyId }: StockManagerProps) {
 
   return (
     <>
-      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-5 sm:flex-row sm:items-center">
-        <div>
+      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
+        <div className="min-w-0">
           <p className="text-sm text-[var(--muted-foreground)]">
-            Saldos e movimentacoes
+            Saldos e movimentações
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-white sm:text-3xl">
             Estoque
@@ -411,7 +411,7 @@ export function StockManager({ companyId }: StockManagerProps) {
         </article>
       </section>
 
-      <div className="grid gap-4 2xl:grid-cols-[0.82fr_1.18fr]">
+      <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
         <section
           className="min-w-0 scroll-mt-24 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
           id="stock-movement-form"
@@ -547,7 +547,7 @@ export function StockManager({ companyId }: StockManagerProps) {
                 {filteredItems.length} registros
               </p>
             </div>
-            <label className="relative block sm:w-72">
+            <label className="relative block sm:w-72 lg:w-80">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
                 aria-hidden="true"
@@ -562,7 +562,7 @@ export function StockManager({ companyId }: StockManagerProps) {
             </label>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 max-w-full overflow-x-auto rounded-md">
             <table className="w-full min-w-[820px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">
@@ -647,7 +647,7 @@ export function StockManager({ companyId }: StockManagerProps) {
           />
         </div>
 
-        <div className="mt-5 overflow-x-auto">
+        <div className="mt-5 max-w-full overflow-x-auto rounded-md">
           <table className="w-full min-w-[900px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">

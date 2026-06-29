@@ -438,8 +438,8 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
 
   return (
     <>
-      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-5 sm:flex-row sm:items-center">
-        <div>
+      <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
+        <div className="min-w-0">
           <p className="text-sm text-[var(--muted-foreground)]">
             Relacionamento comercial
           </p>
@@ -447,7 +447,12 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
             Clientes
           </h1>
         </div>
-        <Button onClick={createCustomer} type="button" variant="secondary">
+        <Button
+          className="w-full sm:w-auto"
+          onClick={createCustomer}
+          type="button"
+          variant="secondary"
+        >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Novo cliente
         </Button>
@@ -498,7 +503,7 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
         </article>
       </section>
 
-      <div className="grid gap-4 2xl:grid-cols-[0.82fr_1.18fr]">
+      <div className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
         <section
           className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5"
           id="customer-form"
@@ -610,7 +615,7 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
                 {filteredCustomers.length} registros
               </p>
             </div>
-            <label className="relative block sm:w-72">
+            <label className="relative block sm:w-72 lg:w-80">
               <Search
                 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]"
                 aria-hidden="true"
@@ -625,7 +630,7 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
             </label>
           </div>
 
-          <div className="mt-5 overflow-x-auto">
+          <div className="mt-5 max-w-full overflow-x-auto rounded-md">
             <table className="w-full min-w-[1040px] border-collapse text-left text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">
@@ -870,7 +875,7 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
                     />
                   </div>
 
-                  <div className="mt-3 overflow-x-auto">
+                  <div className="mt-3 max-w-full overflow-x-auto rounded-md">
                     <table className="w-full min-w-[520px] border-collapse text-left text-sm">
                       <thead>
                         <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">
@@ -935,7 +940,7 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
                     />
                   </div>
 
-                  <div className="mt-3 overflow-x-auto">
+                  <div className="mt-3 max-w-full overflow-x-auto rounded-md">
                     <table className="w-full min-w-[560px] border-collapse text-left text-sm">
                       <thead>
                         <tr className="border-b border-[var(--border)] text-xs uppercase text-[var(--muted-foreground)]">

@@ -43,7 +43,7 @@ export default async function OnboardingPage({
           </h1>
           <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
             O usuário atual será vinculado como administrador da empresa criada
-            e a assinatura inicial sera criada no plano Free.
+            e a assinatura inicial será criada no plano Free.
           </p>
           {isCreatingNewCompany ? (
             <Link
