@@ -314,13 +314,12 @@ export function BudgetDocument({
   return (
     <main className="budget-print-page min-h-screen bg-[#080a0b] px-4 py-4 sm:px-6 lg:py-8">
       <div className="budget-print-toolbar mx-auto mb-4 flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Link
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-[var(--border)] bg-[rgb(16_19_20/0.82)] px-4 text-sm text-[rgb(247_250_248)] transition hover:bg-[var(--secondary)]"
-          href="/budgets"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Voltar
-        </Link>
+        <Button asChild variant="secondary">
+          <Link href="/budgets">
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Voltar
+          </Link>
+        </Button>
 
         <div className="flex flex-wrap gap-2">
           <Button
