@@ -2691,14 +2691,14 @@ export function VirtualAssistant({
   }
 
   return (
-    <div className="fixed bottom-1 right-1 z-40 sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6">
+    <div className="fixed inset-x-2 bottom-2 z-40 flex flex-col items-end justify-end sm:inset-x-auto sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6">
       {isOpen ? (
-        <section className="mb-3 flex max-h-[calc(100vh-6rem)] w-[min(calc(100vw-0.75rem),24rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:max-h-[calc(100vh-7rem)] md:max-h-[calc(100vh-8rem)] xl:max-h-[calc(100vh-17rem)] xl:w-[24rem]">
-          <header className="flex items-center justify-between gap-3 border-b border-[var(--border)] p-4">
+        <section className="mb-2 flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:mb-3 sm:h-auto sm:max-h-[calc(100vh-7rem)] sm:w-[24rem] md:max-h-[calc(100vh-8rem)] xl:max-h-[calc(100vh-17rem)] xl:w-[24rem]">
+          <header className="flex items-start justify-between gap-2 border-b border-[var(--border)] p-3 sm:items-center sm:gap-3 sm:p-4">
             <div className="flex min-w-0 items-center gap-3">
               <AssistantAvatar
-                className="h-12 w-12 shrink-0"
-                sizes="48px"
+                className="h-10 w-10 shrink-0 sm:h-12 sm:w-12"
+                sizes="(min-width: 640px) 48px, 40px"
                 src={avatarSrc}
               />
               <div className="min-w-0">
@@ -2708,7 +2708,7 @@ export function VirtualAssistant({
                 <p className="truncate text-xs text-[var(--muted-foreground)]">
                   Seu assistente virtual do Carbon Flow
                 </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] leading-4 text-[var(--muted-foreground)]">
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] leading-4 text-[var(--muted-foreground)] sm:text-[11px]">
                   <span className="inline-flex items-center gap-1">
                     <span
                       className={[
@@ -2727,10 +2727,10 @@ export function VirtualAssistant({
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               <button
                 aria-label="Limpar conversa do Carbon"
-                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)] sm:h-9 sm:w-9"
                 onClick={clearConversation}
                 title="Limpar conversa"
                 type="button"
@@ -2740,7 +2740,7 @@ export function VirtualAssistant({
 
               <button
                 aria-label="Fechar Carbon"
-                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)] sm:h-9 sm:w-9"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -2749,7 +2749,7 @@ export function VirtualAssistant({
             </div>
           </header>
 
-          <div className="shrink-0 border-b border-[var(--border)] p-3 sm:p-4">
+          <div className="shrink-0 border-b border-[var(--border)] p-2.5 sm:p-4">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
                 Modo
@@ -2759,14 +2759,14 @@ export function VirtualAssistant({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
               {availableAssistantModes.map((mode) => {
                 const isActiveMode = assistantMode === mode.id;
 
                 return (
                   <button
                     className={[
-                      "flex min-h-9 min-w-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs transition",
+                      "flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[11px] transition sm:min-h-9 sm:gap-1.5 sm:px-2 sm:text-xs",
                       isActiveMode
                         ? "border-[var(--primary)] bg-[var(--primary-active)] text-[var(--foreground)]"
                         : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
@@ -2786,7 +2786,7 @@ export function VirtualAssistant({
                     }}
                     type="button"
                   >
-                    <mode.icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <mode.icon className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
                     <span className="truncate">{mode.label}</span>
                   </button>
                 );
@@ -2795,7 +2795,7 @@ export function VirtualAssistant({
           </div>
 
           {proactiveAlerts.length || hiddenProactiveAlertCount > 0 ? (
-            <div className="shrink-0 border-b border-[var(--border)] p-3 sm:p-4">
+            <div className="shrink-0 border-b border-[var(--border)] p-2.5 sm:p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
                   Atenção agora
@@ -2808,14 +2808,14 @@ export function VirtualAssistant({
               </div>
 
               {proactiveAlerts.length ? (
-                <div className="space-y-2">
+                <div className="max-h-32 space-y-2 overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible sm:pr-0">
                   {proactiveAlerts.map((alert) => {
                     const tone = getProactiveAlertClasses(alert.severity);
 
                     return (
                       <article
                         className={[
-                          "flex w-full min-w-0 items-start gap-3 rounded-md border p-3 text-left transition",
+                          "flex w-full min-w-0 items-start gap-2 rounded-md border p-2.5 text-left transition sm:gap-3 sm:p-3",
                           tone.panel
                         ].join(" ")}
                         key={alert.id}
@@ -2839,7 +2839,7 @@ export function VirtualAssistant({
                             {alert.detail}
                           </span>
                         </span>
-                        <span className="flex shrink-0 items-center gap-1">
+                        <span className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                           <button
                             className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--foreground)] transition hover:bg-[var(--secondary)]"
                             onClick={() => runQuickAction(alert.action)}
@@ -2875,14 +2875,14 @@ export function VirtualAssistant({
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-3 sm:space-y-3 sm:p-4">
             {messages.map((message, index) => (
               <div
                 className={[
                   "whitespace-pre-line rounded-md px-3 py-2 text-sm leading-6",
                   message.author === "assistant"
-                    ? "mr-8 bg-[var(--surface-soft)] text-[var(--muted-foreground)]"
-                    : "ml-8 bg-[var(--primary-active)] text-[var(--foreground)]"
+                    ? "mr-4 bg-[var(--surface-soft)] text-[var(--muted-foreground)] sm:mr-8"
+                    : "ml-4 bg-[var(--primary-active)] text-[var(--foreground)] sm:ml-8"
                 ].join(" ")}
                 key={`${message.author}-${index}`}
               >
@@ -2890,44 +2890,44 @@ export function VirtualAssistant({
               </div>
             ))}
             {isAiThinking ? (
-              <div className="mr-8 rounded-md bg-[var(--surface-soft)] px-3 py-2 text-sm leading-6 text-[var(--muted-foreground)]">
+              <div className="mr-4 rounded-md bg-[var(--surface-soft)] px-3 py-2 text-sm leading-6 text-[var(--muted-foreground)] sm:mr-8">
                 Carbon está pensando...
               </div>
             ) : null}
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="shrink-0 border-t border-[var(--border)] p-3 sm:p-4">
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+          <div className="max-h-[42dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-[var(--border)] p-2.5 sm:max-h-none sm:overflow-visible sm:p-4">
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
               Ações rápidas
             </p>
-            <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="mb-2 grid grid-cols-3 gap-1.5 sm:mb-3 sm:grid-cols-2 sm:gap-2">
               {visibleQuickActions.map((item) => (
                 <button
-                  className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-2 text-left text-xs text-[var(--foreground)] transition hover:bg-[var(--secondary)]"
+                  className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-1.5 text-center text-[11px] text-[var(--foreground)] transition hover:bg-[var(--secondary)] sm:min-h-10 sm:justify-start sm:gap-2 sm:px-2 sm:text-left sm:text-xs"
                   key={item.label}
                   onClick={() => runQuickAction(item)}
                   type="button"
                 >
-                  <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <item.icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
                 </button>
               ))}
             </div>
 
-            <p className="mb-2 text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
               Perguntas úteis
             </p>
-            <div className="mb-3 grid grid-cols-2 gap-2">
+            <div className="mb-2 grid grid-cols-2 gap-1.5 sm:mb-3 sm:gap-2">
               {visibleQuickPrompts.map((item) => (
                 <button
-                  className="flex min-h-10 min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-2 text-left text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                  className="flex min-h-9 min-w-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-1.5 text-left text-[11px] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)] sm:min-h-10 sm:gap-2 sm:px-2 sm:text-xs"
                   disabled={isAiThinking}
                   key={item.label}
                   onClick={() => void sendPrompt(item.prompt)}
                   type="button"
                 >
-                  <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <item.icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
                   <span className="truncate">{item.label}</span>
                 </button>
               ))}
@@ -2935,13 +2935,13 @@ export function VirtualAssistant({
 
             {visibleNavigationLinks.length ? (
               <>
-                <p className="mb-2 text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
                   Navegação
                 </p>
-                <div className="mb-3 flex flex-wrap gap-2">
+                <div className="mb-2 flex flex-wrap gap-1.5 sm:mb-3 sm:gap-2">
                   {visibleNavigationLinks.map((item) => (
                     <Link
-                      className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-xs text-[var(--primary)] transition hover:bg-[var(--secondary)]"
+                      className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--primary)] transition hover:bg-[var(--secondary)] sm:text-xs"
                       href={item.href}
                       key={item.href}
                     >
@@ -2952,7 +2952,7 @@ export function VirtualAssistant({
               </>
             ) : null}
 
-            <form className="flex gap-2" onSubmit={handleSubmit}>
+            <form className="sticky bottom-0 flex gap-2 bg-[var(--panel-strong)] pt-1" onSubmit={handleSubmit}>
               <input
                 className="h-10 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
                 disabled={isAiThinking}
@@ -2972,7 +2972,7 @@ export function VirtualAssistant({
 
       <button
         aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
-        className="relative ml-auto flex h-20 w-20 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
+        className="relative ml-auto flex h-16 w-16 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
         onClick={() => {
           setMessages((current) => (current.length ? current : [introMessage]));
           setIsOpen((current) => !current);
@@ -2982,7 +2982,7 @@ export function VirtualAssistant({
         {!isOpen && proactiveAlerts.length ? (
           <span
             className={[
-              "absolute right-1 top-1 z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold shadow-lg sm:right-2 sm:top-2 md:right-3 md:top-3 xl:right-8 xl:top-8",
+              "absolute right-0 top-0 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-lg sm:right-2 sm:top-2 sm:h-6 sm:min-w-6 sm:text-xs md:right-3 md:top-3 xl:right-8 xl:top-8",
               hasWarningAlert
                 ? "bg-[rgb(245_158_11)] text-black"
                 : "bg-[var(--primary)] text-[var(--background)]"
@@ -2992,7 +2992,7 @@ export function VirtualAssistant({
           </span>
         ) : null}
         <AssistantAvatar
-          className="h-[4.5rem] w-[4.5rem] sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
+          className="h-14 w-14 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
           sizes="(min-width: 1280px) 216px, (min-width: 1024px) 112px, (min-width: 768px) 96px, (min-width: 640px) 80px, 72px"
           src={avatarSrc}
         />
