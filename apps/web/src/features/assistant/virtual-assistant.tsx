@@ -668,11 +668,12 @@ const navigationLinks = [
   section: AppSection;
 }>;
 
-const fallbackAssistantAvatar =
-  "/brand/AvatarBrancoePreto/BrancoePreto.png";
+const fallbackAssistantAvatar = "/brand/AvatarBrancoePreto/BrancoePreto.png";
 
 const assistantAvatarByTheme: Record<string, string> = {
   "brazil-2026": "/brand/AvatarBrasil2026/Copa2026Amarelo.png",
+  "brazil-2026-blue":
+    "/brand/AvatarBrasil2026/AvatarCopa2026Azul/Copa2026Azul.png",
   "blue-dark": "/brand/AvatarAzulePreto/AzulePreto.png",
   "blue-light": "/brand/AvatarAzuleBranco/AzuleBranco.png",
   "carbon-dark": fallbackAssistantAvatar,

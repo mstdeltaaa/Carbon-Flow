@@ -321,6 +321,52 @@ html[data-theme="brazil-2026"] {
   --shadow-color: rgb(0 24 64 / 0.28);
 }
 
+html[data-theme="brazil-2026-blue"] {
+  color-scheme: dark;
+  --background: #003da5;
+  --foreground: #f8fbff;
+  --card: #061f63;
+  --card-foreground: #f8fbff;
+  --popover: #06173f;
+  --popover-foreground: #f8fbff;
+  --primary: #ffdf00;
+  --primary-foreground: #07131f;
+  --secondary: #092a6f;
+  --secondary-foreground: #eef9ff;
+  --muted: #082863;
+  --muted-foreground: #c5dbf2;
+  --accent: #7ddfd3;
+  --accent-foreground: #051826;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #fff7f7;
+  --destructive-soft: rgb(255 107 107 / 0.13);
+  --destructive-text: #ffaaaa;
+  --border: #2353a9;
+  --input: #2353a9;
+  --ring: #7ddfd3;
+  --body-gradient: linear-gradient(
+    145deg,
+    #061226 0%,
+    #003da5 45%,
+    #101010 100%
+  );
+  --panel: rgb(6 31 99 / 0.84);
+  --panel-header: rgb(6 31 99 / 0.78);
+  --panel-strong: rgb(5 23 63 / 0.92);
+  --panel-raised: rgb(6 31 99 / 0.88);
+  --panel-soft: rgb(6 31 99 / 0.72);
+  --surface: rgb(3 18 52 / 0.74);
+  --surface-muted: rgb(8 40 99 / 0.62);
+  --surface-soft: rgb(8 40 99 / 0.52);
+  --primary-hover: #fff176;
+  --primary-soft: rgb(255 223 0 / 0.14);
+  --primary-softer: rgb(255 223 0 / 0.1);
+  --primary-active: rgb(255 223 0 / 0.16);
+  --primary-selection: rgb(125 223 211 / 0.32);
+  --secondary-hover: #103c91;
+  --shadow-color: rgb(0 15 47 / 0.3);
+}
+
 * {
   box-sizing: border-box;
 }

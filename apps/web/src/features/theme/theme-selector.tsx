@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   brazil2026ThemeId,
+  brazil2026ThemeIds,
   defaultDarkTheme,
   defaultLightTheme,
   defaultTheme,
@@ -127,10 +128,14 @@ export function ThemeSelector({
 
         if (brazilAccess && hasBrazilAccountAccess) {
           window.localStorage.setItem(brazilAccess.storageKey, "true");
-          locallyUnlockedThemes.add(brazil2026ThemeId);
+          brazil2026ThemeIds.forEach((themeId) =>
+            locallyUnlockedThemes.add(themeId)
+          );
         } else if (brazilAccess) {
           window.localStorage.removeItem(brazilAccess.storageKey);
-          locallyUnlockedThemes.delete(brazil2026ThemeId);
+          brazil2026ThemeIds.forEach((themeId) =>
+            locallyUnlockedThemes.delete(themeId)
+          );
         }
 
         if (isMounted) {

@@ -9,6 +9,8 @@ export type ThemeOption = {
 
 export const themeStorageKey = "carbon-flow-theme";
 export const brazil2026ThemeId = "brazil-2026";
+export const brazil2026BlueThemeId = "brazil-2026-blue";
+export const brazil2026ThemeIds = [brazil2026ThemeId, brazil2026BlueThemeId];
 export const brazil2026ThemeUnlockStorageKey =
   "carbon-flow-theme-brazil-2026-unlocked";
 export const brazil2026ThemeUnlockEndsAt = "2026-07-21T03:00:00.000Z";
@@ -66,6 +68,14 @@ export const themes: ThemeOption[] = [
     label: "Torcida brasileira 2026",
     specialLabel: "Especial",
     themeColor: "#001b44"
+  },
+  {
+    accent: "#7ddfd3",
+    background: "#003da5",
+    id: brazil2026BlueThemeId,
+    label: "Seleção brasileira 2026 azul",
+    specialLabel: "Especial",
+    themeColor: "#003da5"
   }
 ];
 
@@ -77,6 +87,10 @@ export const specialThemeAccessById: Record<
   }
 > = {
   [brazil2026ThemeId]: {
+    storageKey: brazil2026ThemeUnlockStorageKey,
+    unlockEndsAt: brazil2026ThemeUnlockEndsAt
+  },
+  [brazil2026BlueThemeId]: {
     storageKey: brazil2026ThemeUnlockStorageKey,
     unlockEndsAt: brazil2026ThemeUnlockEndsAt
   }
