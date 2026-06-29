@@ -41,6 +41,11 @@ type SaleIncomeInput = {
   totalAmount: number;
 };
 
+type SaleProfitRow = {
+  estimated_profit: string;
+  total_amount: string;
+};
+
 const transactionSelect =
   "id, company_id, type, status, category, description, amount, transaction_date, due_date, paid_at, source_type, source_id, created_by, created_at, updated_at";
 
@@ -84,6 +89,18 @@ function getPeriod(from?: string, to?: string) {
     from: isDateOnly(from) ? from! : fallback.from,
     to: isDateOnly(to) ? to! : fallback.to,
   };
+}
+
+function getDateStartIso(date: string) {
+  return new Date(`${date}T00:00:00.000Z`).toISOString();
+}
+
+function getNextDateStartIso(date: string) {
+  const nextDate = new Date(`${date}T00:00:00.000Z`);
+
+  nextDate.setUTCDate(nextDate.getUTCDate() + 1);
+
+  return nextDate.toISOString();
 }
 
 function mapTransaction(row: FinancialTransactionRow) {
@@ -144,12 +161,10 @@ export class FinanceService {
     to?: string,
   ) {
     const period = getPeriod(from, to);
-    const transactions = await this.findAll(
-      accessToken,
-      companyId,
-      period.from,
-      period.to,
-    );
+    const [transactions, salesSummary] = await Promise.all([
+      this.findAll(accessToken, companyId, period.from, period.to),
+      this.getSalesProfitSummary(companyId, period.from, period.to),
+    ]);
     const activeTransactions = transactions.filter(
       (transaction) => transaction.status !== "cancelled",
     );
@@ -209,10 +224,24 @@ export class FinanceService {
       totals: {
         balance: roundMoney(paidIncome - paidExpense),
         cancelledCount: transactions.length - activeTransactions.length,
+        estimatedOperatingProfit: roundMoney(
+          salesSummary.estimatedProfit - paidExpense,
+        ),
+        estimatedProjectedProfit: roundMoney(
+          salesSummary.estimatedProfit - paidExpense - pendingExpense,
+        ),
+        estimatedSalesProfit: salesSummary.estimatedProfit,
         paidExpense,
         paidIncome,
+        payable: pendingExpense,
         pendingExpense,
         pendingIncome,
+        projectedBalance: roundMoney(
+          paidIncome + pendingIncome - paidExpense - pendingExpense,
+        ),
+        receivable: pendingIncome,
+        salesCount: salesSummary.salesCount,
+        salesRevenue: salesSummary.salesRevenue,
         transactionCount: transactions.length,
       },
     };
@@ -609,6 +638,37 @@ export class FinanceService {
       .eq("company_id", companyId)
       .eq("source_type", "sale")
       .eq("source_id", saleId);
+  }
+
+  private async getSalesProfitSummary(
+    companyId: string,
+    from: string,
+    to: string,
+  ) {
+    const supabase = this.supabaseFactory.createAdmin();
+    const { data, error } = await supabase
+      .from("sales")
+      .select("total_amount, estimated_profit")
+      .eq("company_id", companyId)
+      .eq("status", "completed")
+      .gte("sold_at", getDateStartIso(from))
+      .lt("sold_at", getNextDateStartIso(to));
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    const sales = (data ?? []) as SaleProfitRow[];
+
+    return {
+      estimatedProfit: roundMoney(
+        sales.reduce((total, sale) => total + Number(sale.estimated_profit), 0),
+      ),
+      salesCount: sales.length,
+      salesRevenue: roundMoney(
+        sales.reduce((total, sale) => total + Number(sale.total_amount), 0),
+      ),
+    };
   }
 
   private async getTransactionRow(

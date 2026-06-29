@@ -9,13 +9,17 @@ import {
   Clock3,
   Download,
   Filter,
+  Landmark,
   Loader2,
   Pencil,
+  PiggyBank,
   Plus,
+  ReceiptText,
   RotateCcw,
   Save,
   Search,
   Tags,
+  TrendingUp,
   WalletCards,
 } from "lucide-react";
 import {
@@ -67,10 +71,18 @@ type FinanceSummary = {
   totals: {
     balance: number;
     cancelledCount: number;
+    estimatedOperatingProfit?: number;
+    estimatedProjectedProfit?: number;
+    estimatedSalesProfit?: number;
     paidExpense: number;
     paidIncome: number;
+    payable?: number;
     pendingExpense: number;
     pendingIncome: number;
+    projectedBalance?: number;
+    receivable?: number;
+    salesCount?: number;
+    salesRevenue?: number;
     transactionCount: number;
   };
 };
@@ -386,12 +398,34 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
   const totals = summary?.totals ?? {
     balance: 0,
     cancelledCount: 0,
+    estimatedOperatingProfit: 0,
+    estimatedProjectedProfit: 0,
+    estimatedSalesProfit: 0,
     paidExpense: 0,
     paidIncome: 0,
+    payable: 0,
     pendingExpense: 0,
     pendingIncome: 0,
+    projectedBalance: 0,
+    receivable: 0,
+    salesCount: 0,
+    salesRevenue: 0,
     transactionCount: 0,
   };
+  const receivable = totals.receivable ?? totals.pendingIncome;
+  const payable = totals.payable ?? totals.pendingExpense;
+  const projectedBalance =
+    totals.projectedBalance ??
+    totals.paidIncome + totals.pendingIncome - totals.paidExpense - totals.pendingExpense;
+  const estimatedSalesProfit = totals.estimatedSalesProfit ?? 0;
+  const estimatedOperatingProfit =
+    totals.estimatedOperatingProfit ??
+    estimatedSalesProfit - totals.paidExpense;
+  const estimatedProjectedProfit =
+    totals.estimatedProjectedProfit ??
+    estimatedOperatingProfit - totals.pendingExpense;
+  const salesRevenue = totals.salesRevenue ?? 0;
+  const salesCount = totals.salesCount ?? 0;
 
   function updateField<K extends keyof FinanceFormState>(
     field: K,
@@ -613,7 +647,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-[var(--muted-foreground)]">Saldo</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Saldo em caixa
+            </p>
             <CircleDollarSign
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
@@ -625,16 +661,92 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-[var(--muted-foreground)]">Pendente</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Saldo previsto
+            </p>
             <CalendarRange
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
             />
           </div>
           <p className="mt-4 text-xl font-semibold text-white xl:text-2xl">
-            {currencyFormatter.format(
-              totals.pendingIncome - totals.pendingExpense,
-            )}
+            {currencyFormatter.format(projectedBalance)}
+          </p>
+        </article>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Contas a receber
+            </p>
+            <ReceiptText
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-4 text-xl font-semibold text-white xl:text-2xl">
+            {currencyFormatter.format(receivable)}
+          </p>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            Receitas pendentes no período
+          </p>
+        </article>
+
+        <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Contas a pagar
+            </p>
+            <Landmark
+              className="h-4 w-4 text-[var(--destructive-text)]"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-4 text-xl font-semibold text-white xl:text-2xl">
+            {currencyFormatter.format(payable)}
+          </p>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            Despesas pendentes no período
+          </p>
+        </article>
+
+        <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Lucro bruto estimado
+            </p>
+            <TrendingUp
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-4 text-xl font-semibold text-white xl:text-2xl">
+            {currencyFormatter.format(estimatedSalesProfit)}
+          </p>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            {salesCount} venda{salesCount === 1 ? "" : "s"} ·{" "}
+            {currencyFormatter.format(salesRevenue)} faturado
+          </p>
+        </article>
+
+        <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Lucro líquido previsto
+            </p>
+            <PiggyBank
+              className="h-4 w-4 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+          <p className="mt-4 text-xl font-semibold text-white xl:text-2xl">
+            {currencyFormatter.format(estimatedProjectedProfit)}
+          </p>
+          <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+            {currencyFormatter.format(estimatedOperatingProfit)} considerando
+            despesas pagas
           </p>
         </article>
       </section>
