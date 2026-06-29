@@ -1,6 +1,6 @@
 "use client";
 
-import { Palette, Sparkles } from "lucide-react";
+import { ChevronDown, Palette, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -307,11 +307,11 @@ export function ThemeSelector({
           }}
         />
         <span className="relative min-w-0">
-          <span className="flex h-9 min-w-0 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 pr-7 text-sm text-[var(--foreground)]">
+          <span className="flex h-9 min-w-0 items-center rounded-md border border-slate-300 bg-slate-50 px-2 pr-7 text-sm text-slate-950">
             <span className="min-w-0 truncate">{selectedTheme.label}</span>
           </span>
-          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--muted-foreground)]">
-            ▾
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-700">
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           <select
             aria-label="Selecionar aparência"
