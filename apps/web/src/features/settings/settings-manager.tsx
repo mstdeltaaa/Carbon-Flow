@@ -123,7 +123,7 @@ const usageOrder: PlanLimitKey[] = [
   "sales_per_month"
 ];
 const millisecondsInDay = 24 * 60 * 60 * 1000;
-const maxLogoFileSize = 2 * 1024 * 1024;
+const maxLogoFileSize = 10 * 1024 * 1024;
 const acceptedLogoTypes = [
   "image/png",
   "image/jpeg",
@@ -493,7 +493,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
     }
 
     if (file.size > maxLogoFileSize) {
-      setMessage("A logo deve ter no máximo 2 MB.");
+      setMessage("A logo deve ter no máximo 10 MB.");
       return;
     }
 
@@ -795,7 +795,7 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                 </div>
 
                 <p className="mt-3 text-xs leading-5 text-[var(--muted-foreground)]">
-                  PNG, JPG, WebP ou SVG até 2 MB. Se nenhuma logo for enviada,
+                  PNG, JPG, WebP ou SVG até 10 MB. Se nenhuma logo for enviada,
                   os documentos usam a marca do Carbon Flow.
                 </p>
               </div>

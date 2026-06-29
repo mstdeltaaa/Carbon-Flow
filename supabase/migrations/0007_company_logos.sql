@@ -8,7 +8,7 @@ values (
   'company-assets',
   'company-assets',
   true,
-  2097152,
+  10485760,
   array['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']::text[]
 )
 on conflict (id) do update
