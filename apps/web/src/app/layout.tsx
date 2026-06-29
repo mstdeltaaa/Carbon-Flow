@@ -7,6 +7,7 @@ import {
   defaultDarkTheme,
   defaultLightTheme,
   defaultTheme,
+  specialThemeAccessById,
   themeColorById,
   themeStorageKey
 } from "@/lib/theme-options";
@@ -27,7 +28,9 @@ export const metadata: Metadata = {
         url: "/brand/carbon-flow-logo-on-light-v2.png"
       }
     ],
-    apple: [{ url: "/brand/carbon-flow-logo-on-light-v2.png", type: "image/png" }]
+    apple: [
+      { url: "/brand/carbon-flow-logo-on-light-v2.png", type: "image/png" }
+    ]
   }
 };
 
@@ -38,10 +41,20 @@ const themeScript = `
   const defaultLightTheme = ${JSON.stringify(defaultLightTheme)};
   const storageKey = ${JSON.stringify(themeStorageKey)};
   const themeColors = ${JSON.stringify(themeColorById)};
+  const specialThemeAccess = ${JSON.stringify(specialThemeAccessById)};
   const getSystemTheme = () =>
     window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
       ? defaultLightTheme
       : defaultDarkTheme;
+  const hasThemeAccess = (theme) => {
+    const access = specialThemeAccess[theme];
+
+    if (!access) {
+      return true;
+    }
+
+    return window.localStorage.getItem(access.storageKey) === "true";
+  };
   const setThemeColor = (theme) => {
     let meta = document.querySelector('meta[name="theme-color"]');
     if (!meta) {
@@ -55,7 +68,7 @@ const themeScript = `
 
   try {
     const storedTheme = window.localStorage.getItem(storageKey);
-    const theme = Object.prototype.hasOwnProperty.call(themeColors, storedTheme)
+    const theme = Object.prototype.hasOwnProperty.call(themeColors, storedTheme) && hasThemeAccess(storedTheme)
       ? storedTheme
       : getSystemTheme();
 

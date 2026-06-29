@@ -1,17 +1,21 @@
 "use client";
 
-import { Palette } from "lucide-react";
+import { Palette, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  brazil2026ThemeId,
   defaultDarkTheme,
   defaultLightTheme,
   defaultTheme,
+  getLocallyUnlockedSpecialThemes,
   getThemeOption,
-  isThemeId,
-  themes,
+  getVisibleThemes,
+  isThemeAvailable,
+  specialThemeAccessById,
   themeStorageKey
 } from "@/lib/theme-options";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 type ThemeSelectorProps = {
   className?: string;
@@ -21,7 +25,9 @@ type ThemeSelectorProps = {
 function applyTheme(themeId: string) {
   document.documentElement.dataset.theme = themeId;
 
-  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  let meta = document.querySelector<HTMLMetaElement>(
+    'meta[name="theme-color"]'
+  );
   if (!meta) {
     meta = document.createElement("meta");
     meta.name = "theme-color";
@@ -53,18 +59,93 @@ export function ThemeSelector({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [theme, setTheme] = useState(defaultTheme);
   const [isOpen, setIsOpen] = useState(false);
+  const [unlockedSpecialThemes, setUnlockedSpecialThemes] = useState<string[]>(
+    []
+  );
 
   useEffect(() => {
+    const locallyUnlockedThemes = getLocallyUnlockedSpecialThemes();
     const storedTheme = window.localStorage.getItem(themeStorageKey);
     const documentTheme = document.documentElement.dataset.theme;
-    const initialTheme = isThemeId(storedTheme)
-      ? storedTheme
-      : isThemeId(documentTheme)
-        ? documentTheme
+    const initialTheme = isThemeAvailable(storedTheme, locallyUnlockedThemes)
+      ? storedTheme!
+      : isThemeAvailable(documentTheme, locallyUnlockedThemes)
+        ? documentTheme!
         : getPreferredTheme();
 
+    setUnlockedSpecialThemes(locallyUnlockedThemes);
     setTheme(initialTheme);
     applyTheme(initialTheme);
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncSpecialThemeAccess() {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { session }
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          return;
+        }
+
+        const locallyUnlockedThemes = new Set(
+          getLocallyUnlockedSpecialThemes()
+        );
+        const brazilAccess = specialThemeAccessById[brazil2026ThemeId];
+        let hasBrazilAccountAccess = false;
+
+        if (
+          brazilAccess &&
+          Date.now() < Date.parse(brazilAccess.unlockEndsAt)
+        ) {
+          const { data, error } = await supabase.rpc(
+            "unlock_brazil_2026_theme"
+          );
+
+          if (!error && data === true) {
+            hasBrazilAccountAccess = true;
+          }
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("users")
+          .select("brazil_2026_theme_unlocked_at")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (
+          brazilAccess &&
+          !profileError &&
+          profile?.brazil_2026_theme_unlocked_at
+        ) {
+          hasBrazilAccountAccess = true;
+        }
+
+        if (brazilAccess && hasBrazilAccountAccess) {
+          window.localStorage.setItem(brazilAccess.storageKey, "true");
+          locallyUnlockedThemes.add(brazil2026ThemeId);
+        } else if (brazilAccess) {
+          window.localStorage.removeItem(brazilAccess.storageKey);
+          locallyUnlockedThemes.delete(brazil2026ThemeId);
+        }
+
+        if (isMounted) {
+          setUnlockedSpecialThemes([...locallyUnlockedThemes]);
+        }
+      } catch {
+        // The special theme stays hidden if the database migration is not active yet.
+      }
+    }
+
+    void syncSpecialThemeAccess();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -97,11 +178,28 @@ export function ThemeSelector({
     };
   }, [isOpen, variant]);
 
+  const visibleThemes = useMemo(
+    () => getVisibleThemes(unlockedSpecialThemes),
+    [unlockedSpecialThemes]
+  );
   const selectedTheme = useMemo(
     () =>
-      themes.find((item) => item.id === theme) ?? getThemeOption(defaultTheme),
-    [theme]
+      visibleThemes.find((item) => item.id === theme) ??
+      getThemeOption(defaultTheme),
+    [theme, visibleThemes]
   );
+
+  useEffect(() => {
+    if (isThemeAvailable(theme, unlockedSpecialThemes)) {
+      return;
+    }
+
+    const fallbackTheme = getPreferredTheme();
+
+    setTheme(fallbackTheme);
+    applyTheme(fallbackTheme);
+    window.localStorage.setItem(themeStorageKey, fallbackTheme);
+  }, [theme, unlockedSpecialThemes]);
 
   function handleThemeChange(nextTheme: string) {
     setTheme(nextTheme);
@@ -136,7 +234,7 @@ export function ThemeSelector({
               Aparência
             </p>
             <div className="grid gap-1">
-              {themes.map((item) => {
+              {visibleThemes.map((item) => {
                 const isSelected = item.id === theme;
 
                 return (
@@ -164,6 +262,12 @@ export function ThemeSelector({
                     <span className="min-w-0 flex-1 truncate">
                       {item.label}
                     </span>
+                    {item.specialLabel ? (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-[0.625rem] font-medium text-[var(--primary)]">
+                        <Sparkles className="h-3 w-3" aria-hidden="true" />
+                        {item.specialLabel}
+                      </span>
+                    ) : null}
                     {isSelected ? (
                       <span className="h-1.5 w-1.5 rounded-full bg-[var(--primary)]" />
                     ) : null}
@@ -202,9 +306,11 @@ export function ThemeSelector({
           onChange={(event) => handleThemeChange(event.target.value)}
           value={theme}
         >
-          {themes.map((item) => (
+          {visibleThemes.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.label}
+              {item.specialLabel
+                ? `${item.label} (${item.specialLabel})`
+                : item.label}
             </option>
           ))}
         </select>

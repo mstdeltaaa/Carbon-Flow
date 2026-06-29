@@ -672,6 +672,7 @@ const fallbackAssistantAvatar =
   "/brand/AvatarBrancoePreto/Design sem nome (4).png";
 
 const assistantAvatarByTheme: Record<string, string> = {
+  "brazil-2026": "/brand/AvatarBrasil2026/Design sem nome (6).png",
   "blue-dark": "/brand/AvatarAzulePreto/Design sem nome (1).png",
   "blue-light": "/brand/AvatarAzuleBranco/Design sem nome (5).png",
   "carbon-dark": fallbackAssistantAvatar,
