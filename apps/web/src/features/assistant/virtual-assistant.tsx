@@ -1784,6 +1784,129 @@ function formatModeFirstStepsReply(context: ReplyContext) {
   return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
 }
 
+function formatLocalAlertSummary(context: ReplyContext) {
+  const alerts = getProactiveAlerts(context);
+
+  if (alerts.length > 0) {
+    return alerts
+      .map((alert) => `${alert.title}: ${alert.detail}`)
+      .join("\n");
+  }
+
+  if (context.dashboard && !context.dashboardError) {
+    const metrics = context.dashboard.metrics;
+
+    return [
+      "Não encontrei alerta crítico agora.",
+      `Resumo rápido: ${currencyFormatter.format(
+        metrics.revenue
+      )} em faturamento, ${metrics.salesCount} venda(s), ${metrics.openBudgetCount} orçamento(s) em aberto e ${metrics.lowStockCount} insumo(s) em estoque baixo.`
+    ].join("\n");
+  }
+
+  return "Ainda estou carregando os dados principais. Enquanto isso, posso te orientar sobre cadastros, estoque, produtos, clientes, orçamentos e vendas.";
+}
+
+function getLocalPromptSuggestions(
+  activeItem: string,
+  context: ReplyContext
+) {
+  return getVisibleQuickPrompts(activeItem, context.role, context.mode)
+    .slice(0, 3)
+    .map((prompt) => prompt.prompt);
+}
+
+function formatLocalSuggestionList(suggestions: string[]) {
+  if (suggestions.length === 0) {
+    return null;
+  }
+
+  return `Você pode me perguntar, por exemplo:\n${suggestions
+    .map((suggestion) => `- ${suggestion}`)
+    .join("\n")}`;
+}
+
+function formatBasicAssistantReply(
+  prompt: string,
+  context: ReplyContext,
+  activeItem: string
+) {
+  const normalized = normalizePrompt(prompt);
+  const suggestions = getLocalPromptSuggestions(activeItem, context);
+  const suggestionText = formatLocalSuggestionList(suggestions);
+  const pageTip = pageTips[activeItem];
+
+  if (
+    hasAnyTerm(normalized, [
+      "bom dia",
+      "boa tarde",
+      "boa noite",
+      "e ai",
+      "fala",
+      "hey",
+      "ola",
+      "oi"
+    ])
+  ) {
+    return [
+      "Olá! Eu sou o Carbon, seu assistente virtual do Carbon Flow.",
+      "Consigo te ajudar no modo básico com navegação, primeiros passos, estoque, produtos, clientes, orçamentos, vendas e leitura dos dados já carregados no sistema.",
+      suggestionText
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  if (
+    hasAnyTerm(normalized, [
+      "o que voce faz",
+      "oque voce faz",
+      "como voce ajuda",
+      "me ajuda",
+      "ajuda",
+      "comandos",
+      "opcoes"
+    ])
+  ) {
+    return [
+      "Posso te ajudar a encontrar telas, explicar fluxos e resumir dados do Carbon Flow.",
+      "Também consigo apontar estoque baixo, orçamentos pendentes, clientes com oportunidade e vendas recentes quando esses dados estiverem carregados para o seu perfil.",
+      suggestionText
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  if (
+    hasAnyTerm(normalized, [
+      "alerta",
+      "atenção",
+      "atencao",
+      "critico",
+      "crítico",
+      "prioridade",
+      "prioridades",
+      "recomendacao",
+      "recomendação",
+      "recomenda",
+      "o que fazer agora",
+      "proximo passo",
+      "próximo passo"
+    ])
+  ) {
+    return formatLocalAlertSummary(context);
+  }
+
+  return [
+    "Consigo responder essa parte pelo modo básico do Carbon.",
+    pageTip ? `Nesta tela: ${pageTip}` : null,
+    formatLocalAlertSummary(context),
+    suggestionText
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 function getAssistantReply(prompt: string, context: ReplyContext): string | null {
   const normalized = normalizePrompt(prompt);
 
@@ -2573,6 +2696,25 @@ export function VirtualAssistant({
       return;
     }
 
+    if (!env.assistantAiEnabled) {
+      setMessages((current) =>
+        limitConversation([
+          ...current,
+          { author: "user", text: cleanPrompt },
+          {
+            author: "assistant",
+            text: formatBasicAssistantReply(
+              cleanPrompt,
+              assistantContext,
+              activeItem
+            )
+          }
+        ])
+      );
+      setInput("");
+      return;
+    }
+
     setMessages((current) =>
       limitConversation([
         ...current,
@@ -2584,26 +2726,36 @@ export function VirtualAssistant({
 
     try {
       const aiReply = await requestAiReply(cleanPrompt);
+      const replyText =
+        aiReply.source === "ai"
+          ? aiReply.answer
+          : formatBasicAssistantReply(cleanPrompt, assistantContext, activeItem);
 
       setMessages((current) =>
         limitConversation([
           ...current,
           {
             author: "assistant",
-            text: aiReply.answer
+            text: replyText
           }
         ])
       );
     } catch (error) {
+      const fallbackReply = formatBasicAssistantReply(
+        cleanPrompt,
+        assistantContext,
+        activeItem
+      );
+
       setMessages((current) =>
         limitConversation([
           ...current,
           {
             author: "assistant",
             text:
-              error instanceof Error
+              error instanceof Error && error.message.includes("Sessão expirada")
                 ? error.message
-                : "Não foi possível acionar a IA do Carbon agora."
+                : fallbackReply
           }
         ])
       );
