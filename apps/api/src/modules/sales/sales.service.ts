@@ -20,6 +20,7 @@ type BudgetStatus =
   | "cancelled";
 
 type CustomerJoin = {
+  address: string | null;
   id: string;
   email: string | null;
   name: string;
@@ -196,6 +197,7 @@ function mapSale(row: SaleRow, itemRows: SaleItemRow[]) {
     customerId: row.customer_id,
     customer: customer
       ? {
+          address: customer.address,
           email: customer.email,
           id: customer.id,
           name: customer.name,
@@ -248,7 +250,7 @@ export class SalesService {
     const { data: sales, error } = await supabase
       .from("sales")
       .select(
-        "id, company_id, customer_id, budget_id, number, status, subtotal_amount, discount_amount, total_amount, estimated_profit, sold_at, created_at, updated_at, customers(id, name, phone, email), budgets(id, number, status)"
+        "id, company_id, customer_id, budget_id, number, status, subtotal_amount, discount_amount, total_amount, estimated_profit, sold_at, created_at, updated_at, customers(id, name, phone, email, address), budgets(id, number, status)"
       )
       .eq("company_id", companyId)
       .order("number", { ascending: false });
@@ -1083,12 +1085,12 @@ export class SalesService {
     });
   }
 
-  private async findOne(accessToken: string, companyId: string, saleId: string) {
+  async findOne(accessToken: string, companyId: string, saleId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const { data: sale, error } = await supabase
       .from("sales")
       .select(
-        "id, company_id, customer_id, budget_id, number, status, subtotal_amount, discount_amount, total_amount, estimated_profit, sold_at, created_at, updated_at, customers(id, name, phone, email), budgets(id, number, status)"
+        "id, company_id, customer_id, budget_id, number, status, subtotal_amount, discount_amount, total_amount, estimated_profit, sold_at, created_at, updated_at, customers(id, name, phone, email, address), budgets(id, number, status)"
       )
       .eq("company_id", companyId)
       .eq("id", saleId)

@@ -5,6 +5,7 @@ import {
   Download,
   Loader2,
   Plus,
+  Printer,
   ReceiptText,
   RotateCcw,
   Save,
@@ -20,6 +21,7 @@ import {
   useState,
   type FormEvent
 } from "react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { TableStateRow } from "@/components/ui/table-state-row";
@@ -975,7 +977,14 @@ export function SalesManager({ companyId }: SalesManagerProps) {
                         </div>
                       </td>
                       <td className="py-3">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
+                          <Link
+                            className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
+                            href={`/sales/${sale.id}`}
+                            title="Imprimir ou salvar PDF"
+                          >
+                            <Printer className="h-4 w-4" aria-hidden="true" />
+                          </Link>
                           {sale.status === "completed" ? (
                             <button
                               className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[rgb(255_107_107/0.12)] hover:text-[#ff8d8d]"

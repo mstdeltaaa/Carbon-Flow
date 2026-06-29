@@ -35,6 +35,15 @@ export class SalesController {
     return this.salesService.findAll(accessToken, company.id);
   }
 
+  @Get(":id")
+  findOne(
+    @AccessToken() accessToken: string,
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @Param("id") saleId: string
+  ) {
+    return this.salesService.findOne(accessToken, company.id, saleId);
+  }
+
   @Post()
   create(
     @AccessToken() accessToken: string,

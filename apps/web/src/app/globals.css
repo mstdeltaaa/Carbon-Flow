@@ -575,7 +575,17 @@ html[data-theme="green-light"] option {
     padding: 0 !important;
   }
 
+  .sale-print-page {
+    background: #ffffff !important;
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
   .budget-print-toolbar {
+    display: none !important;
+  }
+
+  .sale-print-toolbar {
     display: none !important;
   }
 
@@ -593,7 +603,24 @@ html[data-theme="green-light"] option {
     -webkit-print-color-adjust: exact;
   }
 
+  .sale-document {
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #101314 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    print-color-adjust: exact;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact;
+  }
+
   .budget-document > div:last-child {
+    padding: 0 !important;
+  }
+
+  .sale-document > div:last-child {
     padding: 0 !important;
   }
 
@@ -602,11 +629,25 @@ html[data-theme="green-light"] option {
     -webkit-print-color-adjust: exact;
   }
 
+  .sale-document-cover {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .budget-document-table {
     overflow: visible !important;
   }
 
+  .sale-document-table {
+    overflow: visible !important;
+  }
+
   .budget-document table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .sale-document table {
     min-width: 0 !important;
     width: 100% !important;
   }
@@ -616,6 +657,14 @@ html[data-theme="green-light"] option {
   .budget-document aside,
   .budget-document header,
   .budget-document tr {
+    break-inside: avoid;
+  }
+
+  .sale-document section,
+  .sale-document article,
+  .sale-document aside,
+  .sale-document header,
+  .sale-document tr {
     break-inside: avoid;
   }
 }

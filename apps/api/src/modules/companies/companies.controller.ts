@@ -2,7 +2,6 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from "@nestjs/co
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { AccessToken } from "../../common/decorators/access-token.decorator";
-import { CompanyPermissions } from "../../common/decorators/company-permissions.decorator";
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
@@ -30,7 +29,6 @@ export class CompaniesController {
 
   @Get("document-profile")
   @CompanyRoles("admin", "employee", "seller")
-  @CompanyPermissions("budgets")
   getDocumentProfile(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload
