@@ -32,9 +32,20 @@ type BudgetRow = {
   total_amount: string;
 };
 
+type FinancialTransactionRow = {
+  amount: string;
+  category: string;
+  description: string;
+  due_date: string | null;
+  id: string;
+  status: "pending" | "paid" | "cancelled";
+  transaction_date: string;
+  type: "income" | "expense";
+};
+
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel carregar o dashboard."
+    error.message ?? "Não foi possível carregar o dashboard."
   );
 }
 
@@ -52,6 +63,10 @@ function getNextMonthStart() {
   const now = new Date();
 
   return new Date(now.getFullYear(), now.getMonth() + 1, 1);
+}
+
+function toDateOnly(value: Date) {
+  return value.toISOString().slice(0, 10);
 }
 
 @Injectable()
@@ -123,8 +138,98 @@ export class DashboardService {
 
     const openBudgets = (budgetsData ?? []) as BudgetRow[];
     const openBudgetAmount = roundMoney(
-      openBudgets.reduce((total, budget) => total + Number(budget.total_amount), 0)
+      openBudgets.reduce(
+        (total, budget) => total + Number(budget.total_amount),
+        0
+      )
     );
+
+    const periodStartDate = toDateOnly(periodStart);
+    const periodEndDate = toDateOnly(periodEnd);
+    const today = toDateOnly(new Date());
+    const { data: financeData, error: financeError } = await supabase
+      .from("financial_transactions")
+      .select(
+        "id, type, status, category, description, amount, transaction_date, due_date"
+      )
+      .eq("company_id", companyId)
+      .gte("transaction_date", periodStartDate)
+      .lt("transaction_date", periodEndDate);
+
+    if (financeError) {
+      throwDatabaseError(financeError);
+    }
+
+    const financialTransactions = (financeData ??
+      []) as FinancialTransactionRow[];
+    const activeFinancialTransactions = financialTransactions.filter(
+      (transaction) => transaction.status !== "cancelled"
+    );
+    const paidFinancialTransactions = activeFinancialTransactions.filter(
+      (transaction) => transaction.status === "paid"
+    );
+    const pendingFinancialTransactions = activeFinancialTransactions.filter(
+      (transaction) => transaction.status === "pending"
+    );
+    const paidIncome = roundMoney(
+      paidFinancialTransactions
+        .filter((transaction) => transaction.type === "income")
+        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+    );
+    const paidExpense = roundMoney(
+      paidFinancialTransactions
+        .filter((transaction) => transaction.type === "expense")
+        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+    );
+    const pendingIncome = roundMoney(
+      pendingFinancialTransactions
+        .filter((transaction) => transaction.type === "income")
+        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+    );
+    const pendingExpense = roundMoney(
+      pendingFinancialTransactions
+        .filter((transaction) => transaction.type === "expense")
+        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+    );
+
+    const { data: pendingDueData, error: pendingDueError } = await supabase
+      .from("financial_transactions")
+      .select(
+        "id, type, status, category, description, amount, transaction_date, due_date"
+      )
+      .eq("company_id", companyId)
+      .eq("status", "pending")
+      .not("due_date", "is", null)
+      .order("due_date", { ascending: true });
+
+    if (pendingDueError) {
+      throwDatabaseError(pendingDueError);
+    }
+
+    const pendingDueTransactions = (pendingDueData ??
+      []) as FinancialTransactionRow[];
+    const overdueTransactions = pendingDueTransactions.filter(
+      (transaction) => transaction.due_date && transaction.due_date < today
+    );
+    const overdueAmount = roundMoney(
+      overdueTransactions.reduce(
+        (total, transaction) => total + Number(transaction.amount),
+        0
+      )
+    );
+    const upcomingDue = pendingDueTransactions
+      .slice(0, 5)
+      .map((transaction) => ({
+        amount: Number(transaction.amount),
+        category: transaction.category,
+        description: transaction.description,
+        dueDate: transaction.due_date,
+        id: transaction.id,
+        isOverdue: Boolean(
+          transaction.due_date && transaction.due_date < today
+        ),
+        type: transaction.type
+      }));
 
     let saleItems: SaleItemRow[] = [];
 
@@ -179,7 +284,7 @@ export class DashboardService {
 
     const alerts = [
       ...lowStock.slice(0, 5).map((ingredient) => ({
-        detail: `Atual: ${ingredient.current} ${ingredient.unit} / Minimo: ${ingredient.minimum} ${ingredient.unit}`,
+        detail: `Atual: ${ingredient.current} ${ingredient.unit} / Mínimo: ${ingredient.minimum} ${ingredient.unit}`,
         severity: "warning" as const,
         title: ingredient.name,
         type: "low_stock" as const
@@ -187,10 +292,20 @@ export class DashboardService {
       ...(openBudgets.length > 0
         ? [
             {
-              detail: `${openBudgets.length} orcamentos em aberto`,
+              detail: `${openBudgets.length} orçamentos em aberto`,
               severity: "info" as const,
-              title: "Orcamentos pendentes",
+              title: "Orçamentos pendentes",
               type: "open_budgets" as const
+            }
+          ]
+        : []),
+      ...(overdueTransactions.length > 0
+        ? [
+            {
+              detail: `${overdueTransactions.length} lançamento(s) vencido(s), totalizando ${overdueAmount}`,
+              severity: "warning" as const,
+              title: "Financeiro vencido",
+              type: "financial_overdue" as const
             }
           ]
         : [])
@@ -198,7 +313,7 @@ export class DashboardService {
 
     return {
       period: {
-        label: "Mes atual",
+        label: "Mês atual",
         start: periodStart.toISOString(),
         end: periodEnd.toISOString()
       },
@@ -207,8 +322,23 @@ export class DashboardService {
         lowStockCount: lowStock.length,
         openBudgetAmount,
         openBudgetCount: openBudgets.length,
+        overdueAmount,
+        overdueCount: overdueTransactions.length,
+        paidExpense,
+        paidIncome,
+        pendingExpense,
+        pendingIncome,
         revenue,
         salesCount: sales.length
+      },
+      finance: {
+        balance: roundMoney(paidIncome - paidExpense),
+        paidExpense,
+        paidIncome,
+        pendingBalance: roundMoney(pendingIncome - pendingExpense),
+        pendingExpense,
+        pendingIncome,
+        upcomingDue
       },
       bestSellers,
       lowStock: lowStock.slice(0, 5),

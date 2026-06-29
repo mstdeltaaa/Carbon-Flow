@@ -6,6 +6,8 @@ import {
   ArrowUpRight,
   BarChart3,
   Boxes,
+  CalendarRange,
+  CircleDollarSign,
   FileText,
   Inbox,
   Loader2,
@@ -31,8 +33,31 @@ type DashboardSummary = {
     lowStockCount: number;
     openBudgetAmount: number;
     openBudgetCount: number;
+    overdueAmount: number;
+    overdueCount: number;
+    paidExpense: number;
+    paidIncome: number;
+    pendingExpense: number;
+    pendingIncome: number;
     revenue: number;
     salesCount: number;
+  };
+  finance?: {
+    balance: number;
+    paidExpense: number;
+    paidIncome: number;
+    pendingBalance: number;
+    pendingExpense: number;
+    pendingIncome: number;
+    upcomingDue: Array<{
+      amount: number;
+      category: string;
+      description: string;
+      dueDate: string | null;
+      id: string;
+      isOverdue: boolean;
+      type: "income" | "expense";
+    }>;
   };
   bestSellers: Array<{
     productId: string | null;
@@ -69,6 +94,8 @@ const decimalFormatter = new Intl.NumberFormat("pt-BR", {
   maximumFractionDigits: 4
 });
 
+const dateFormatter = new Intl.DateTimeFormat("pt-BR");
+
 function getApiMessage(payload: unknown, fallback: string) {
   if (
     payload &&
@@ -93,6 +120,22 @@ function getApiMessage(payload: unknown, fallback: string) {
 
 function formatQuantity(value: number, unit: string) {
   return `${decimalFormatter.format(value)} ${unit}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) {
+    return "-";
+  }
+
+  return dateFormatter.format(
+    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`)
+  );
+}
+
+function getFinanceTypeClass(type: "income" | "expense") {
+  return type === "income"
+    ? "text-[var(--primary)]"
+    : "text-[var(--destructive-text)]";
 }
 
 function getProfitDetail(revenue: number, profit: number) {
@@ -195,7 +238,7 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
 
     return [
       {
-        detail: data?.period.label ?? "Mes atual",
+        detail: data?.period.label ?? "Mês atual",
         icon: BarChart3,
         label: "Faturamento",
         trend: "up",
@@ -219,7 +262,7 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
         value: currencyFormatter.format(summary?.estimatedProfit ?? 0)
       },
       {
-        detail: "Itens precisam de reposicao",
+        detail: "Itens precisam de reposição",
         icon: AlertTriangle,
         label: "Estoque baixo",
         trend: "attention",
@@ -228,11 +271,21 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
     ];
   }, [data]);
 
+  const finance = data?.finance ?? {
+    balance: 0,
+    paidExpense: 0,
+    paidIncome: 0,
+    pendingBalance: 0,
+    pendingExpense: 0,
+    pendingIncome: 0,
+    upcomingDue: []
+  };
+
   return (
     <>
       <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
         <div className="min-w-0">
-          <p className="text-sm text-[var(--muted-foreground)]">Visao geral</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Visão geral</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-normal text-white sm:text-3xl">
             Dashboard da empresa
           </h1>
@@ -298,6 +351,153 @@ export function DashboardScreen({ companyId }: DashboardScreenProps) {
           </article>
         ))}
       </section>
+
+      <div className="grid gap-4 xl:grid-cols-[1fr_0.95fr]">
+        <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-white">
+                Saúde financeira
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Recebidos, pagos e saldo do mês
+              </p>
+            </div>
+            <CircleDollarSign
+              className="h-5 w-5 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {[
+              {
+                detail: "Receitas pagas",
+                label: "Entradas",
+                value: finance.paidIncome,
+                valueClass: "text-[var(--primary)]"
+              },
+              {
+                detail: "Despesas pagas",
+                label: "Saídas",
+                value: finance.paidExpense,
+                valueClass: "text-[var(--destructive-text)]"
+              },
+              {
+                detail: "Entradas menos saídas",
+                label: "Saldo",
+                value: finance.balance,
+                valueClass:
+                  finance.balance >= 0
+                    ? "text-[var(--primary)]"
+                    : "text-[var(--destructive-text)]"
+              },
+              {
+                detail: `${data?.metrics.overdueCount ?? 0} vencido(s)`,
+                label: "Vencidos",
+                value: data?.metrics.overdueAmount ?? 0,
+                valueClass:
+                  (data?.metrics.overdueAmount ?? 0) > 0
+                    ? "text-[var(--destructive-text)]"
+                    : "text-[var(--primary)]"
+              }
+            ].map((item) => (
+              <article
+                className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4"
+                key={item.label}
+              >
+                <p className="text-sm text-[var(--muted-foreground)]">
+                  {item.label}
+                </p>
+                <p
+                  className={[
+                    "mt-3 text-xl font-semibold",
+                    item.valueClass
+                  ].join(" ")}
+                >
+                  {isLoading ? (
+                    <Loader2
+                      className="h-5 w-5 animate-spin"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    currencyFormatter.format(item.value)
+                  )}
+                </p>
+                <p className="mt-2 text-xs text-[var(--muted-foreground)]">
+                  {item.detail}
+                </p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-white">
+                Próximos vencimentos
+              </h2>
+              <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                Lançamentos pendentes
+              </p>
+            </div>
+            <CalendarRange
+              className="h-5 w-5 text-[var(--primary)]"
+              aria-hidden="true"
+            />
+          </div>
+
+          <div className="mt-5 divide-y divide-[var(--border)]">
+            {isLoading ? (
+              <PanelState isLoading title="Carregando vencimentos" />
+            ) : null}
+
+            {!isLoading && finance.upcomingDue.length === 0 ? (
+              <PanelState
+                description="Nenhum lançamento pendente com data de vencimento."
+                title="Sem pendências datadas"
+              />
+            ) : null}
+
+            {!isLoading
+              ? finance.upcomingDue.map((transaction) => (
+                  <div key={transaction.id} className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white">
+                          {transaction.description}
+                        </p>
+                        <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                          {transaction.category} ·{" "}
+                          {formatDate(transaction.dueDate)}
+                        </p>
+                      </div>
+                      <p
+                        className={[
+                          "shrink-0 text-sm font-semibold",
+                          getFinanceTypeClass(transaction.type)
+                        ].join(" ")}
+                      >
+                        {currencyFormatter.format(transaction.amount)}
+                      </p>
+                    </div>
+                    <span
+                      className={[
+                        "mt-3 inline-flex rounded-md px-2 py-1 text-xs",
+                        transaction.isOverdue
+                          ? "bg-[var(--destructive-soft)] text-[var(--destructive-text)]"
+                          : "bg-[rgb(245_158_11/0.14)] text-[rgb(251_191_36)]"
+                      ].join(" ")}
+                    >
+                      {transaction.isOverdue ? "Vencido" : "Pendente"}
+                    </span>
+                  </div>
+                ))
+              : null}
+          </div>
+        </section>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">

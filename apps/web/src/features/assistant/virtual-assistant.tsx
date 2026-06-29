@@ -92,8 +92,31 @@ type DashboardSummary = {
     lowStockCount: number;
     openBudgetAmount: number;
     openBudgetCount: number;
+    overdueAmount: number;
+    overdueCount: number;
+    paidExpense: number;
+    paidIncome: number;
+    pendingExpense: number;
+    pendingIncome: number;
     revenue: number;
     salesCount: number;
+  };
+  finance?: {
+    balance: number;
+    paidExpense: number;
+    paidIncome: number;
+    pendingBalance: number;
+    pendingExpense: number;
+    pendingIncome: number;
+    upcomingDue: Array<{
+      amount: number;
+      category: string;
+      description: string;
+      dueDate: string | null;
+      id: string;
+      isOverdue: boolean;
+      type: "income" | "expense";
+    }>;
   };
   bestSellers: Array<{
     productId: string | null;
@@ -627,7 +650,11 @@ const quickActionsByPage: Record<string, QuickAction[]> = {
 };
 
 const navigationLinks = [
-  { href: "/ingredients#app-content", label: "Insumos", section: "ingredients" },
+  {
+    href: "/ingredients#app-content",
+    label: "Insumos",
+    section: "ingredients"
+  },
   { href: "/products#app-content", label: "Produtos", section: "products" },
   { href: "/budgets#app-content", label: "Orçamentos", section: "budgets" },
   { href: "/sales#app-content", label: "Vendas", section: "sales" },
@@ -668,9 +695,7 @@ function AssistantAvatar({
   src: string;
 }) {
   return (
-    <span
-      className={["relative block", className].join(" ")}
-    >
+    <span className={["relative block", className].join(" ")}>
       <Image
         alt=""
         aria-hidden="true"
@@ -1062,7 +1087,13 @@ function getDirectQuickAction(prompt: string) {
   }
 
   if (
-    hasAnyTerm(normalized, ["entrada", "lancar", "movimentacao", "saida", "ajuste"]) &&
+    hasAnyTerm(normalized, [
+      "entrada",
+      "lancar",
+      "movimentacao",
+      "saida",
+      "ajuste"
+    ]) &&
     hasAnyTerm(normalized, ["estoque", "insumo"])
   ) {
     return quickActionById.openStockMovement;
@@ -1122,7 +1153,12 @@ function getDirectQuickAction(prompt: string) {
 
   if (
     wantsNavigation &&
-    hasAnyTerm(normalized, ["configuracao", "configuracoes", "permissao", "usuario"])
+    hasAnyTerm(normalized, [
+      "configuracao",
+      "configuracoes",
+      "permissao",
+      "usuario"
+    ])
   ) {
     return quickActionById.settings;
   }
@@ -1476,6 +1512,15 @@ function formatDashboardReply(context: ReplyContext) {
 
   const dashboard = context.dashboard!;
   const metrics = dashboard.metrics;
+  const finance = dashboard.finance ?? {
+    balance: 0,
+    paidExpense: 0,
+    paidIncome: 0,
+    pendingBalance: 0,
+    pendingExpense: 0,
+    pendingIncome: 0,
+    upcomingDue: []
+  };
   const bestSeller = dashboard.bestSellers[0];
   const stockDetail =
     metrics.lowStockCount > 0
@@ -1492,6 +1537,10 @@ function formatDashboardReply(context: ReplyContext) {
     `Faturamento: ${currencyFormatter.format(metrics.revenue)}`,
     `Vendas: ${metrics.salesCount}`,
     `Lucro estimado: ${currencyFormatter.format(metrics.estimatedProfit)}`,
+    `Saldo financeiro: ${currencyFormatter.format(finance.balance)}`,
+    `Pendências vencidas: ${metrics.overdueCount} somando ${currencyFormatter.format(
+      metrics.overdueAmount
+    )}`,
     `Orçamentos em aberto: ${metrics.openBudgetCount} somando ${currencyFormatter.format(
       metrics.openBudgetAmount
     )}`,
@@ -1507,7 +1556,17 @@ function formatFinancialReply(context: ReplyContext) {
     return unavailableReply;
   }
 
-  const metrics = context.dashboard!.metrics;
+  const dashboard = context.dashboard!;
+  const metrics = dashboard.metrics;
+  const finance = dashboard.finance ?? {
+    balance: 0,
+    paidExpense: 0,
+    paidIncome: 0,
+    pendingBalance: 0,
+    pendingExpense: 0,
+    pendingIncome: 0,
+    upcomingDue: []
+  };
   const margin =
     metrics.revenue > 0
       ? ` A margem estimada está em ${decimalFormatter.format(
@@ -1519,7 +1578,15 @@ function formatFinancialReply(context: ReplyContext) {
     metrics.revenue
   )}, com ${metrics.salesCount} venda(s) e lucro estimado de ${currencyFormatter.format(
     metrics.estimatedProfit
-  )}.${margin}`;
+  )}.${margin}
+No financeiro, entraram ${currencyFormatter.format(
+    finance.paidIncome
+  )}, saíram ${currencyFormatter.format(
+    finance.paidExpense
+  )} e o saldo está em ${currencyFormatter.format(finance.balance)}.
+Pendências vencidas: ${metrics.overdueCount}, somando ${currencyFormatter.format(
+    metrics.overdueAmount
+  )}.`;
 }
 
 function formatLowStockReply(context: ReplyContext) {
@@ -1698,9 +1765,7 @@ function formatCustomerOpportunitiesReply(context: ReplyContext) {
   );
   const customersWithOpenBudgets = context.customers
     .filter((customer) => customer.summary.openBudgetsCount > 0)
-    .sort(
-      (a, b) => b.summary.openBudgetsCount - a.summary.openBudgetsCount
-    );
+    .sort((a, b) => b.summary.openBudgetsCount - a.summary.openBudgetsCount);
   const openBudgetNames = customersWithOpenBudgets
     .slice(0, 5)
     .map(
@@ -1820,9 +1885,7 @@ function formatLocalAlertSummary(context: ReplyContext) {
   const alerts = getProactiveAlerts(context);
 
   if (alerts.length > 0) {
-    return alerts
-      .map((alert) => `${alert.title}: ${alert.detail}`)
-      .join("\n");
+    return alerts.map((alert) => `${alert.title}: ${alert.detail}`).join("\n");
   }
 
   if (context.dashboard && !context.dashboardError) {
@@ -1839,10 +1902,7 @@ function formatLocalAlertSummary(context: ReplyContext) {
   return "Ainda estou carregando os dados principais. Enquanto isso, posso te orientar sobre cadastros, estoque, produtos, clientes, orçamentos e vendas.";
 }
 
-function getLocalPromptSuggestions(
-  activeItem: string,
-  context: ReplyContext
-) {
+function getLocalPromptSuggestions(activeItem: string, context: ReplyContext) {
   return getVisibleQuickPrompts(activeItem, context.role, context.mode)
     .slice(0, 3)
     .map((prompt) => prompt.prompt);
@@ -1939,7 +1999,10 @@ function formatBasicAssistantReply(
     .join("\n\n");
 }
 
-function getAssistantReply(prompt: string, context: ReplyContext): string | null {
+function getAssistantReply(
+  prompt: string,
+  context: ReplyContext
+): string | null {
   const normalized = normalizePrompt(prompt);
 
   if (
@@ -2109,10 +2172,7 @@ function getAssistantReply(prompt: string, context: ReplyContext): string | null
   }
 
   if (normalized.includes("venda") || normalized.includes("converter")) {
-    if (
-      normalized.includes("converter") &&
-      !canConvertBudgets(context.role)
-    ) {
+    if (normalized.includes("converter") && !canConvertBudgets(context.role)) {
       return "Seu perfil pode trabalhar com orçamentos, mas converter orçamento em venda e baixar estoque fica para administradores e funcionários.";
     }
 
@@ -2199,8 +2259,7 @@ export function VirtualAssistant({
     [activeItem]
   );
   const [messages, setMessages] = useState<Message[]>([introMessage]);
-  const [assistantMode, setAssistantMode] =
-    useState<AssistantMode>("general");
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>("general");
   const conversationStorageKey = useMemo(
     () => getConversationStorageKey(companyId, userEmail),
     [companyId, userEmail]
@@ -2303,8 +2362,9 @@ export function VirtualAssistant({
   useEffect(() => {
     setLoadedPreferencesKey(null);
 
-    const storedPreferences =
-      readStoredAssistantPreferences(preferencesStorageKey);
+    const storedPreferences = readStoredAssistantPreferences(
+      preferencesStorageKey
+    );
     const storedMode = storedPreferences?.mode ?? "general";
 
     setAssistantMode(
@@ -2644,9 +2704,7 @@ export function VirtualAssistant({
       method: "POST"
     });
     const payload = (await response.json().catch(() => null)) as
-      | AssistantChatResponse
-      | { message?: string | string[] }
-      | null;
+      AssistantChatResponse | { message?: string | string[] } | null;
 
     if (!response.ok || !payload || !("answer" in payload)) {
       throw new Error(
@@ -2748,10 +2806,7 @@ export function VirtualAssistant({
     }
 
     setMessages((current) =>
-      limitConversation([
-        ...current,
-        { author: "user", text: cleanPrompt }
-      ])
+      limitConversation([...current, { author: "user", text: cleanPrompt }])
     );
     setInput("");
     setIsAiThinking(true);
@@ -2761,7 +2816,11 @@ export function VirtualAssistant({
       const replyText =
         aiReply.source === "ai"
           ? aiReply.answer
-          : formatBasicAssistantReply(cleanPrompt, assistantContext, activeItem);
+          : formatBasicAssistantReply(
+              cleanPrompt,
+              assistantContext,
+              activeItem
+            );
 
       setMessages((current) =>
         limitConversation([
@@ -2785,7 +2844,8 @@ export function VirtualAssistant({
           {
             author: "assistant",
             text:
-              error instanceof Error && error.message.includes("Sessão expirada")
+              error instanceof Error &&
+              error.message.includes("Sessão expirada")
                 ? error.message
                 : fallbackReply
           }
@@ -2820,7 +2880,9 @@ export function VirtualAssistant({
   }
 
   function restoreCurrentProactiveAlerts() {
-    const currentAlertIds = new Set(allProactiveAlerts.map((alert) => alert.id));
+    const currentAlertIds = new Set(
+      allProactiveAlerts.map((alert) => alert.id)
+    );
 
     setDismissedAlertIds((current) =>
       current.filter((alertId) => !currentAlertIds.has(alertId))
@@ -2970,7 +3032,10 @@ export function VirtualAssistant({
                     }}
                     type="button"
                   >
-                    <mode.icon className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+                    <mode.icon
+                      className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5"
+                      aria-hidden="true"
+                    />
                     <span className="truncate">{mode.label}</span>
                   </button>
                 );
@@ -3093,7 +3158,10 @@ export function VirtualAssistant({
                   onClick={() => runQuickAction(item)}
                   type="button"
                 >
-                  <item.icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
+                  <item.icon
+                    className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+                    aria-hidden="true"
+                  />
                   <span className="truncate">{item.label}</span>
                 </button>
               ))}
@@ -3111,7 +3179,10 @@ export function VirtualAssistant({
                   onClick={() => void sendPrompt(item.prompt)}
                   type="button"
                 >
-                  <item.icon className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
+                  <item.icon
+                    className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+                    aria-hidden="true"
+                  />
                   <span className="truncate">{item.label}</span>
                 </button>
               ))}
@@ -3136,7 +3207,10 @@ export function VirtualAssistant({
               </>
             ) : null}
 
-            <form className="sticky bottom-0 flex gap-2 bg-[var(--panel-strong)] pt-1" onSubmit={handleSubmit}>
+            <form
+              className="sticky bottom-0 flex gap-2 bg-[var(--panel-strong)] pt-1"
+              onSubmit={handleSubmit}
+            >
               <input
                 className="h-10 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
                 disabled={isAiThinking}
