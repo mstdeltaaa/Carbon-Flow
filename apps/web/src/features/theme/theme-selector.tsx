@@ -299,26 +299,35 @@ export function ThemeSelector({
         <Palette className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
         Aparência
       </span>
-      <span className="flex items-center gap-2">
+      <span className="grid min-w-0 grid-cols-[1.25rem_minmax(0,1fr)] items-center gap-2">
         <span
           className="h-5 w-5 shrink-0 rounded-md border border-[var(--border)]"
           style={{
             background: `linear-gradient(135deg, ${selectedTheme.background} 0 50%, ${selectedTheme.accent} 50% 100%)`
           }}
         />
-        <select
-          className="h-9 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 text-sm text-[var(--foreground)] outline-none transition focus:border-[var(--primary)]"
-          onChange={(event) => handleThemeChange(event.target.value)}
-          value={theme}
-        >
-          {visibleThemes.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.specialLabel
-                ? `${item.label} (${item.specialLabel})`
-                : item.label}
-            </option>
-          ))}
-        </select>
+        <span className="relative min-w-0">
+          <span className="flex h-9 min-w-0 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 pr-7 text-sm text-[var(--foreground)]">
+            <span className="min-w-0 truncate">{selectedTheme.label}</span>
+          </span>
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--muted-foreground)]">
+            ▾
+          </span>
+          <select
+            aria-label="Selecionar aparência"
+            className="absolute inset-0 h-9 w-full cursor-pointer opacity-0"
+            onChange={(event) => handleThemeChange(event.target.value)}
+            value={theme}
+          >
+            {visibleThemes.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.specialLabel
+                  ? `${item.label} (${item.specialLabel})`
+                  : item.label}
+              </option>
+            ))}
+          </select>
+        </span>
       </span>
     </label>
   );
