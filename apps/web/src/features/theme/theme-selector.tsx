@@ -232,10 +232,10 @@ export function ThemeSelector({
 
         {isOpen ? (
           <div
-            className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] p-2 shadow-2xl shadow-[color:var(--shadow-color)]"
+            className="absolute right-0 top-12 z-50 w-64 rounded-lg border border-slate-700 bg-slate-950 p-2 shadow-2xl shadow-[color:var(--shadow-color)]"
             role="menu"
           >
-            <p className="px-2 pb-2 pt-1 text-xs font-medium text-[var(--muted-foreground)]">
+            <p className="px-2 pb-2 pt-1 text-xs font-medium text-slate-400">
               Aparência
             </p>
             <div className="grid gap-1">
@@ -245,10 +245,10 @@ export function ThemeSelector({
                 return (
                   <button
                     className={[
-                      "flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm transition focus-visible:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
+                      "flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm transition focus-visible:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
                       isSelected
-                        ? "bg-[var(--primary-active)] font-medium text-[var(--foreground)]"
-                        : "text-[var(--foreground)] hover:bg-[var(--surface)]"
+                        ? "bg-slate-800 font-medium text-white ring-1 ring-[var(--primary)]"
+                        : "text-slate-200 hover:bg-slate-900 hover:text-white"
                     ].join(" ")}
                     key={item.id}
                     onClick={() => {
@@ -259,7 +259,7 @@ export function ThemeSelector({
                     type="button"
                   >
                     <span
-                      className="h-5 w-5 shrink-0 rounded-md border border-[var(--border)]"
+                      className="h-5 w-5 shrink-0 rounded-md border border-slate-600"
                       style={{
                         background: `linear-gradient(135deg, ${item.background} 0 50%, ${item.accent} 50% 100%)`
                       }}
@@ -268,7 +268,7 @@ export function ThemeSelector({
                       {item.label}
                     </span>
                     {item.specialLabel ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--primary-soft)] px-2 py-0.5 text-[0.625rem] font-medium text-[var(--primary)]">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-[0.625rem] font-medium text-slate-100 ring-1 ring-slate-700">
                         <Sparkles className="h-3 w-3" aria-hidden="true" />
                         {item.specialLabel}
                       </span>
