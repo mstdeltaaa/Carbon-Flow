@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CircleDollarSign,
   Clock3,
+  Download,
   Filter,
   Loader2,
   Pencil,
@@ -188,6 +189,66 @@ function getTypeClass(type: FinancialTransactionType) {
   return type === "income"
     ? "text-[var(--primary)]"
     : "text-[var(--destructive-text)]";
+}
+
+function getSourceLabel(sourceType: string) {
+  return sourceType === "sale" ? "Venda" : "Manual";
+}
+
+function formatCsvMoney(value: number) {
+  return value.toFixed(2).replace(".", ",");
+}
+
+function escapeCsvCell(value: string | number | null | undefined) {
+  const text = String(value ?? "");
+
+  if (/[;"\r\n]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+
+  return text;
+}
+
+function buildTransactionsCsv(transactions: FinancialTransaction[]) {
+  const rows = [
+    [
+      "Data",
+      "Vencimento",
+      "Descrição",
+      "Categoria",
+      "Tipo",
+      "Status",
+      "Origem",
+      "Valor",
+    ],
+    ...transactions.map((transaction) => [
+      transaction.transactionDate,
+      transaction.dueDate ?? "",
+      transaction.description,
+      transaction.category,
+      typeLabels[transaction.type],
+      statusLabels[transaction.status],
+      getSourceLabel(transaction.sourceType),
+      formatCsvMoney(transaction.amount),
+    ]),
+  ];
+
+  return `\uFEFF${rows
+    .map((row) => row.map(escapeCsvCell).join(";"))
+    .join("\r\n")}`;
+}
+
+function downloadCsv(fileName: string, content: string) {
+  const blob = new Blob([content], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function FinanceManager({ companyId }: FinanceManagerProps) {
@@ -479,6 +540,19 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     }
   }
 
+  function exportTransactionsCsv() {
+    if (filteredTransactions.length === 0) {
+      setMessage("Nenhum lançamento disponível para exportar.");
+      return;
+    }
+
+    downloadCsv(
+      `carbon-flow-financeiro-${from}-a-${to}.csv`,
+      buildTransactionsCsv(filteredTransactions),
+    );
+    setMessage(`${filteredTransactions.length} lançamento(s) exportado(s).`);
+  }
+
   return (
     <>
       <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
@@ -490,15 +564,26 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
             Financeiro
           </h1>
         </div>
-        <Button
-          className="w-full sm:w-auto"
-          onClick={createTransaction}
-          type="button"
-          variant="secondary"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Novo lançamento
-        </Button>
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-flow-col">
+          <Button
+            className="w-full sm:w-auto"
+            disabled={isLoading || filteredTransactions.length === 0}
+            onClick={exportTransactionsCsv}
+            type="button"
+            variant="secondary"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Exportar CSV
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            onClick={createTransaction}
+            type="button"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Novo lançamento
+          </Button>
+        </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1022,7 +1107,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                             <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                               {transaction.sourceType === "sale"
                                 ? "Gerado por venda"
-                                : "Lançamento manual"}
+                                : `Lançamento ${getSourceLabel(
+                                    transaction.sourceType,
+                                  ).toLowerCase()}`}
                             </p>
                           </td>
                           <td className="py-3 pr-4 text-[var(--muted-foreground)]">
