@@ -2,6 +2,7 @@
 
 import {
   CircleDollarSign,
+  Download,
   Loader2,
   Plus,
   ReceiptText,
@@ -177,6 +178,76 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function formatCsvMoney(value: number) {
+  return value.toFixed(2).replace(".", ",");
+}
+
+function escapeCsvCell(value: string | number | null | undefined) {
+  const text = String(value ?? "");
+
+  if (/[;"\r\n]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+
+  return text;
+}
+
+function formatSaleItemsForCsv(items: SaleItem[]) {
+  return items
+    .map((item) => {
+      return `${item.productName} (${item.quantity} x ${formatCsvMoney(
+        item.unitPrice
+      )})`;
+    })
+    .join(" | ");
+}
+
+function buildSalesCsv(sales: Sale[]) {
+  const rows = [
+    [
+      "Venda",
+      "Data",
+      "Cliente",
+      "Origem",
+      "Status",
+      "Subtotal",
+      "Desconto",
+      "Total",
+      "Lucro estimado",
+      "Itens"
+    ],
+    ...sales.map((sale) => [
+      sale.numberLabel,
+      dateTimeFormatter.format(new Date(sale.soldAt)),
+      sale.customer?.name ?? "Sem cliente",
+      sale.budget?.numberLabel ?? "Venda direta",
+      statusLabels[sale.status],
+      formatCsvMoney(sale.subtotalAmount),
+      formatCsvMoney(sale.discountAmount),
+      formatCsvMoney(sale.totalAmount),
+      formatCsvMoney(sale.estimatedProfit),
+      formatSaleItemsForCsv(sale.items)
+    ])
+  ];
+
+  return `\uFEFF${rows
+    .map((row) => row.map(escapeCsvCell).join(";"))
+    .join("\r\n")}`;
+}
+
+function downloadCsv(fileName: string, content: string) {
+  const blob = new Blob([content], {
+    type: "text/csv;charset=utf-8;"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function SalesManager({ companyId }: SalesManagerProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [form, setForm] = useState<SaleFormState>(() => cloneEmptyForm());
@@ -316,7 +387,10 @@ export function SalesManager({ companyId }: SalesManagerProps) {
     };
   }, [form]);
 
-  function updateField(field: keyof Omit<SaleFormState, "items">, value: string) {
+  function updateField(
+    field: keyof Omit<SaleFormState, "items">,
+    value: string
+  ) {
     setForm((current) => ({
       ...current,
       [field]: value
@@ -337,7 +411,9 @@ export function SalesManager({ companyId }: SalesManagerProps) {
         };
 
         if (field === "productId") {
-          const product = products.find((currentProduct) => currentProduct.id === value);
+          const product = products.find(
+            (currentProduct) => currentProduct.id === value
+          );
           nextItem.unitPrice = product ? String(product.salePrice) : "0";
         }
 
@@ -371,7 +447,9 @@ export function SalesManager({ companyId }: SalesManagerProps) {
   function buildPayload() {
     const cleanedItems = form.items
       .map((item) => {
-        const product = products.find((current) => current.id === item.productId);
+        const product = products.find(
+          (current) => current.id === item.productId
+        );
         const quantity = parseDecimal(item.quantity);
         const unitPrice = parseDecimal(item.unitPrice);
 
@@ -470,6 +548,16 @@ export function SalesManager({ companyId }: SalesManagerProps) {
     }
   }
 
+  function exportSalesCsv() {
+    if (filteredSales.length === 0) {
+      setMessage("Nenhuma venda disponível para exportar.");
+      return;
+    }
+
+    downloadCsv("carbon-flow-vendas.csv", buildSalesCsv(filteredSales));
+    setMessage(`${filteredSales.length} venda(s) exportada(s).`);
+  }
+
   return (
     <>
       <header className="flex flex-col justify-between gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.72)] p-4 sm:flex-row sm:items-start sm:p-5">
@@ -481,15 +569,26 @@ export function SalesManager({ companyId }: SalesManagerProps) {
             Vendas
           </h1>
         </div>
-        <Button
-          className="w-full sm:w-auto"
-          onClick={resetForm}
-          type="button"
-          variant="secondary"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Nova venda
-        </Button>
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-flow-col">
+          <Button
+            className="w-full sm:w-auto"
+            disabled={isLoading || filteredSales.length === 0}
+            onClick={exportSalesCsv}
+            type="button"
+            variant="secondary"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Exportar CSV
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            onClick={resetForm}
+            type="button"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Nova venda
+          </Button>
+        </div>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -507,7 +606,9 @@ export function SalesManager({ companyId }: SalesManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Faturamento</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Faturamento
+            </p>
             <CircleDollarSign
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
@@ -519,7 +620,9 @@ export function SalesManager({ companyId }: SalesManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Lucro estimado</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Lucro estimado
+            </p>
             <TrendingUp
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
@@ -531,7 +634,9 @@ export function SalesManager({ companyId }: SalesManagerProps) {
         </article>
         <article className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">Ticket médio</p>
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Ticket médio
+            </p>
             <ReceiptText
               className="h-4 w-4 text-[var(--primary)]"
               aria-hidden="true"
