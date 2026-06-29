@@ -245,10 +245,10 @@ export function ThemeSelector({
                 return (
                   <button
                     className={[
-                      "flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm transition",
+                      "flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm transition focus-visible:bg-[var(--surface)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
                       isSelected
-                        ? "bg-[var(--primary-active)] text-[var(--foreground)]"
-                        : "text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                        ? "bg-[var(--primary-active)] font-medium text-[var(--foreground)]"
+                        : "text-[var(--foreground)] hover:bg-[var(--surface)]"
                     ].join(" ")}
                     key={item.id}
                     onClick={() => {
