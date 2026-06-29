@@ -4,13 +4,15 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   CalendarRange,
+  CheckCircle2,
   CircleDollarSign,
   Loader2,
+  Pencil,
   Plus,
   RotateCcw,
   Save,
   Search,
-  WalletCards
+  WalletCards,
 } from "lucide-react";
 import {
   useCallback,
@@ -18,7 +20,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type FormEvent
+  type FormEvent,
 } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -85,7 +87,7 @@ type FinanceFormState = {
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
-  style: "currency"
+  style: "currency",
 });
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR");
@@ -93,12 +95,12 @@ const dateFormatter = new Intl.DateTimeFormat("pt-BR");
 const statusLabels: Record<FinancialTransactionStatus, string> = {
   cancelled: "Cancelado",
   paid: "Pago",
-  pending: "Pendente"
+  pending: "Pendente",
 };
 
 const typeLabels: Record<FinancialTransactionType, string> = {
   expense: "Despesa",
-  income: "Receita"
+  income: "Receita",
 };
 
 function toInputDate(date: Date) {
@@ -112,7 +114,7 @@ function getCurrentMonthPeriod() {
 
   return {
     from: toInputDate(new Date(now.getFullYear(), now.getMonth(), 1)),
-    to: toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+    to: toInputDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
   };
 }
 
@@ -124,7 +126,7 @@ function getInitialForm(): FinanceFormState {
     dueDate: "",
     status: "paid",
     transactionDate: toInputDate(new Date()),
-    type: "expense"
+    type: "expense",
   };
 }
 
@@ -160,7 +162,7 @@ function formatDate(value: string | null) {
   }
 
   return dateFormatter.format(
-    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`)
+    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`),
   );
 }
 
@@ -184,9 +186,12 @@ function getTypeClass(type: FinancialTransactionType) {
 
 export function FinanceManager({ companyId }: FinanceManagerProps) {
   const initialPeriod = useMemo(() => getCurrentMonthPeriod(), []);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FinanceFormState>(() => getInitialForm());
   const [from, setFrom] = useState(initialPeriod.from);
+  const [isCancellingId, setIsCancellingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isPayingId, setIsPayingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -196,13 +201,10 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
   const formSectionRef = useRef<HTMLElement | null>(null);
 
   const request = useCallback(
-    async <T,>(
-      path: string,
-      init?: RequestInit
-    ): Promise<T> => {
+    async <T,>(path: string, init?: RequestInit): Promise<T> => {
       const supabase = createSupabaseBrowserClient();
       const {
-        data: { session }
+        data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
@@ -215,20 +217,20 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
           "x-company-id": companyId,
-          ...init?.headers
-        }
+          ...init?.headers,
+        },
       });
       const payload = (await response.json().catch(() => null)) as unknown;
 
       if (!response.ok) {
         throw new Error(
-          getApiMessage(payload, "Não foi possível carregar o financeiro.")
+          getApiMessage(payload, "Não foi possível carregar o financeiro."),
         );
       }
 
       return payload as T;
     },
-    [companyId]
+    [companyId],
   );
 
   const queryString = useMemo(() => {
@@ -242,7 +244,7 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     try {
       const [transactionData, summaryData] = await Promise.all([
         request<FinancialTransaction[]>(`/finance?${queryString}`),
-        request<FinanceSummary>(`/finance/summary?${queryString}`)
+        request<FinanceSummary>(`/finance/summary?${queryString}`),
       ]);
 
       setTransactions(transactionData);
@@ -251,7 +253,7 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Não foi possível carregar o financeiro."
+          : "Não foi possível carregar o financeiro.",
       );
     } finally {
       setIsLoading(false);
@@ -275,7 +277,7 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
         transaction.description,
         transaction.sourceType,
         statusLabels[transaction.status],
-        typeLabels[transaction.type]
+        typeLabels[transaction.type],
       ]
         .join(" ")
         .toLowerCase()
@@ -290,27 +292,59 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     paidIncome: 0,
     pendingExpense: 0,
     pendingIncome: 0,
-    transactionCount: 0
+    transactionCount: 0,
   };
 
   function updateField<K extends keyof FinanceFormState>(
     field: K,
-    value: FinanceFormState[K]
+    value: FinanceFormState[K],
   ) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(getInitialForm());
+    setMessage(null);
   }
 
   function scrollToForm() {
     window.requestAnimationFrame(() => {
       formSectionRef.current?.scrollIntoView({
         behavior: "smooth",
-        block: "start"
+        block: "start",
       });
     });
   }
 
   function createTransaction() {
-    setForm(getInitialForm());
+    resetForm();
+    scrollToForm();
+  }
+
+  function editTransaction(transaction: FinancialTransaction) {
+    if (transaction.sourceType !== "manual") {
+      setMessage(
+        "Lançamentos gerados por venda devem ser alterados pela venda.",
+      );
+      return;
+    }
+
+    if (transaction.status === "cancelled") {
+      setMessage("Lançamentos cancelados não podem ser editados.");
+      return;
+    }
+
+    setEditingId(transaction.id);
+    setForm({
+      amount: String(transaction.amount),
+      category: transaction.category,
+      description: transaction.description,
+      dueDate: transaction.dueDate ?? "",
+      status: transaction.status === "paid" ? "paid" : "pending",
+      transactionDate: transaction.transactionDate,
+      type: transaction.type,
+    });
     setMessage(null);
     scrollToForm();
   }
@@ -329,27 +363,34 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
     }
 
     try {
-      await request<FinancialTransaction>("/finance", {
-        body: JSON.stringify({
-          amount,
-          category: form.category,
-          description: form.description,
-          dueDate: form.dueDate || undefined,
-          status: form.status,
-          transactionDate: form.transactionDate,
-          type: form.type
-        }),
-        method: "POST"
-      });
+      await request<FinancialTransaction>(
+        editingId ? `/finance/${editingId}` : "/finance",
+        {
+          body: JSON.stringify({
+            amount,
+            category: form.category,
+            description: form.description,
+            dueDate: form.dueDate || undefined,
+            status: form.status,
+            transactionDate: form.transactionDate,
+            type: form.type,
+          }),
+          method: editingId ? "PATCH" : "POST",
+        },
+      );
 
-      setForm(getInitialForm());
-      setMessage("Lançamento financeiro salvo.");
+      const successMessage = editingId
+        ? "Lançamento financeiro atualizado."
+        : "Lançamento financeiro salvo.";
+
+      resetForm();
+      setMessage(successMessage);
       await loadFinance();
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Não foi possível salvar o lançamento."
+          : "Não foi possível salvar o lançamento.",
       );
     } finally {
       setIsSaving(false);
@@ -357,23 +398,47 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
   }
 
   async function cancelTransaction(transaction: FinancialTransaction) {
+    setIsCancellingId(transaction.id);
     setMessage(null);
 
     try {
-      await request<FinancialTransaction>(
-        `/finance/${transaction.id}/cancel`,
-        {
-          method: "POST"
-        }
-      );
+      await request<FinancialTransaction>(`/finance/${transaction.id}/cancel`, {
+        method: "POST",
+      });
       setMessage("Lançamento cancelado.");
       await loadFinance();
     } catch (error) {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Não foi possível cancelar o lançamento."
+          : "Não foi possível cancelar o lançamento.",
       );
+    } finally {
+      setIsCancellingId(null);
+    }
+  }
+
+  async function markTransactionAsPaid(transaction: FinancialTransaction) {
+    setIsPayingId(transaction.id);
+    setMessage(null);
+
+    try {
+      await request<FinancialTransaction>(
+        `/finance/${transaction.id}/mark-paid`,
+        {
+          method: "POST",
+        },
+      );
+      setMessage("Lançamento marcado como pago.");
+      await loadFinance();
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível marcar o lançamento como pago.",
+      );
+    } finally {
+      setIsPayingId(null);
     }
   }
 
@@ -446,7 +511,7 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
           </div>
           <p className="mt-4 text-xl font-semibold text-white xl:text-2xl">
             {currencyFormatter.format(
-              totals.pendingIncome - totals.pendingExpense
+              totals.pendingIncome - totals.pendingExpense,
             )}
           </p>
         </article>
@@ -479,7 +544,11 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                 value={to}
               />
             </label>
-            <Button className="self-end" onClick={() => void loadFinance()} type="button">
+            <Button
+              className="self-end"
+              onClick={() => void loadFinance()}
+              type="button"
+            >
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               Atualizar
             </Button>
@@ -496,16 +565,27 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-white">
-                Lançamento manual
+                {editingId ? "Editar lançamento" : "Lançamento manual"}
               </h2>
               <p className="mt-1 text-sm text-[var(--muted-foreground)]">
                 Receitas e despesas fora das vendas
               </p>
             </div>
-            <WalletCards
-              className="h-5 w-5 shrink-0 text-[var(--primary)]"
-              aria-hidden="true"
-            />
+            {editingId ? (
+              <button
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
+                onClick={resetForm}
+                title="Cancelar edição"
+                type="button"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : (
+              <WalletCards
+                className="h-5 w-5 shrink-0 text-[var(--primary)]"
+                aria-hidden="true"
+              />
+            )}
           </div>
 
           <form className="mt-5 grid gap-4" onSubmit={handleSubmit}>
@@ -517,7 +597,7 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                   onChange={(event) =>
                     updateField(
                       "type",
-                      event.target.value as FinancialTransactionType
+                      event.target.value as FinancialTransactionType,
                     )
                   }
                   value={form.type}
@@ -535,7 +615,10 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                 <select
                   className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition focus:border-[var(--primary)]"
                   onChange={(event) =>
-                    updateField("status", event.target.value as "paid" | "pending")
+                    updateField(
+                      "status",
+                      event.target.value as "paid" | "pending",
+                    )
                   }
                   value={form.status}
                 >
@@ -553,7 +636,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
               Descrição
               <input
                 className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                onChange={(event) => updateField("description", event.target.value)}
+                onChange={(event) =>
+                  updateField("description", event.target.value)
+                }
                 placeholder="Compra de matéria-prima"
                 required
                 type="text"
@@ -566,7 +651,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                 Categoria
                 <input
                   className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
-                  onChange={(event) => updateField("category", event.target.value)}
+                  onChange={(event) =>
+                    updateField("category", event.target.value)
+                  }
                   placeholder="Insumos"
                   required
                   type="text"
@@ -578,7 +665,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                 <input
                   className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
                   min="0.01"
-                  onChange={(event) => updateField("amount", event.target.value)}
+                  onChange={(event) =>
+                    updateField("amount", event.target.value)
+                  }
                   placeholder="0,00"
                   required
                   step="0.01"
@@ -605,7 +694,9 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                 Vencimento
                 <input
                   className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition focus:border-[var(--primary)]"
-                  onChange={(event) => updateField("dueDate", event.target.value)}
+                  onChange={(event) =>
+                    updateField("dueDate", event.target.value)
+                  }
                   type="date"
                   value={form.dueDate}
                 />
@@ -624,7 +715,7 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
               ) : (
                 <Save className="h-4 w-4" aria-hidden="true" />
               )}
-              Salvar lançamento
+              {editingId ? "Salvar alterações" : "Salvar lançamento"}
             </Button>
           </form>
         </section>
@@ -685,71 +776,122 @@ export function FinanceManager({ companyId }: FinanceManagerProps) {
                 ) : null}
 
                 {!isLoading
-                  ? filteredTransactions.map((transaction) => (
-                      <tr key={transaction.id}>
-                        <td className="py-3 pr-4 text-[var(--muted-foreground)]">
-                          {formatDate(transaction.transactionDate)}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <p className="font-medium text-white">
-                            {transaction.description}
-                          </p>
-                          <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                            {transaction.sourceType === "sale"
-                              ? "Gerado por venda"
-                              : "Lançamento manual"}
-                          </p>
-                        </td>
-                        <td className="py-3 pr-4 text-[var(--muted-foreground)]">
-                          {transaction.category}
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span
-                            className={[
-                              "font-medium",
-                              getTypeClass(transaction.type)
-                            ].join(" ")}
-                          >
-                            {typeLabels[transaction.type]}
-                          </span>
-                        </td>
-                        <td className="py-3 pr-4">
-                          <span
-                            className={[
-                              "rounded-md px-2 py-1 text-xs",
-                              getStatusClass(transaction.status)
-                            ].join(" ")}
-                          >
-                            {statusLabels[transaction.status]}
-                          </span>
-                        </td>
-                        <td className="py-3 pr-4 text-white">
-                          {currencyFormatter.format(transaction.amount)}
-                        </td>
-                        <td className="py-3">
-                          <div className="flex justify-end">
-                            {transaction.sourceType === "manual" &&
-                            transaction.status !== "cancelled" ? (
-                              <button
-                                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive-text)]"
-                                onClick={() => void cancelTransaction(transaction)}
-                                title="Cancelar lançamento"
-                                type="button"
-                              >
-                                <RotateCcw
-                                  className="h-4 w-4"
-                                  aria-hidden="true"
-                                />
-                              </button>
-                            ) : (
-                              <span className="text-xs text-[var(--muted-foreground)]">
-                                -
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                  ? filteredTransactions.map((transaction) => {
+                      const canManage =
+                        transaction.sourceType === "manual" &&
+                        transaction.status !== "cancelled";
+
+                      return (
+                        <tr key={transaction.id}>
+                          <td className="py-3 pr-4 text-[var(--muted-foreground)]">
+                            {formatDate(transaction.transactionDate)}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <p className="font-medium text-white">
+                              {transaction.description}
+                            </p>
+                            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                              {transaction.sourceType === "sale"
+                                ? "Gerado por venda"
+                                : "Lançamento manual"}
+                            </p>
+                          </td>
+                          <td className="py-3 pr-4 text-[var(--muted-foreground)]">
+                            {transaction.category}
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span
+                              className={[
+                                "font-medium",
+                                getTypeClass(transaction.type),
+                              ].join(" ")}
+                            >
+                              {typeLabels[transaction.type]}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4">
+                            <span
+                              className={[
+                                "rounded-md px-2 py-1 text-xs",
+                                getStatusClass(transaction.status),
+                              ].join(" ")}
+                            >
+                              {statusLabels[transaction.status]}
+                            </span>
+                          </td>
+                          <td className="py-3 pr-4 text-white">
+                            {currencyFormatter.format(transaction.amount)}
+                          </td>
+                          <td className="py-3">
+                            <div className="flex justify-end gap-2">
+                              {canManage ? (
+                                <>
+                                  <button
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
+                                    onClick={() => editTransaction(transaction)}
+                                    title="Editar lançamento"
+                                    type="button"
+                                  >
+                                    <Pencil
+                                      className="h-4 w-4"
+                                      aria-hidden="true"
+                                    />
+                                  </button>
+                                  {transaction.status === "pending" ? (
+                                    <button
+                                      className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--primary-soft)] hover:text-[var(--primary)]"
+                                      disabled={isPayingId === transaction.id}
+                                      onClick={() =>
+                                        void markTransactionAsPaid(transaction)
+                                      }
+                                      title="Marcar como pago"
+                                      type="button"
+                                    >
+                                      {isPayingId === transaction.id ? (
+                                        <Loader2
+                                          className="h-4 w-4 animate-spin"
+                                          aria-hidden="true"
+                                        />
+                                      ) : (
+                                        <CheckCircle2
+                                          className="h-4 w-4"
+                                          aria-hidden="true"
+                                        />
+                                      )}
+                                    </button>
+                                  ) : null}
+                                  <button
+                                    className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--destructive-soft)] hover:text-[var(--destructive-text)]"
+                                    disabled={isCancellingId === transaction.id}
+                                    onClick={() =>
+                                      void cancelTransaction(transaction)
+                                    }
+                                    title="Cancelar lançamento"
+                                    type="button"
+                                  >
+                                    {isCancellingId === transaction.id ? (
+                                      <Loader2
+                                        className="h-4 w-4 animate-spin"
+                                        aria-hidden="true"
+                                      />
+                                    ) : (
+                                      <RotateCcw
+                                        className="h-4 w-4"
+                                        aria-hidden="true"
+                                      />
+                                    )}
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-xs text-[var(--muted-foreground)]">
+                                  -
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   : null}
               </tbody>
             </table>

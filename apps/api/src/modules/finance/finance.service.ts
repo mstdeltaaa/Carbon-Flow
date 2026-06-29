@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
 import { AuditService } from "../audit/audit.service";
@@ -42,7 +46,7 @@ const transactionSelect =
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Não foi possível processar o financeiro."
+    error.message ?? "Não foi possível processar o financeiro.",
   );
 }
 
@@ -65,7 +69,7 @@ function getCurrentMonthPeriod() {
 
   return {
     from: toDateOnly(start),
-    to: toDateOnly(end)
+    to: toDateOnly(end),
   };
 }
 
@@ -78,7 +82,7 @@ function getPeriod(from?: string, to?: string) {
 
   return {
     from: isDateOnly(from) ? from! : fallback.from,
-    to: isDateOnly(to) ? to! : fallback.to
+    to: isDateOnly(to) ? to! : fallback.to,
   };
 }
 
@@ -98,7 +102,7 @@ function mapTransaction(row: FinancialTransactionRow) {
     status: row.status,
     transactionDate: row.transaction_date,
     type: row.type,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   };
 }
 
@@ -106,14 +110,14 @@ function mapTransaction(row: FinancialTransactionRow) {
 export class FinanceService {
   constructor(
     private readonly supabaseFactory: SupabaseClientFactory,
-    private readonly auditService: AuditService
+    private readonly auditService: AuditService,
   ) {}
 
   async findAll(
     accessToken: string,
     companyId: string,
     from?: string,
-    to?: string
+    to?: string,
   ) {
     const period = getPeriod(from, to);
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -137,43 +141,43 @@ export class FinanceService {
     accessToken: string,
     companyId: string,
     from?: string,
-    to?: string
+    to?: string,
   ) {
     const period = getPeriod(from, to);
     const transactions = await this.findAll(
       accessToken,
       companyId,
       period.from,
-      period.to
+      period.to,
     );
     const activeTransactions = transactions.filter(
-      (transaction) => transaction.status !== "cancelled"
+      (transaction) => transaction.status !== "cancelled",
     );
     const paidTransactions = activeTransactions.filter(
-      (transaction) => transaction.status === "paid"
+      (transaction) => transaction.status === "paid",
     );
     const pendingTransactions = activeTransactions.filter(
-      (transaction) => transaction.status === "pending"
+      (transaction) => transaction.status === "pending",
     );
     const paidIncome = roundMoney(
       paidTransactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((total, transaction) => total + transaction.amount, 0)
+        .reduce((total, transaction) => total + transaction.amount, 0),
     );
     const paidExpense = roundMoney(
       paidTransactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((total, transaction) => total + transaction.amount, 0)
+        .reduce((total, transaction) => total + transaction.amount, 0),
     );
     const pendingIncome = roundMoney(
       pendingTransactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((total, transaction) => total + transaction.amount, 0)
+        .reduce((total, transaction) => total + transaction.amount, 0),
     );
     const pendingExpense = roundMoney(
       pendingTransactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((total, transaction) => total + transaction.amount, 0)
+        .reduce((total, transaction) => total + transaction.amount, 0),
     );
     const categoryMap = new Map<
       string,
@@ -191,7 +195,7 @@ export class FinanceService {
         amount: 0,
         category: transaction.category,
         count: 0,
-        type: transaction.type
+        type: transaction.type,
       };
 
       current.amount = roundMoney(current.amount + transaction.amount);
@@ -209,8 +213,8 @@ export class FinanceService {
         paidIncome,
         pendingExpense,
         pendingIncome,
-        transactionCount: transactions.length
-      }
+        transactionCount: transactions.length,
+      },
     };
   }
 
@@ -218,7 +222,7 @@ export class FinanceService {
     accessToken: string,
     companyId: string,
     userId: string,
-    dto: CreateFinancialTransactionDto
+    dto: CreateFinancialTransactionDto,
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const status = dto.status ?? "paid";
@@ -236,7 +240,7 @@ export class FinanceService {
         source_type: "manual",
         status,
         transaction_date: dto.transactionDate ?? toDateOnly(now),
-        type: dto.type
+        type: dto.type,
       })
       .select(transactionSelect)
       .single();
@@ -256,9 +260,9 @@ export class FinanceService {
         amount: transaction.amount,
         category: transaction.category,
         sourceType: transaction.sourceType,
-        type: transaction.type
+        type: transaction.type,
       },
-      userId
+      userId,
     });
 
     return transaction;
@@ -268,18 +272,18 @@ export class FinanceService {
     accessToken: string,
     companyId: string,
     userId: string,
-    transactionId: string
+    transactionId: string,
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const existing = await this.getTransactionRow(
       accessToken,
       companyId,
-      transactionId
+      transactionId,
     );
 
     if (existing.source_type !== "manual") {
       throw new BadRequestException(
-        "Lançamentos vinculados a vendas devem ser cancelados pela venda."
+        "Lançamentos vinculados a vendas devem ser cancelados pela venda.",
       );
     }
 
@@ -290,7 +294,7 @@ export class FinanceService {
     const { data, error } = await supabase
       .from("financial_transactions")
       .update({
-        status: "cancelled"
+        status: "cancelled",
       })
       .eq("company_id", companyId)
       .eq("id", transactionId)
@@ -315,9 +319,149 @@ export class FinanceService {
       metadata: {
         amount: transaction.amount,
         category: transaction.category,
-        type: transaction.type
+        type: transaction.type,
       },
-      userId
+      userId,
+    });
+
+    return transaction;
+  }
+
+  async updateManual(
+    accessToken: string,
+    companyId: string,
+    userId: string,
+    transactionId: string,
+    dto: CreateFinancialTransactionDto,
+  ) {
+    const supabase = this.supabaseFactory.createForUser(accessToken);
+    const existing = await this.getTransactionRow(
+      accessToken,
+      companyId,
+      transactionId,
+    );
+
+    if (existing.source_type !== "manual") {
+      throw new BadRequestException(
+        "Lançamentos vinculados a vendas devem ser alterados pela venda.",
+      );
+    }
+
+    if (existing.status === "cancelled") {
+      throw new BadRequestException(
+        "Lançamentos cancelados não podem ser editados.",
+      );
+    }
+
+    const status =
+      dto.status ?? (existing.status === "paid" ? "paid" : "pending");
+    const paidAt =
+      status === "paid" ? (existing.paid_at ?? new Date().toISOString()) : null;
+    const { data, error } = await supabase
+      .from("financial_transactions")
+      .update({
+        amount: roundMoney(dto.amount),
+        category: dto.category.trim(),
+        description: dto.description.trim(),
+        due_date: dto.dueDate ?? null,
+        paid_at: paidAt,
+        status,
+        transaction_date: dto.transactionDate ?? existing.transaction_date,
+        type: dto.type,
+      })
+      .eq("company_id", companyId)
+      .eq("id", transactionId)
+      .select(transactionSelect)
+      .maybeSingle();
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    if (!data) {
+      throw new NotFoundException("Lançamento financeiro não encontrado.");
+    }
+
+    const transaction = mapTransaction(data as FinancialTransactionRow);
+
+    await this.auditService.record({
+      action: "finance.transaction_updated",
+      companyId,
+      entityId: transaction.id,
+      entityType: "financial_transaction",
+      metadata: {
+        amount: transaction.amount,
+        category: transaction.category,
+        status: transaction.status,
+        type: transaction.type,
+      },
+      userId,
+    });
+
+    return transaction;
+  }
+
+  async markManualAsPaid(
+    accessToken: string,
+    companyId: string,
+    userId: string,
+    transactionId: string,
+  ) {
+    const supabase = this.supabaseFactory.createForUser(accessToken);
+    const existing = await this.getTransactionRow(
+      accessToken,
+      companyId,
+      transactionId,
+    );
+
+    if (existing.source_type !== "manual") {
+      throw new BadRequestException(
+        "Lançamentos vinculados a vendas devem ser alterados pela venda.",
+      );
+    }
+
+    if (existing.status === "cancelled") {
+      throw new BadRequestException(
+        "Lançamentos cancelados não podem ser marcados como pagos.",
+      );
+    }
+
+    if (existing.status === "paid") {
+      return mapTransaction(existing);
+    }
+
+    const { data, error } = await supabase
+      .from("financial_transactions")
+      .update({
+        paid_at: new Date().toISOString(),
+        status: "paid",
+      })
+      .eq("company_id", companyId)
+      .eq("id", transactionId)
+      .select(transactionSelect)
+      .maybeSingle();
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    if (!data) {
+      throw new NotFoundException("Lançamento financeiro não encontrado.");
+    }
+
+    const transaction = mapTransaction(data as FinancialTransactionRow);
+
+    await this.auditService.record({
+      action: "finance.transaction_paid",
+      companyId,
+      entityId: transaction.id,
+      entityType: "financial_transaction",
+      metadata: {
+        amount: transaction.amount,
+        category: transaction.category,
+        type: transaction.type,
+      },
+      userId,
     });
 
     return transaction;
@@ -327,7 +471,7 @@ export class FinanceService {
     accessToken: string,
     companyId: string,
     userId: string,
-    input: SaleIncomeInput
+    input: SaleIncomeInput,
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const transactionDate = toDateOnly(new Date(input.soldAt));
@@ -335,7 +479,7 @@ export class FinanceService {
     const existing = await this.findSaleTransaction(
       accessToken,
       companyId,
-      input.saleId
+      input.saleId,
     );
 
     if (existing) {
@@ -348,7 +492,7 @@ export class FinanceService {
           paid_at: input.soldAt,
           status: "paid",
           transaction_date: transactionDate,
-          type: "income"
+          type: "income",
         })
         .eq("company_id", companyId)
         .eq("id", existing.id)
@@ -375,7 +519,7 @@ export class FinanceService {
         source_type: "sale",
         status: "paid",
         transaction_date: transactionDate,
-        type: "income"
+        type: "income",
       })
       .select(transactionSelect)
       .single();
@@ -390,7 +534,7 @@ export class FinanceService {
   async cancelSaleIncome(
     accessToken: string,
     companyId: string,
-    saleId: string
+    saleId: string,
   ): Promise<FinanceTransactionRollback[]> {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const { data: existing, error: selectError } = await supabase
@@ -404,12 +548,14 @@ export class FinanceService {
       throwDatabaseError(selectError);
     }
 
-    const rollback = ((existing ?? []) as Array<{
-      id: string;
-      status: FinancialTransactionStatus;
-    }>).map((transaction) => ({
+    const rollback = (
+      (existing ?? []) as Array<{
+        id: string;
+        status: FinancialTransactionStatus;
+      }>
+    ).map((transaction) => ({
       id: transaction.id,
-      status: transaction.status
+      status: transaction.status,
     }));
 
     if (rollback.length === 0) {
@@ -433,7 +579,7 @@ export class FinanceService {
   async restoreTransactions(
     accessToken: string,
     companyId: string,
-    transactions: FinanceTransactionRollback[]
+    transactions: FinanceTransactionRollback[],
   ) {
     if (transactions.length === 0) {
       return;
@@ -453,7 +599,7 @@ export class FinanceService {
   async deleteSaleTransactions(
     accessToken: string,
     companyId: string,
-    saleId: string
+    saleId: string,
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
 
@@ -468,7 +614,7 @@ export class FinanceService {
   private async getTransactionRow(
     accessToken: string,
     companyId: string,
-    transactionId: string
+    transactionId: string,
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const { data, error } = await supabase
@@ -492,7 +638,7 @@ export class FinanceService {
   private async findSaleTransaction(
     accessToken: string,
     companyId: string,
-    saleId: string
+    saleId: string,
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const { data, error } = await supabase
