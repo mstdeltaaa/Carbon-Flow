@@ -168,10 +168,13 @@ type ReplyContext = {
   isCustomersLoading: boolean;
   isDashboardLoading: boolean;
   isSalesLoading: boolean;
+  mode: AssistantMode;
   role: string | null;
   sales: AssistantSale[];
   salesError: string | null;
 };
+
+type AssistantMode = "general" | "pricing" | "sales" | "stock";
 
 type AssistantStatus = {
   className: string;
@@ -370,6 +373,53 @@ const quickPromptsByPage: Record<string, QuickPrompt[]> = {
     quickPromptById.permissions,
     quickPromptById.subscription,
     quickPromptById.firstSteps
+  ],
+  stock: [
+    quickPromptById.lowStock,
+    quickPromptById.minimumStock,
+    quickPromptById.salesFlow
+  ]
+};
+
+const assistantModeOptions = [
+  {
+    icon: HelpCircle,
+    id: "general",
+    label: "Geral"
+  },
+  {
+    icon: PackageCheck,
+    id: "pricing",
+    label: "Preço"
+  },
+  {
+    icon: Warehouse,
+    id: "stock",
+    label: "Estoque"
+  },
+  {
+    icon: ShoppingCart,
+    id: "sales",
+    label: "Vendas"
+  }
+] satisfies Array<{
+  icon: typeof Boxes;
+  id: AssistantMode;
+  label: string;
+}>;
+
+const quickPromptsByMode: Record<AssistantMode, QuickPrompt[]> = {
+  general: [],
+  pricing: [
+    quickPromptById.pricing,
+    quickPromptById.ingredientCost,
+    quickPromptById.bestSellers
+  ],
+  sales: [
+    quickPromptById.pendingBudgets,
+    quickPromptById.recentSales,
+    quickPromptById.topCustomers,
+    quickPromptById.customerOpportunities
   ],
   stock: [
     quickPromptById.lowStock,
@@ -728,6 +778,107 @@ function canUseQuickPrompt(prompt: QuickPrompt, role: string | null) {
   return true;
 }
 
+function canUseAssistantMode(mode: AssistantMode, role: string | null) {
+  if (mode === "general") {
+    return true;
+  }
+
+  if (mode === "pricing") {
+    return canAccessSection(role, "products");
+  }
+
+  if (mode === "stock") {
+    return (
+      canAccessSection(role, "stock") || canAccessSection(role, "ingredients")
+    );
+  }
+
+  return (
+    canAccessSection(role, "sales") ||
+    canAccessSection(role, "budgets") ||
+    canAccessSection(role, "customers")
+  );
+}
+
+function getAvailableAssistantModes(role: string | null) {
+  return assistantModeOptions.filter((mode) =>
+    canUseAssistantMode(mode.id, role)
+  );
+}
+
+function getAssistantModeLabel(mode: AssistantMode) {
+  return (
+    assistantModeOptions.find((item) => item.id === mode)?.label ?? "Geral"
+  );
+}
+
+function getAssistantModeIntro(mode: AssistantMode) {
+  if (mode === "pricing") {
+    return "Modo Preço ativado. Vou priorizar custo dos insumos, margem, preço sugerido e produtos com melhor retorno.";
+  }
+
+  if (mode === "stock") {
+    return "Modo Estoque ativado. Vou priorizar reposição, estoque mínimo, movimentações e baixa automática.";
+  }
+
+  if (mode === "sales") {
+    return "Modo Vendas ativado. Vou priorizar orçamentos, clientes, vendas recentes e oportunidades comerciais.";
+  }
+
+  return "Modo Geral ativado. Vou equilibrar dashboard, produção, estoque, clientes e vendas.";
+}
+
+function getRequestedAssistantMode(prompt: string): AssistantMode | null {
+  const normalized = normalizePrompt(prompt);
+
+  if (
+    !hasAnyTerm(normalized, [
+      "consultor",
+      "especialista",
+      "foco",
+      "modo",
+      "prioriza",
+      "priorizar"
+    ])
+  ) {
+    return null;
+  }
+
+  if (hasAnyTerm(normalized, ["preco", "precificacao", "margem", "custo"])) {
+    return "pricing";
+  }
+
+  if (
+    hasAnyTerm(normalized, [
+      "estoque",
+      "insumo",
+      "reposicao",
+      "repor",
+      "movimentacao"
+    ])
+  ) {
+    return "stock";
+  }
+
+  if (
+    hasAnyTerm(normalized, [
+      "cliente",
+      "comercial",
+      "orcamento",
+      "proposta",
+      "venda"
+    ])
+  ) {
+    return "sales";
+  }
+
+  if (hasAnyTerm(normalized, ["geral", "normal", "padrao", "todos"])) {
+    return "general";
+  }
+
+  return null;
+}
+
 function hasAnyTerm(prompt: string, terms: string[]) {
   return terms.some((term) => prompt.includes(term));
 }
@@ -894,8 +1045,13 @@ function getVisibleQuickActions(activeItem: string, role: string | null) {
     .slice(0, 3);
 }
 
-function getVisibleQuickPrompts(activeItem: string, role: string | null) {
+function getVisibleQuickPrompts(
+  activeItem: string,
+  role: string | null,
+  mode: AssistantMode
+) {
   return uniqueByLabel([
+    ...quickPromptsByMode[mode],
     ...(quickPromptsByPage[activeItem] ?? defaultQuickPrompts),
     ...defaultQuickPrompts,
     quickPromptById.pendingBudgets,
@@ -1507,6 +1663,41 @@ Vendas recentes:
 ${items}${hiddenCount}`;
 }
 
+function formatModeFirstStepsReply(context: ReplyContext) {
+  if (context.mode === "pricing") {
+    if (!canAccessSection(context.role, "products")) {
+      return getRestrictedReply("produtos e precificação");
+    }
+
+    return "No modo Preço, comece conferindo se todos os insumos têm custo unitário correto. Depois revise a composição dos produtos, confira o custo calculado e ajuste a margem quando o preço sugerido não fizer sentido para o mercado.";
+  }
+
+  if (context.mode === "stock") {
+    if (!canAccessSection(context.role, "stock")) {
+      return getRestrictedReply("estoque");
+    }
+
+    return "No modo Estoque, comece olhando os itens abaixo do mínimo. Depois lance entradas ou ajustes, revise o estoque mínimo dos insumos importantes e acompanhe se as vendas estão baixando tudo corretamente.";
+  }
+
+  if (context.mode === "sales") {
+    if (
+      !canAccessSection(context.role, "budgets") &&
+      !canAccessSection(context.role, "customers")
+    ) {
+      return getRestrictedReply("clientes, orçamentos e vendas");
+    }
+
+    return "No modo Vendas, comece pelos orçamentos em aberto. Depois veja clientes com oportunidade, acompanhe vendas recentes e converta orçamentos aprovados quando seu perfil permitir.";
+  }
+
+  if (normalizeRole(context.role) === "seller") {
+    return "Para vendedor, o melhor começo é consultar produtos, cadastrar clientes e criar orçamentos. Quando precisar de estoque, vendas finalizadas ou configurações, chame um administrador ou funcionário.";
+  }
+
+  return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
+}
+
 function getAssistantReply(prompt: string, context: ReplyContext) {
   const normalized = normalizePrompt(prompt);
 
@@ -1625,11 +1816,7 @@ function getAssistantReply(prompt: string, context: ReplyContext) {
   }
 
   if (normalized.includes("comeco") || normalized.includes("primeiro")) {
-    if (normalizeRole(context.role) === "seller") {
-      return "Para vendedor, o melhor começo é consultar produtos, cadastrar clientes e criar orçamentos. Quando precisar de estoque, vendas finalizadas ou configurações, chame um administrador ou funcionário.";
-    }
-
-    return "Comece cadastrando os insumos, depois monte os produtos, cadastre clientes e então crie orçamentos. Quando um orçamento for aprovado, converta em venda para baixar estoque automaticamente.";
+    return formatModeFirstStepsReply(context);
   }
 
   if (normalized.includes("insumo") || normalized.includes("materia")) {
@@ -1766,6 +1953,8 @@ export function VirtualAssistant({
     [activeItem]
   );
   const [messages, setMessages] = useState<Message[]>([introMessage]);
+  const [assistantMode, setAssistantMode] =
+    useState<AssistantMode>("general");
   const conversationStorageKey = useMemo(
     () => getConversationStorageKey(companyId, userEmail),
     [companyId, userEmail]
@@ -1780,9 +1969,14 @@ export function VirtualAssistant({
     dashboardError,
     isDashboardLoading
   });
+  const availableAssistantModes = getAvailableAssistantModes(role);
   const visibleNavigationLinks = getVisibleNavigationLinks(role);
   const visibleQuickActions = getVisibleQuickActions(activeItem, role);
-  const visibleQuickPrompts = getVisibleQuickPrompts(activeItem, role);
+  const visibleQuickPrompts = getVisibleQuickPrompts(
+    activeItem,
+    role,
+    assistantMode
+  );
   const assistantContext = useMemo<ReplyContext>(
     () => ({
       budgets,
@@ -1795,6 +1989,7 @@ export function VirtualAssistant({
       isCustomersLoading,
       isDashboardLoading,
       isSalesLoading,
+      mode: assistantMode,
       role,
       sales,
       salesError
@@ -1810,6 +2005,7 @@ export function VirtualAssistant({
       isCustomersLoading,
       isDashboardLoading,
       isSalesLoading,
+      assistantMode,
       role,
       sales,
       salesError
@@ -1838,6 +2034,12 @@ export function VirtualAssistant({
       window.removeEventListener("storage", syncTheme);
     };
   }, []);
+
+  useEffect(() => {
+    if (!canUseAssistantMode(assistantMode, role)) {
+      setAssistantMode("general");
+    }
+  }, [assistantMode, role]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2136,6 +2338,41 @@ export function VirtualAssistant({
       return;
     }
 
+    const requestedMode = getRequestedAssistantMode(cleanPrompt);
+
+    if (requestedMode) {
+      if (!canUseAssistantMode(requestedMode, role)) {
+        setMessages((current) =>
+          limitConversation([
+            ...current,
+            { author: "user", text: cleanPrompt },
+            {
+              author: "assistant",
+              text: `Seu perfil atual não tem acesso ao modo ${getAssistantModeLabel(
+                requestedMode
+              )}. Se isso for necessário para o seu trabalho, peça para um administrador ajustar suas permissões.`
+            }
+          ])
+        );
+        setInput("");
+        return;
+      }
+
+      setAssistantMode(requestedMode);
+      setMessages((current) =>
+        limitConversation([
+          ...current,
+          { author: "user", text: cleanPrompt },
+          {
+            author: "assistant",
+            text: getAssistantModeIntro(requestedMode)
+          }
+        ])
+      );
+      setInput("");
+      return;
+    }
+
     const directAction = getDirectQuickAction(cleanPrompt);
 
     if (directAction) {
@@ -2279,6 +2516,51 @@ export function VirtualAssistant({
               </button>
             </div>
           </header>
+
+          <div className="shrink-0 border-b border-[var(--border)] p-3 sm:p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
+                Modo
+              </p>
+              <span className="text-[11px] text-[var(--muted-foreground)]">
+                {getAssistantModeLabel(assistantMode)}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {availableAssistantModes.map((mode) => {
+                const isActiveMode = assistantMode === mode.id;
+
+                return (
+                  <button
+                    className={[
+                      "flex min-h-9 min-w-0 items-center justify-center gap-1.5 rounded-md border px-2 text-xs transition",
+                      isActiveMode
+                        ? "border-[var(--primary)] bg-[var(--primary-active)] text-[var(--foreground)]"
+                        : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                    ].join(" ")}
+                    key={mode.id}
+                    onClick={() => {
+                      setAssistantMode(mode.id);
+                      setMessages((current) =>
+                        limitConversation([
+                          ...current,
+                          {
+                            author: "assistant",
+                            text: getAssistantModeIntro(mode.id)
+                          }
+                        ])
+                      );
+                    }}
+                    type="button"
+                  >
+                    <mode.icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{mode.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           {proactiveAlerts.length ? (
             <div className="shrink-0 border-b border-[var(--border)] p-3 sm:p-4">
