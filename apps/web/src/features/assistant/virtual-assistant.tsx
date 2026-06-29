@@ -189,6 +189,11 @@ type ProactiveAlert = {
   title: string;
 };
 
+type AssistantPreferences = {
+  dismissedAlertIds: string[];
+  mode: AssistantMode;
+};
+
 const pageTips: Record<string, string> = {
   account:
     "Aqui você ajusta dados da sua conta e pode trocar informações pessoais do usuário logado.",
@@ -680,10 +685,19 @@ const budgetStatusLabels: Record<BudgetStatus, string> = {
 
 const assistantConversationLimit = 20;
 const assistantConversationVersion = 1;
+const assistantPreferencesVersion = 1;
 
 function getConversationStorageKey(companyId: string, userEmail: string) {
   return [
     "carbon-flow-assistant-conversation",
+    companyId,
+    userEmail.trim().toLowerCase()
+  ].join(":");
+}
+
+function getPreferencesStorageKey(companyId: string, userEmail: string) {
+  return [
+    "carbon-flow-assistant-preferences",
     companyId,
     userEmail.trim().toLowerCase()
   ].join(":");
@@ -702,6 +716,15 @@ function isStoredMessage(value: unknown): value is Message {
 
 function limitConversation(messages: Message[]) {
   return messages.slice(-assistantConversationLimit);
+}
+
+function isAssistantMode(value: unknown): value is AssistantMode {
+  return (
+    value === "general" ||
+    value === "pricing" ||
+    value === "sales" ||
+    value === "stock"
+  );
 }
 
 function readStoredConversation(storageKey: string) {
@@ -744,6 +767,63 @@ function writeStoredConversation(storageKey: string, messages: Message[]) {
     );
   } catch {
     // The assistant keeps working even if the browser blocks storage.
+  }
+}
+
+function readStoredAssistantPreferences(storageKey: string) {
+  try {
+    const storedValue = window.localStorage.getItem(storageKey);
+
+    if (!storedValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(storedValue) as unknown;
+
+    if (
+      !parsed ||
+      typeof parsed !== "object" ||
+      !("version" in parsed) ||
+      parsed.version !== assistantPreferencesVersion
+    ) {
+      return null;
+    }
+
+    const mode =
+      "mode" in parsed && isAssistantMode(parsed.mode)
+        ? parsed.mode
+        : "general";
+    const dismissedAlertIds =
+      "dismissedAlertIds" in parsed && Array.isArray(parsed.dismissedAlertIds)
+        ? parsed.dismissedAlertIds.filter(
+            (item): item is string => typeof item === "string"
+          )
+        : [];
+
+    return {
+      dismissedAlertIds,
+      mode
+    } satisfies AssistantPreferences;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredAssistantPreferences(
+  storageKey: string,
+  preferences: AssistantPreferences
+) {
+  try {
+    window.localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        ...preferences,
+        dismissedAlertIds: preferences.dismissedAlertIds.slice(-20),
+        version: assistantPreferencesVersion
+      })
+    );
+  } catch {
+    // Preferences are nice to have, but the assistant can work without them.
   }
 }
 
@@ -1215,7 +1295,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
     alerts.push({
       action: quickActionById.openStockList,
       detail,
-      id: "low-stock",
+      id: `low-stock:${context.dashboard.metrics.lowStockCount}:${firstItem?.id ?? "none"}`,
       severity: "warning",
       title: "Estoque baixo"
     });
@@ -1255,7 +1335,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
       alerts.push({
         action: quickActionById.budgets,
         detail,
-        id: "approved-budgets",
+        id: `approved-budgets:${approvedBudgets.length}:${approvedTotal}`,
         severity: canConvertBudgets(context.role) ? "warning" : "info",
         title: "Orçamentos aprovados"
       });
@@ -1265,7 +1345,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
       alerts.push({
         action: quickActionById.budgets,
         detail: `${budgetsDueSoon.length} orçamento(s) vencem nos próximos 3 dias. Vale revisar antes que esfriem.`,
-        id: "budgets-due-soon",
+        id: `budgets-due-soon:${budgetsDueSoon.length}:${budgetsDueSoon[0]?.id ?? "none"}`,
         severity: "info",
         title: "Orçamentos vencendo"
       });
@@ -1296,7 +1376,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
       alerts.push({
         action: quickActionById.customers,
         detail: `${customersWithoutSales} sem venda, ${customersWithoutContact} sem contato e ${customersWithOpenBudgets} com orçamento em aberto.`,
-        id: "customer-opportunities",
+        id: `customer-opportunities:${customersWithoutSales}:${customersWithoutContact}:${customersWithOpenBudgets}`,
         severity: "info",
         title: "Oportunidades em clientes"
       });
@@ -1939,7 +2019,11 @@ export function VirtualAssistant({
   const [isCustomersLoading, setIsCustomersLoading] = useState(true);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [isSalesLoading, setIsSalesLoading] = useState(true);
+  const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
   const [loadedConversationKey, setLoadedConversationKey] = useState<
+    string | null
+  >(null);
+  const [loadedPreferencesKey, setLoadedPreferencesKey] = useState<
     string | null
   >(null);
   const [theme, setTheme] = useState("carbon-dark");
@@ -1957,6 +2041,10 @@ export function VirtualAssistant({
     useState<AssistantMode>("general");
   const conversationStorageKey = useMemo(
     () => getConversationStorageKey(companyId, userEmail),
+    [companyId, userEmail]
+  );
+  const preferencesStorageKey = useMemo(
+    () => getPreferencesStorageKey(companyId, userEmail),
     [companyId, userEmail]
   );
   const canReadBudgets = canAccessSection(role, "budgets");
@@ -2011,13 +2099,22 @@ export function VirtualAssistant({
       salesError
     ]
   );
-  const proactiveAlerts = useMemo(
+  const allProactiveAlerts = useMemo(
     () => getProactiveAlerts(assistantContext),
     [assistantContext]
+  );
+  const proactiveAlerts = useMemo(
+    () =>
+      allProactiveAlerts.filter(
+        (alert) => !dismissedAlertIds.includes(alert.id)
+      ),
+    [allProactiveAlerts, dismissedAlertIds]
   );
   const hasWarningAlert = proactiveAlerts.some(
     (alert) => alert.severity === "warning"
   );
+  const hiddenProactiveAlertCount =
+    allProactiveAlerts.length - proactiveAlerts.length;
 
   useEffect(() => {
     function syncTheme() {
@@ -2040,6 +2137,20 @@ export function VirtualAssistant({
       setAssistantMode("general");
     }
   }, [assistantMode, role]);
+
+  useEffect(() => {
+    setLoadedPreferencesKey(null);
+
+    const storedPreferences =
+      readStoredAssistantPreferences(preferencesStorageKey);
+    const storedMode = storedPreferences?.mode ?? "general";
+
+    setAssistantMode(
+      canUseAssistantMode(storedMode, role) ? storedMode : "general"
+    );
+    setDismissedAlertIds(storedPreferences?.dismissedAlertIds ?? []);
+    setLoadedPreferencesKey(preferencesStorageKey);
+  }, [preferencesStorageKey, role]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2070,6 +2181,22 @@ export function VirtualAssistant({
 
     writeStoredConversation(conversationStorageKey, messages);
   }, [conversationStorageKey, loadedConversationKey, messages]);
+
+  useEffect(() => {
+    if (loadedPreferencesKey !== preferencesStorageKey) {
+      return;
+    }
+
+    writeStoredAssistantPreferences(preferencesStorageKey, {
+      dismissedAlertIds,
+      mode: assistantMode
+    });
+  }, [
+    assistantMode,
+    dismissedAlertIds,
+    loadedPreferencesKey,
+    preferencesStorageKey
+  ]);
 
   useEffect(() => {
     let isActive = true;
@@ -2411,6 +2538,20 @@ export function VirtualAssistant({
     }
   }
 
+  function dismissProactiveAlert(alertId: string) {
+    setDismissedAlertIds((current) =>
+      current.includes(alertId) ? current : [...current, alertId].slice(-20)
+    );
+  }
+
+  function restoreCurrentProactiveAlerts() {
+    const currentAlertIds = new Set(allProactiveAlerts.map((alert) => alert.id));
+
+    setDismissedAlertIds((current) =>
+      current.filter((alertId) => !currentAlertIds.has(alertId))
+    );
+  }
+
   function runQuickAction(action: QuickAction, userText = action.label) {
     if (!canUseQuickAction(action, role)) {
       setMessages((current) =>
@@ -2562,57 +2703,84 @@ export function VirtualAssistant({
             </div>
           </div>
 
-          {proactiveAlerts.length ? (
+          {proactiveAlerts.length || hiddenProactiveAlertCount > 0 ? (
             <div className="shrink-0 border-b border-[var(--border)] p-3 sm:p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
                   Atenção agora
                 </p>
                 <span className="text-[11px] text-[var(--muted-foreground)]">
-                  {proactiveAlerts.length} ponto(s)
+                  {proactiveAlerts.length
+                    ? `${proactiveAlerts.length} ponto(s)`
+                    : `${hiddenProactiveAlertCount} oculto(s)`}
                 </span>
               </div>
 
-              <div className="space-y-2">
-                {proactiveAlerts.map((alert) => {
-                  const tone = getProactiveAlertClasses(alert.severity);
+              {proactiveAlerts.length ? (
+                <div className="space-y-2">
+                  {proactiveAlerts.map((alert) => {
+                    const tone = getProactiveAlertClasses(alert.severity);
 
-                  return (
-                    <button
-                      className={[
-                        "flex w-full min-w-0 items-start gap-3 rounded-md border p-3 text-left transition",
-                        tone.panel
-                      ].join(" ")}
-                      key={alert.id}
-                      onClick={() => runQuickAction(alert.action)}
-                      type="button"
-                    >
-                      <span
+                    return (
+                      <article
                         className={[
-                          "mt-1 h-2 w-2 shrink-0 rounded-full",
-                          tone.dot
+                          "flex w-full min-w-0 items-start gap-3 rounded-md border p-3 text-left transition",
+                          tone.panel
                         ].join(" ")}
-                      />
-                      <span className="min-w-0 flex-1">
+                        key={alert.id}
+                      >
                         <span
                           className={[
-                            "block text-xs font-semibold",
-                            tone.title
+                            "mt-1 h-2 w-2 shrink-0 rounded-full",
+                            tone.dot
                           ].join(" ")}
-                        >
-                          {alert.title}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className={[
+                              "block text-xs font-semibold",
+                              tone.title
+                            ].join(" ")}
+                          >
+                            {alert.title}
+                          </span>
+                          <span className="mt-1 block break-words text-xs leading-5 text-[var(--muted-foreground)]">
+                            {alert.detail}
+                          </span>
                         </span>
-                        <span className="mt-1 block break-words text-xs leading-5 text-[var(--muted-foreground)]">
-                          {alert.detail}
+                        <span className="flex shrink-0 items-center gap-1">
+                          <button
+                            className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--foreground)] transition hover:bg-[var(--secondary)]"
+                            onClick={() => runQuickAction(alert.action)}
+                            type="button"
+                          >
+                            Abrir
+                          </button>
+                          <button
+                            aria-label={`Dispensar alerta: ${alert.title}`}
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                            onClick={() => dismissProactiveAlert(alert.id)}
+                            title="Dispensar"
+                            type="button"
+                          >
+                            <X className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
                         </span>
-                      </span>
-                      <span className="shrink-0 rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--foreground)]">
-                        Abrir
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {hiddenProactiveAlertCount > 0 ? (
+                <button
+                  className="mt-2 w-full rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                  onClick={restoreCurrentProactiveAlerts}
+                  type="button"
+                >
+                  Reexibir alertas dispensados
+                </button>
+              ) : null}
             </div>
           ) : null}
 
