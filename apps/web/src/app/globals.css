@@ -581,11 +581,21 @@ html[data-theme="green-light"] option {
     padding: 0 !important;
   }
 
+  .product-sheet-page {
+    background: #ffffff !important;
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
   .budget-print-toolbar {
     display: none !important;
   }
 
   .sale-print-toolbar {
+    display: none !important;
+  }
+
+  .product-sheet-toolbar {
     display: none !important;
   }
 
@@ -616,11 +626,28 @@ html[data-theme="green-light"] option {
     -webkit-print-color-adjust: exact;
   }
 
+  .product-sheet {
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: #101314 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    print-color-adjust: exact;
+    width: 100% !important;
+    -webkit-print-color-adjust: exact;
+  }
+
   .budget-document > div:last-child {
     padding: 0 !important;
   }
 
   .sale-document > div:last-child {
+    padding: 0 !important;
+  }
+
+  .product-sheet > div:last-child {
     padding: 0 !important;
   }
 
@@ -634,11 +661,20 @@ html[data-theme="green-light"] option {
     -webkit-print-color-adjust: exact;
   }
 
+  .product-sheet-cover {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .budget-document-table {
     overflow: visible !important;
   }
 
   .sale-document-table {
+    overflow: visible !important;
+  }
+
+  .product-sheet-table {
     overflow: visible !important;
   }
 
@@ -648,6 +684,11 @@ html[data-theme="green-light"] option {
   }
 
   .sale-document table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .product-sheet table {
     min-width: 0 !important;
     width: 100% !important;
   }
@@ -665,6 +706,14 @@ html[data-theme="green-light"] option {
   .sale-document aside,
   .sale-document header,
   .sale-document tr {
+    break-inside: avoid;
+  }
+
+  .product-sheet section,
+  .product-sheet article,
+  .product-sheet aside,
+  .product-sheet header,
+  .product-sheet tr {
     break-inside: avoid;
   }
 }

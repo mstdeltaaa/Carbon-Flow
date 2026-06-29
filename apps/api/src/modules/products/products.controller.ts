@@ -45,6 +45,17 @@ export class ProductsController {
     return this.productsService.findAll(accessToken, company.id, company.role);
   }
 
+  @Get(":id")
+  @CompanyRoles("admin", "employee")
+  @CompanyPermissions("products")
+  findOne(
+    @AccessToken() accessToken: string,
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @Param("id") productId: string
+  ) {
+    return this.productsService.findOne(accessToken, company.id, productId);
+  }
+
   @Post()
   @CompanyRoles("admin", "employee")
   @CompanyPermissions("products")

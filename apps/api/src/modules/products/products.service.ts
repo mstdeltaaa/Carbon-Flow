@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException
+} from "@nestjs/common";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
@@ -24,7 +28,9 @@ type ProductRow = {
 type IngredientRow = {
   id: string;
   inventory_unit: string;
+  minimum_stock?: string | null;
   name: string;
+  stock_quantity?: string | null;
   unit_cost: string;
 };
 
@@ -86,16 +92,29 @@ function mapProduct(row: ProductRow, itemRows: ProductItemRow[]) {
     updatedAt: row.updated_at,
     items: itemRows.map((item) => {
       const ingredient = getJoinedIngredient(item);
+      const conversionFactorToInventory = Number(
+        item.conversion_factor_to_inventory
+      );
+      const ingredientUnitCost = Number(ingredient?.unit_cost ?? 0);
+      const ingredientStockQuantity = Number(ingredient?.stock_quantity ?? 0);
+      const ingredientMinimumStock = Number(ingredient?.minimum_stock ?? 0);
+      const quantity = Number(item.quantity);
+      const inventoryQuantity = quantity * conversionFactorToInventory;
 
       return {
         id: item.id,
         ingredientId: item.ingredient_id,
         ingredientName: ingredient?.name ?? "Insumo",
         ingredientUnit: ingredient?.inventory_unit ?? item.unit,
-        ingredientUnitCost: Number(ingredient?.unit_cost ?? 0),
-        quantity: Number(item.quantity),
+        ingredientUnitCost,
+        ingredientStockQuantity,
+        ingredientMinimumStock,
+        inventoryQuantity,
+        lineCost: roundMoney(inventoryQuantity * ingredientUnitCost),
+        quantity,
         unit: item.unit,
-        conversionFactorToInventory: Number(item.conversion_factor_to_inventory)
+        conversionFactorToInventory,
+        isIngredientLowStock: ingredientStockQuantity <= ingredientMinimumStock
       };
     })
   };
@@ -148,7 +167,7 @@ export class ProductsService {
     const { data: items, error: itemsError } = await supabase
       .from("product_items")
       .select(
-        "id, product_id, ingredient_id, quantity, unit, conversion_factor_to_inventory, ingredients(id, name, inventory_unit, unit_cost)"
+        "id, product_id, ingredient_id, quantity, unit, conversion_factor_to_inventory, ingredients(id, name, inventory_unit, unit_cost, stock_quantity, minimum_stock)"
       )
       .eq("company_id", companyId)
       .in(
@@ -186,7 +205,9 @@ export class ProductsService {
     );
     const marginPercent = dto.marginPercent ?? 30;
     const estimatedCost = this.calculateCost(calculatedItems);
-    const suggestedPrice = roundMoney(estimatedCost * (1 + marginPercent / 100));
+    const suggestedPrice = roundMoney(
+      estimatedCost * (1 + marginPercent / 100)
+    );
     const salePrice = dto.salePrice ?? suggestedPrice;
 
     const { data: product, error } = await supabase
@@ -242,7 +263,11 @@ export class ProductsService {
     let calculatedItems: CalculatedItem[] | null = null;
 
     if (dto.items !== undefined) {
-      calculatedItems = await this.calculateItems(accessToken, companyId, dto.items);
+      calculatedItems = await this.calculateItems(
+        accessToken,
+        companyId,
+        dto.items
+      );
       const marginPercent = dto.marginPercent ?? 30;
       const estimatedCost = this.calculateCost(calculatedItems);
 
@@ -307,16 +332,18 @@ export class ProductsService {
         throwDatabaseError(deleteError);
       }
 
-      const { error: insertError } = await supabase.from("product_items").insert(
-        calculatedItems.map((item) => ({
-          company_id: companyId,
-          conversion_factor_to_inventory: item.conversionFactorToInventory,
-          ingredient_id: item.ingredientId,
-          product_id: productId,
-          quantity: item.quantity,
-          unit: item.unit
-        }))
-      );
+      const { error: insertError } = await supabase
+        .from("product_items")
+        .insert(
+          calculatedItems.map((item) => ({
+            company_id: companyId,
+            conversion_factor_to_inventory: item.conversionFactorToInventory,
+            ingredient_id: item.ingredientId,
+            product_id: productId,
+            quantity: item.quantity,
+            unit: item.unit
+          }))
+        );
 
       if (insertError) {
         throwDatabaseError(insertError);
@@ -332,7 +359,7 @@ export class ProductsService {
     });
   }
 
-  private async findOne(accessToken: string, companyId: string, productId: string) {
+  async findOne(accessToken: string, companyId: string, productId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
     const { data: product, error } = await supabase
       .from("products")
@@ -354,7 +381,7 @@ export class ProductsService {
     const { data: items, error: itemsError } = await supabase
       .from("product_items")
       .select(
-        "id, product_id, ingredient_id, quantity, unit, conversion_factor_to_inventory, ingredients(id, name, inventory_unit, unit_cost)"
+        "id, product_id, ingredient_id, quantity, unit, conversion_factor_to_inventory, ingredients(id, name, inventory_unit, unit_cost, stock_quantity, minimum_stock)"
       )
       .eq("company_id", companyId)
       .eq("product_id", productId);

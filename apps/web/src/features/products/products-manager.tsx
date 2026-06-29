@@ -4,6 +4,7 @@ import {
   Archive,
   Calculator,
   CircleDollarSign,
+  FileText,
   Layers3,
   Loader2,
   PackageCheck,
@@ -14,6 +15,7 @@ import {
   Search,
   Trash2
 } from "lucide-react";
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -1005,7 +1007,7 @@ export function ProductsManager({
             <table
               className={[
                 "w-full border-collapse text-left text-sm",
-                canManage ? "min-w-[900px]" : "min-w-[520px]"
+                canManage ? "min-w-[960px]" : "min-w-[520px]"
               ].join(" ")}
             >
               <thead>
@@ -1090,6 +1092,16 @@ export function ProductsManager({
                         {canManage ? (
                           <td className="py-3">
                             <div className="flex justify-end gap-2">
+                              <Link
+                                className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
+                                href={`/products/${product.id}`}
+                                title="Ficha técnica"
+                              >
+                                <FileText
+                                  className="h-4 w-4"
+                                  aria-hidden="true"
+                                />
+                              </Link>
                               <button
                                 className="flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-white"
                                 onClick={() => editProduct(product)}
