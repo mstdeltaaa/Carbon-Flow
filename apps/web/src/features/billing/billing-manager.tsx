@@ -229,6 +229,20 @@ function getTrialLabel(currentPeriodEnd: string | null) {
   return daysLeft === 1 ? "1 dia restante" : `${daysLeft} dias restantes`;
 }
 
+function getPeriodLabel(currentPeriodEnd: string | null) {
+  const daysLeft = getTrialDaysLeft(currentPeriodEnd);
+
+  if (daysLeft === null) {
+    return null;
+  }
+
+  if (daysLeft === 0) {
+    return "Termina hoje";
+  }
+
+  return daysLeft === 1 ? "1 dia restante" : `${daysLeft} dias restantes`;
+}
+
 function hasFuturePeriod(currentPeriodEnd: string | null) {
   if (!currentPeriodEnd) {
     return false;
@@ -326,6 +340,18 @@ export function BillingManager({ companyId }: BillingManagerProps) {
 
   const currentPlan = subscription?.plan ?? "free";
   const isTrialing = subscription?.status === "trialing";
+  const isPixProActive =
+    subscription?.plan === "pro" &&
+    subscription.status === "active" &&
+    subscription.billingMode === "pix";
+  const isRecurringProActive =
+    subscription?.plan === "pro" &&
+    subscription.status === "active" &&
+    subscription.billingMode === "recurring";
+  const isRecurringProCancelled =
+    subscription?.plan === "pro" &&
+    subscription.status === "cancelled" &&
+    subscription.billingMode === "recurring";
   const currentPlanName =
     isTrialing && currentPlan === "pro"
       ? "Pro grátis"
@@ -353,7 +379,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
         hasFuturePeriod(subscription.currentPeriodEnd)));
   const proRemainingLabel =
     subscription?.plan === "pro" && subscription.currentPeriodEnd
-      ? getTrialLabel(subscription.currentPeriodEnd)
+      ? getPeriodLabel(subscription.currentPeriodEnd)
       : null;
   const proAccessEndDate =
     subscription?.plan === "pro"
@@ -367,6 +393,106 @@ export function BillingManager({ companyId }: BillingManagerProps) {
       : hasActiveProAccess
         ? "Seu Pro está ativo."
         : null;
+  const billingModeLabel = subscription
+    ? currentPlan === "enterprise"
+      ? "Suporte"
+      : currentPlan !== "pro"
+        ? "Sem cobrança ativa"
+        : subscription.billingMode === "trial"
+          ? "Teste grátis"
+          : subscription.billingMode === "pix"
+            ? "Pix mensal"
+            : subscription.billingMode === "recurring"
+              ? "Assinatura recorrente"
+              : "Pro ativo"
+    : "Carregando";
+  const renewalLabel = subscription
+    ? isTrialing
+      ? "Sem cobrança automática"
+      : isPixProActive
+        ? "Não renova sozinho"
+        : isRecurringProActive
+          ? "Renova automaticamente"
+          : isRecurringProCancelled
+            ? "Renovação cancelada"
+            : currentPlan === "enterprise"
+              ? "Gerenciado pelo suporte"
+              : "Sem renovação"
+    : "Carregando";
+  const nextEventLabel = subscription
+    ? isTrialing
+      ? trialEndDate
+        ? `Teste até ${trialEndDate}`
+        : "Teste grátis ativo"
+      : isPixProActive
+        ? proAccessEndDate
+          ? `Acesso até ${proAccessEndDate}`
+          : "Pro por Pix ativo"
+        : isRecurringProActive
+          ? proAccessEndDate
+            ? `Próxima renovação em ${proAccessEndDate}`
+            : "Renovação mensal ativa"
+          : isRecurringProCancelled
+            ? proAccessEndDate
+              ? `Acesso até ${proAccessEndDate}`
+              : "Renovação cancelada"
+            : currentPlan === "enterprise"
+              ? "Fale com suporte"
+              : subscription.canStartProTrial
+                ? "Teste grátis disponível"
+                : "Escolha uma forma de pagamento"
+    : "Carregando";
+  const statusNoticeTitle = isTrialing
+    ? "Teste grátis do Pro ativo"
+    : isPixProActive
+      ? "Pro por Pix ativo"
+      : isRecurringProActive
+        ? "Assinatura recorrente ativa"
+        : isRecurringProCancelled
+          ? "Renovação cancelada"
+          : currentPlan === "free"
+            ? "Plano Free ativo"
+            : null;
+  const statusNoticeBody = isTrialing
+    ? `Você está usando os limites do plano Pro por 7 dias. Quando o teste terminar${
+        trialEndDate ? ` em ${trialEndDate}` : ""
+      }, a empresa volta automaticamente para o Free se não houver pagamento.`
+    : isPixProActive
+      ? `${proAccessSummary ?? "Seu Pro por Pix está ativo."} Pix não vira assinatura: não existe cancelamento e o acesso volta para Free se não houver novo pagamento.`
+      : isRecurringProActive
+        ? `${proAccessSummary ?? "Sua assinatura recorrente está ativa."} A renovação acontece automaticamente pelo Mercado Pago e pode ser cancelada a qualquer momento.`
+        : isRecurringProCancelled
+          ? `A empresa continua usando o Pro${
+              proAccessEndDate ? ` até ${proAccessEndDate}` : ""
+            } e depois volta automaticamente para o Free.`
+          : currentPlan === "free"
+            ? "Você pode testar o Pro por 7 dias, pagar 1 mês por Pix ou assinar com renovação recorrente."
+            : null;
+  const canStartRecurringFromPix =
+    currentPlan === "pro" &&
+    subscription?.billingMode === "pix" &&
+    subscription.status === "active";
+  const shouldShowPixButton = subscription?.billingMode !== "recurring";
+  const canStartTrial = Boolean(subscription?.canStartProTrial);
+  const pixButtonLabel = isPixAction
+    ? "Gerando Pix..."
+    : currentPlan === "pro" && subscription?.status === "active"
+      ? "Adicionar 1 mês com Pix"
+      : isTrialing
+        ? "Garantir 1 mês com Pix"
+        : "Pagar 1 mês com Pix";
+  const recurringButtonLabel =
+    planAction === "pro"
+      ? "Iniciando..."
+      : canStartTrial
+        ? "Iniciar teste grátis"
+        : isTrialing
+          ? "Assinar Pro recorrente"
+          : canStartRecurringFromPix
+            ? "Migrar para recorrente"
+            : isRecurringProCancelled
+              ? "Reativar assinatura"
+              : "Assinar Pro recorrente";
 
   const reachedLimits = useMemo(() => {
     if (!subscription) {
@@ -653,6 +779,12 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     await syncPixPayment(pixPayment.paymentId);
   }
 
+  function handleScrollToPaymentOptions() {
+    document
+      .getElementById("pro-payment-options")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <>
       <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
@@ -667,7 +799,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </p>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[32rem] xl:min-w-[38rem] xl:grid-cols-3">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[38rem] xl:min-w-[50rem] xl:grid-cols-4">
             <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
                 Plano atual
@@ -684,12 +816,20 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </article>
             <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
+                Pagamento
+              </p>
+              <p className="mt-2 text-xl font-semibold text-white">
+                {billingModeLabel}
+              </p>
+            </article>
+            <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+              <p className="text-xs text-[var(--muted-foreground)]">
                 Acesso Pro
               </p>
               <p className="mt-2 text-xl font-semibold text-white">
                 {hasActiveProAccess
                   ? (proRemainingLabel ?? "Ativo")
-                  : "Sem Pro ativo"}
+                  : "Sem Pro"}
               </p>
               {hasActiveProAccess && proAccessEndDate ? (
                 <p className="mt-1 text-xs text-[var(--muted-foreground)]">
@@ -780,43 +920,235 @@ export function BillingManager({ companyId }: BillingManagerProps) {
         </section>
       ) : subscription ? (
         <>
-          {isTrialing ? (
-            <section className="rounded-lg border border-[rgb(159_243_196/0.32)] bg-[rgb(159_243_196/0.09)] p-5 text-sm text-[var(--muted-foreground)] sm:p-6">
-              <p className="font-medium text-white">
-                Teste grátis do Pro ativo
-              </p>
-              <p className="mt-2 leading-6">
-                Você está usando os limites do plano Pro por 7 dias. Quando o
-                teste terminar{trialEndDate ? ` em ${trialEndDate}` : ""}, a
-                empresa volta automaticamente para o Free.
-              </p>
+          {statusNoticeTitle && statusNoticeBody ? (
+            <section
+              className={`rounded-lg border p-5 text-sm text-[var(--muted-foreground)] sm:p-6 ${
+                isRecurringProCancelled
+                  ? "border-[rgb(250_204_21/0.3)] bg-[rgb(250_204_21/0.08)]"
+                  : "border-[rgb(159_243_196/0.32)] bg-[rgb(159_243_196/0.08)]"
+              }`}
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="font-medium text-white">{statusNoticeTitle}</p>
+                  <p className="mt-2 leading-6">{statusNoticeBody}</p>
+                </div>
+                <div className="grid gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2 lg:min-w-[22rem]">
+                  <span className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.28)] px-3 py-2">
+                    {renewalLabel}
+                  </span>
+                  <span className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.28)] px-3 py-2">
+                    {nextEventLabel}
+                  </span>
+                </div>
+              </div>
             </section>
           ) : null}
 
-          {subscription.status === "cancelled" && currentPlan === "pro" ? (
-            <section className="rounded-lg border border-[rgb(250_204_21/0.3)] bg-[rgb(250_204_21/0.08)] p-5 text-sm text-[var(--muted-foreground)] sm:p-6">
-              <p className="font-medium text-white">Renovação cancelada</p>
-              <p className="mt-2 leading-6">
-                A empresa continua usando o Pro
-                {formatDate(subscription.currentPeriodEnd)
-                  ? ` até ${formatDate(subscription.currentPeriodEnd)}`
-                  : ""}{" "}
-                e depois volta automaticamente para o Free.
-              </p>
-            </section>
-          ) : null}
+          {currentPlan !== "enterprise" ? (
+            <section
+              className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6"
+              id="pro-payment-options"
+            >
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-white">
+                    Formas de continuar no Pro
+                  </h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
+                    Escolha entre pagar 1 mês por Pix, sem renovação automática,
+                    ou manter uma assinatura recorrente pelo Mercado Pago.
+                  </p>
+                </div>
+                {proAccessSummary ? (
+                  <span className="rounded-md border border-[rgb(159_243_196/0.24)] bg-[rgb(159_243_196/0.08)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                    {proAccessSummary}
+                  </span>
+                ) : null}
+              </div>
 
-          {hasActiveProAccess &&
-          !isTrialing &&
-          subscription.status !== "cancelled" ? (
-            <section className="rounded-lg border border-[rgb(159_243_196/0.32)] bg-[rgb(159_243_196/0.08)] p-5 text-sm text-[var(--muted-foreground)] sm:p-6">
-              <p className="font-medium text-white">Plano Pro ativo</p>
-              <p className="mt-2 leading-6">
-                {proAccessSummary}
-                {subscription.billingMode === "pix"
-                  ? " Se você pagar outro Pix, o Carbon Flow soma mais 1 mês ao período atual."
-                  : " A renovação recorrente permanece ativa enquanto a assinatura estiver em dia."}
-              </p>
+              <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                <article
+                  className={`rounded-lg border p-4 ${
+                    isPixProActive
+                      ? "border-[rgb(159_243_196/0.42)] bg-[rgb(159_243_196/0.08)]"
+                      : "border-[var(--border)] bg-[rgb(8_10_11/0.44)]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm font-medium text-white">
+                        <QrCode
+                          className="h-4 w-4 text-[var(--primary)]"
+                          aria-hidden="true"
+                        />
+                        Pix mensal avulso
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
+                        R$ 45 por mês
+                      </p>
+                    </div>
+                    {isPixProActive ? (
+                      <span className="rounded-md bg-[rgb(159_243_196/0.14)] px-2 py-1 text-xs text-[var(--primary)]">
+                        Ativo
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <ul className="mt-4 grid gap-2 text-sm text-[var(--muted-foreground)]">
+                    <li className="flex gap-2">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Libera 1 mês de Pro após a confirmação.
+                    </li>
+                    <li className="flex gap-2">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Não renova sozinho e não precisa cancelar.
+                    </li>
+                    <li className="flex gap-2">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Se pagar novamente, soma mais 1 mês ao período atual.
+                    </li>
+                  </ul>
+
+                  <Button
+                    className="mt-5 w-full"
+                    disabled={
+                      !shouldShowPixButton ||
+                      Boolean(planAction) ||
+                      isPixAction ||
+                      isSyncingPix
+                    }
+                    onClick={handleProPixClick}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {isPixAction ? (
+                      <Loader2
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <QrCode className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    {shouldShowPixButton
+                      ? pixButtonLabel
+                      : "Assinatura recorrente ativa"}
+                  </Button>
+                </article>
+
+                <article
+                  className={`rounded-lg border p-4 ${
+                    isRecurringProActive
+                      ? "border-[rgb(159_243_196/0.42)] bg-[rgb(159_243_196/0.08)]"
+                      : isRecurringProCancelled
+                        ? "border-[rgb(250_204_21/0.3)] bg-[rgb(250_204_21/0.08)]"
+                        : "border-[var(--border)] bg-[rgb(8_10_11/0.44)]"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm font-medium text-white">
+                        <CreditCard
+                          className="h-4 w-4 text-[var(--primary)]"
+                          aria-hidden="true"
+                        />
+                        Assinatura recorrente
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
+                        R$ 45/mês
+                      </p>
+                    </div>
+                    {isRecurringProActive ? (
+                      <span className="rounded-md bg-[rgb(159_243_196/0.14)] px-2 py-1 text-xs text-[var(--primary)]">
+                        Ativa
+                      </span>
+                    ) : isRecurringProCancelled ? (
+                      <span className="rounded-md bg-[rgb(250_204_21/0.14)] px-2 py-1 text-xs text-yellow-200">
+                        Cancelada
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <ul className="mt-4 grid gap-2 text-sm text-[var(--muted-foreground)]">
+                    <li className="flex gap-2">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Renova automaticamente todo mês.
+                    </li>
+                    <li className="flex gap-2">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Ideal para não se preocupar com vencimento.
+                    </li>
+                    <li className="flex gap-2">
+                      <Check
+                        className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Pode cancelar a renovação quando quiser.
+                    </li>
+                  </ul>
+
+                  {isRecurringProActive ? (
+                    <Button className="mt-5 w-full" disabled type="button">
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                      Assinatura ativa
+                    </Button>
+                  ) : (
+                    <Button
+                      className="mt-5 w-full"
+                      disabled={Boolean(planAction) || isPixAction}
+                      onClick={() => handleUpgradeClick("pro")}
+                      type="button"
+                    >
+                      {planAction === "pro" ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CreditCard className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {recurringButtonLabel}
+                    </Button>
+                  )}
+
+                  {subscription.canCancelProSubscription ? (
+                    <Button
+                      className="mt-2 w-full"
+                      disabled={Boolean(planAction) || isCancellingSubscription}
+                      onClick={handleCancelSubscription}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {isCancellingSubscription ? (
+                        <Loader2
+                          className="h-4 w-4 animate-spin"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <XCircle className="h-4 w-4" aria-hidden="true" />
+                      )}
+                      {isCancellingSubscription
+                        ? "Cancelando..."
+                        : "Cancelar renovação"}
+                    </Button>
+                  ) : null}
+                </article>
+              </div>
             </section>
           ) : null}
 
@@ -881,196 +1213,113 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </div>
           </section>
 
-          <section className="grid min-w-0 gap-4 xl:grid-cols-3">
-            {plans.map((plan) => {
-              const isCurrent = currentPlan === plan.id;
-              const isProTrialCard =
-                plan.id === "pro" && subscription.status === "trialing";
-              const isFeatured = plan.id === "pro";
-              const isStartingPlan = planAction === plan.id;
-              const isLowerPlan =
-                (currentPlan === "pro" && plan.id === "free") ||
-                (currentPlan === "enterprise" && plan.id !== "enterprise");
-              const canStartRecurringFromPix =
-                plan.id === "pro" &&
-                currentPlan === "pro" &&
-                subscription.billingMode === "pix" &&
-                subscription.status === "active";
-              const shouldShowPixButton =
-                plan.id === "pro" && subscription.billingMode !== "recurring";
-              const canStartTrial =
-                plan.id === "pro" && Boolean(subscription.canStartProTrial);
+          <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  Planos disponíveis
+                </h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  Compare os limites de cada plano antes de escolher como
+                  continuar.
+                </p>
+              </div>
+            </div>
 
-              return (
-                <article
-                  className="flex min-h-[28rem] flex-col rounded-lg border border-transparent bg-[rgb(16_19_20/0.78)] p-5 transition hover:border-[var(--primary)] hover:shadow-2xl hover:shadow-[color:var(--shadow-color)] focus-within:border-[var(--primary)] focus-within:shadow-2xl focus-within:shadow-[color:var(--shadow-color)] sm:p-6"
-                  key={plan.id}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h2 className="text-xl font-semibold text-white">
-                        {plan.label}
-                      </h2>
-                      <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
-                        {plan.price}
-                      </p>
+            <div className="mt-5 grid min-w-0 gap-4 xl:grid-cols-3">
+              {plans.map((plan) => {
+                const isCurrent = currentPlan === plan.id;
+                const isFeatured = plan.id === "pro";
+                const isLowerPlan =
+                  (currentPlan === "pro" && plan.id === "free") ||
+                  (currentPlan === "enterprise" && plan.id !== "enterprise");
+
+                return (
+                  <article
+                    className="flex min-h-[26rem] flex-col rounded-lg border border-transparent bg-[rgb(8_10_11/0.44)] p-5 transition hover:border-[var(--primary)] hover:shadow-2xl hover:shadow-[color:var(--shadow-color)] focus-within:border-[var(--primary)] focus-within:shadow-2xl focus-within:shadow-[color:var(--shadow-color)] sm:p-6"
+                    key={plan.id}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h2 className="text-xl font-semibold text-white">
+                          {plan.label}
+                        </h2>
+                        <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
+                          {plan.price}
+                        </p>
+                      </div>
+                      {isFeatured ? (
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[rgb(159_243_196/0.12)] text-[var(--primary)]">
+                          <Sparkles className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                      ) : (
+                        <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[rgb(255_255_255/0.06)] text-[var(--muted-foreground)]">
+                          <CreditCard className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                      )}
                     </div>
-                    {isFeatured ? (
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[rgb(159_243_196/0.12)] text-[var(--primary)]">
-                        <Sparkles className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                    ) : (
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-[rgb(255_255_255/0.06)] text-[var(--muted-foreground)]">
-                        <CreditCard className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                    )}
-                  </div>
 
-                  <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-                    {plan.description}
-                  </p>
+                    <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
+                      {plan.description}
+                    </p>
 
-                  <ul className="mt-5 grid gap-3 text-sm text-white">
-                    {plan.features.map((feature) => (
-                      <li className="flex gap-2" key={feature}>
-                        <Check
-                          className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
-                          aria-hidden="true"
-                        />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <div className="mt-auto pt-6">
-                    {isCurrent && !isProTrialCard ? (
-                      <Button className="w-full" disabled type="button">
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                        Plano atual
-                      </Button>
-                    ) : isLowerPlan ? (
-                      <Button className="w-full" disabled type="button">
-                        <Check className="h-4 w-4" aria-hidden="true" />
-                        Plano anterior
-                      </Button>
-                    ) : plan.id === "enterprise" ? (
-                      <Button asChild className="w-full" variant="secondary">
-                        <a
-                          href={supportWhatsappUrl}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          <MessageCircle
-                            className="h-4 w-4"
+                    <ul className="mt-5 grid gap-3 text-sm text-white">
+                      {plan.features.map((feature) => (
+                        <li className="flex gap-2" key={feature}>
+                          <Check
+                            className="mt-0.5 h-4 w-4 shrink-0 text-[var(--primary)]"
                             aria-hidden="true"
                           />
-                          Falar com suporte
-                        </a>
-                      </Button>
-                    ) : (
-                      <Button
-                        disabled={Boolean(planAction)}
-                        className="w-full"
-                        onClick={() => handleUpgradeClick(plan.id)}
-                        type="button"
-                      >
-                        {isStartingPlan ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <CreditCard className="h-4 w-4" aria-hidden="true" />
-                        )}
-                        {isStartingPlan
-                          ? "Iniciando..."
-                          : canStartTrial
-                            ? "Iniciar teste grátis"
-                            : isProTrialCard
-                              ? "Assinar Pro agora"
-                              : plan.id === "pro"
-                                ? "Assinar Pro"
-                                : "Solicitar upgrade"}
-                      </Button>
-                    )}
-                    {plan.id === "pro" ? (
-                      <>
-                        {subscription.canCancelProSubscription ? (
-                          <Button
-                            className="mt-2 w-full"
-                            disabled={
-                              Boolean(planAction) || isCancellingSubscription
-                            }
-                            onClick={handleCancelSubscription}
-                            type="button"
-                            variant="secondary"
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="mt-auto pt-6">
+                      {isCurrent ? (
+                        <Button className="w-full" disabled type="button">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                          Plano atual
+                        </Button>
+                      ) : isLowerPlan ? (
+                        <Button className="w-full" disabled type="button">
+                          <Check className="h-4 w-4" aria-hidden="true" />
+                          Plano anterior
+                        </Button>
+                      ) : plan.id === "enterprise" ? (
+                        <Button asChild className="w-full" variant="secondary">
+                          <a
+                            href={supportWhatsappUrl}
+                            rel="noreferrer"
+                            target="_blank"
                           >
-                            {isCancellingSubscription ? (
-                              <Loader2
-                                className="h-4 w-4 animate-spin"
-                                aria-hidden="true"
-                              />
-                            ) : (
-                              <XCircle className="h-4 w-4" aria-hidden="true" />
-                            )}
-                            {isCancellingSubscription
-                              ? "Cancelando..."
-                              : "Cancelar assinatura"}
-                          </Button>
-                        ) : null}
-                      </>
-                    ) : null}
-                    {canStartRecurringFromPix ? (
-                      <Button
-                        className="mt-2 w-full"
-                        disabled={Boolean(planAction) || isPixAction}
-                        onClick={() => handleUpgradeClick("pro")}
-                        type="button"
-                        variant="secondary"
-                      >
-                        {isStartingPlan ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
+                            <MessageCircle
+                              className="h-4 w-4"
+                              aria-hidden="true"
+                            />
+                            Falar com suporte
+                          </a>
+                        </Button>
+                      ) : plan.id === "pro" ? (
+                        <Button
+                          className="w-full"
+                          onClick={handleScrollToPaymentOptions}
+                          type="button"
+                        >
                           <CreditCard className="h-4 w-4" aria-hidden="true" />
-                        )}
-                        Assinar Pro recorrente
-                      </Button>
-                    ) : null}
-                    {shouldShowPixButton ? (
-                      <Button
-                        className="mt-2 w-full"
-                        disabled={
-                          Boolean(planAction) || isPixAction || isSyncingPix
-                        }
-                        onClick={handleProPixClick}
-                        type="button"
-                        variant="secondary"
-                      >
-                        {isPixAction ? (
-                          <Loader2
-                            className="h-4 w-4 animate-spin"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <QrCode className="h-4 w-4" aria-hidden="true" />
-                        )}
-                        {isPixAction
-                          ? "Gerando Pix..."
-                          : currentPlan === "pro" &&
-                              subscription.status === "active"
-                            ? "Adicionar 1 mês com Pix"
-                            : isProTrialCard
-                              ? "Garantir 1 mês com Pix"
-                              : "Pagar 1 mês com Pix"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
+                          Ver formas de pagamento
+                        </Button>
+                      ) : (
+                        <Button className="w-full" disabled type="button">
+                          <CreditCard className="h-4 w-4" aria-hidden="true" />
+                          Plano disponível
+                        </Button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </section>
 
           <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
