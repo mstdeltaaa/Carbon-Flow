@@ -91,6 +91,10 @@ type ProductFormState = {
   sku: string;
 };
 
+type CompanyProductDefaults = {
+  defaultMarginPercent?: number;
+};
+
 type ProductsManagerProps = {
   companyId: string;
   permissions: CompanyPermissionMap | null;
@@ -136,6 +140,13 @@ function cloneEmptyForm(): ProductFormState {
   return {
     ...emptyForm,
     items: [cloneEmptyItem()]
+  };
+}
+
+function buildDefaultProductForm(defaultMarginPercent: number | null) {
+  return {
+    ...cloneEmptyForm(),
+    marginPercent: String(defaultMarginPercent ?? 30)
   };
 }
 
@@ -195,6 +206,8 @@ export function ProductsManager({
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [defaultMarginPercent, setDefaultMarginPercent] =
+    useState<number | null>(null);
   const [search, setSearch] = useState("");
   const formSectionRef = useRef<HTMLElement | null>(null);
   const canManage = canManageProducts(role, permissions);
@@ -243,6 +256,11 @@ export function ProductsManager({
           .then((value) => ({ status: "fulfilled" as const, value }))
           .catch((reason: unknown) => ({ status: "rejected" as const, reason }))
       : null;
+    const defaultsResult = canManage
+      ? await request<CompanyProductDefaults>("/companies/document-profile")
+          .then((value) => ({ status: "fulfilled" as const, value }))
+          .catch((reason: unknown) => ({ status: "rejected" as const, reason }))
+      : null;
 
     if (ingredientsResult?.status === "fulfilled") {
       setIngredients(ingredientsResult.value);
@@ -250,6 +268,22 @@ export function ProductsManager({
 
     if (productsResult.status === "fulfilled") {
       setProducts(productsResult.value);
+    }
+
+    if (defaultsResult?.status === "fulfilled") {
+      const nextDefaultMargin = defaultsResult.value.defaultMarginPercent ?? 30;
+      setDefaultMarginPercent(nextDefaultMargin);
+      setForm((current) => {
+        if (
+          editingId ||
+          current.name.trim() ||
+          current.marginPercent !== emptyForm.marginPercent
+        ) {
+          return current;
+        }
+
+        return buildDefaultProductForm(nextDefaultMargin);
+      });
     }
 
     const errors = [ingredientsResult, productsResult]
@@ -266,7 +300,7 @@ export function ProductsManager({
     }
 
     setIsLoading(false);
-  }, [canManage, request]);
+  }, [canManage, editingId, request]);
 
   useEffect(() => {
     void loadData();
@@ -408,7 +442,7 @@ export function ProductsManager({
 
   function resetForm() {
     setEditingId(null);
-    setForm(cloneEmptyForm());
+    setForm(buildDefaultProductForm(defaultMarginPercent));
     setMessage(null);
   }
 

@@ -63,11 +63,19 @@ type BudgetDocumentProps = {
 };
 
 type CompanyDetails = {
+  address: string | null;
+  budgetValidityDays: number;
+  commercialTerms: string | null;
+  defaultMarginPercent: number;
   document: string | null;
+  documentFooter: string | null;
   email: string | null;
+  instagram: string | null;
   logoUrl: string | null;
   name: string;
+  paymentInstructions: string | null;
   phone: string | null;
+  website: string | null;
 };
 
 type ContactLine = {
@@ -226,6 +234,18 @@ function getCompanyContactLines(company: CompanyDetails | null) {
     lines.push({ label: "Email", value: company.email });
   }
 
+  if (company?.address) {
+    lines.push({ label: "Endereço", value: company.address });
+  }
+
+  if (company?.website) {
+    lines.push({ label: "Site", value: company.website });
+  }
+
+  if (company?.instagram) {
+    lines.push({ label: "Instagram", value: company.instagram });
+  }
+
   return lines;
 }
 
@@ -318,6 +338,7 @@ export function BudgetDocument({
   );
   const notes =
     budget?.notes?.trim() ||
+    companyDetails?.commercialTerms?.trim() ||
     "Valores sujeitos às condições comerciais informadas neste documento. A produção começa após aprovação do orçamento.";
   const budgetTerms = [
     "A proposta considera apenas os produtos, quantidades e observações descritos neste documento.",
@@ -333,6 +354,9 @@ export function BudgetDocument({
         { label: "Emitido em", value: issuedAt }
       ]
     : [];
+  const footerText =
+    companyDetails?.documentFooter?.trim() ||
+    "Documento gerado pelo Carbon Flow com base nos produtos, preços e condições cadastrados no orçamento.";
 
   useEffect(() => {
     if (!budget) {
@@ -583,6 +607,17 @@ export function BudgetDocument({
                   title="Condições comerciais"
                 />
 
+                {companyDetails?.paymentInstructions ? (
+                  <article className="rounded-md border border-[#dfe5e3] bg-white p-5">
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
+                      Instruções de pagamento
+                    </h2>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#53615d]">
+                      {companyDetails.paymentInstructions}
+                    </p>
+                  </article>
+                ) : null}
+
                 <article className="rounded-md border border-[#dfe5e3] p-5">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
                     Aceite do cliente
@@ -639,10 +674,7 @@ export function BudgetDocument({
             <DocumentMetaStrip items={budgetMetaItems} />
 
             <footer className="mt-10 flex flex-col gap-3 border-t border-[#dfe5e3] pt-5 text-xs leading-5 text-[#6a7672] sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Documento gerado pelo Carbon Flow com base nos produtos, preços
-                e condições cadastrados no orçamento.
-              </span>
+              <span>{footerText}</span>
               <div className="flex flex-wrap items-center gap-3">
                 <CarbonDocumentSignature />
                 <span className="font-semibold text-[#101314]">

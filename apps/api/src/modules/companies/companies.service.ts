@@ -24,14 +24,22 @@ type CompanyRole = "admin" | "employee" | "seller";
 type CompanyUserStatus = "active" | "invited" | "disabled";
 
 type CompanyRow = {
+  address?: string | null;
+  budget_validity_days?: number | null;
+  commercial_terms?: string | null;
+  default_margin_percent?: number | string | null;
   document: string | null;
+  document_footer?: string | null;
   email: string | null;
   id: string;
+  instagram?: string | null;
   logo_url?: string | null;
   name: string;
+  payment_instructions?: string | null;
   phone: string | null;
   slug: string;
   updated_at: string;
+  website?: string | null;
 };
 
 type UserJoin = {
@@ -49,6 +57,36 @@ type CompanyUserRow = {
   user_id: string;
   users?: UserJoin | UserJoin[] | null;
 };
+
+const companySelectFields = [
+  "id",
+  "name",
+  "slug",
+  "document",
+  "email",
+  "phone",
+  "logo_url",
+  "address",
+  "website",
+  "instagram",
+  "budget_validity_days",
+  "default_margin_percent",
+  "commercial_terms",
+  "payment_instructions",
+  "document_footer",
+  "updated_at"
+].join(", ");
+
+const legacyCompanySelectFields = [
+  "id",
+  "name",
+  "slug",
+  "document",
+  "email",
+  "phone",
+  "logo_url",
+  "updated_at"
+].join(", ");
 
 function normalizeText(value: string | null | undefined) {
   const trimmed = value?.trim();
@@ -86,14 +124,22 @@ function getJoinedUser(row: CompanyUserRow) {
 
 function mapCompany(row: CompanyRow) {
   return {
+    address: row.address ?? null,
+    budgetValidityDays: Number(row.budget_validity_days ?? 15),
+    commercialTerms: row.commercial_terms ?? null,
+    defaultMarginPercent: Number(row.default_margin_percent ?? 30),
     document: row.document,
+    documentFooter: row.document_footer ?? null,
     email: row.email,
     id: row.id,
+    instagram: row.instagram ?? null,
     logoUrl: row.logo_url ?? null,
     name: row.name,
+    paymentInstructions: row.payment_instructions ?? null,
     phone: row.phone,
     slug: row.slug,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    website: row.website ?? null
   };
 }
 
@@ -137,14 +183,31 @@ export class CompaniesService {
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
+  private async getCompanyRow(
+    supabase: ReturnType<SupabaseClientFactory["createForUser"]>,
+    companyId: string
+  ) {
+    const result = await supabase
+      .from("companies")
+      .select(companySelectFields)
+      .eq("id", companyId)
+      .maybeSingle();
+
+    if (!result.error) {
+      return result;
+    }
+
+    return supabase
+      .from("companies")
+      .select(legacyCompanySelectFields)
+      .eq("id", companyId)
+      .maybeSingle();
+  }
+
   async getDocumentProfile(accessToken: string, companyId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
 
-    const { data, error } = await supabase
-      .from("companies")
-      .select("id, name, slug, document, email, phone, updated_at")
-      .eq("id", companyId)
-      .maybeSingle();
+    const { data, error } = await this.getCompanyRow(supabase, companyId);
 
     if (error) {
       throwDatabaseError(error);
@@ -155,7 +218,7 @@ export class CompaniesService {
     }
 
     return {
-      ...mapCompany(data as CompanyRow),
+      ...mapCompany(data as unknown as CompanyRow),
       logoUrl: await this.getCompanyLogoUrl(supabase, companyId)
     };
   }
@@ -164,11 +227,7 @@ export class CompaniesService {
     const supabase = this.supabaseFactory.createForUser(accessToken);
 
     const [companyResult, membersResult, subscription] = await Promise.all([
-      supabase
-        .from("companies")
-        .select("id, name, slug, document, email, phone, updated_at")
-        .eq("id", companyId)
-        .maybeSingle(),
+      this.getCompanyRow(supabase, companyId),
       supabase
         .from("company_users")
         .select("id, user_id, role, status, permissions, created_at")
@@ -212,7 +271,7 @@ export class CompaniesService {
 
     return {
       company: {
-        ...mapCompany(companyResult.data as CompanyRow),
+        ...mapCompany(companyResult.data as unknown as CompanyRow),
         logoUrl: companyLogoUrl
       },
       members: memberRows.map((member) =>
@@ -256,6 +315,38 @@ export class CompaniesService {
       payload.phone = normalizeText(dto.phone);
     }
 
+    if (dto.address !== undefined) {
+      payload.address = normalizeText(dto.address);
+    }
+
+    if (dto.website !== undefined) {
+      payload.website = normalizeText(dto.website);
+    }
+
+    if (dto.instagram !== undefined) {
+      payload.instagram = normalizeText(dto.instagram);
+    }
+
+    if (dto.budgetValidityDays !== undefined) {
+      payload.budget_validity_days = dto.budgetValidityDays;
+    }
+
+    if (dto.defaultMarginPercent !== undefined) {
+      payload.default_margin_percent = dto.defaultMarginPercent;
+    }
+
+    if (dto.commercialTerms !== undefined) {
+      payload.commercial_terms = normalizeText(dto.commercialTerms);
+    }
+
+    if (dto.paymentInstructions !== undefined) {
+      payload.payment_instructions = normalizeText(dto.paymentInstructions);
+    }
+
+    if (dto.documentFooter !== undefined) {
+      payload.document_footer = normalizeText(dto.documentFooter);
+    }
+
     if (dto.logoUrl !== undefined) {
       payload.logo_url = normalizeText(dto.logoUrl);
     }
@@ -264,7 +355,7 @@ export class CompaniesService {
       .from("companies")
       .update(payload)
       .eq("id", companyId)
-      .select("id, name, slug, document, email, phone, updated_at")
+      .select(companySelectFields)
       .maybeSingle();
 
     if (error) {
@@ -276,7 +367,7 @@ export class CompaniesService {
     }
 
     return {
-      ...mapCompany(data as CompanyRow),
+      ...mapCompany(data as unknown as CompanyRow),
       logoUrl:
         dto.logoUrl !== undefined
           ? normalizeText(dto.logoUrl)

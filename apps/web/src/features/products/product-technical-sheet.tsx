@@ -22,11 +22,19 @@ type ProductTechnicalSheetProps = {
 };
 
 type CompanyDetails = {
+  address: string | null;
+  budgetValidityDays: number;
+  commercialTerms: string | null;
+  defaultMarginPercent: number;
   document: string | null;
+  documentFooter: string | null;
   email: string | null;
+  instagram: string | null;
   logoUrl: string | null;
   name: string;
+  paymentInstructions: string | null;
   phone: string | null;
+  website: string | null;
 };
 
 type ProductItem = {
@@ -181,6 +189,18 @@ function getCompanyContactLines(company: CompanyDetails | null) {
     lines.push({ label: "Email", value: company.email });
   }
 
+  if (company?.address) {
+    lines.push({ label: "Endereço", value: company.address });
+  }
+
+  if (company?.website) {
+    lines.push({ label: "Site", value: company.website });
+  }
+
+  if (company?.instagram) {
+    lines.push({ label: "Instagram", value: company.instagram });
+  }
+
   return lines;
 }
 
@@ -327,6 +347,9 @@ export function ProductTechnicalSheet({
         { label: "Atualizada em", value: formatDateTime(product.updatedAt) }
       ]
     : [];
+  const footerText =
+    companyDetails?.documentFooter?.trim() ||
+    "Documento gerado pelo Carbon Flow com base na composição e no estoque atual do produto.";
 
   useEffect(() => {
     if (!product) {
@@ -696,10 +719,7 @@ export function ProductTechnicalSheet({
             <DocumentMetaStrip items={productMetaItems} />
 
             <footer className="mt-10 flex flex-col gap-3 border-t border-[#dfe5e3] pt-5 text-xs leading-5 text-[#6a7672] sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Documento gerado pelo Carbon Flow com base na composição e no
-                estoque atual do produto.
-              </span>
+              <span>{footerText}</span>
               <div className="flex flex-wrap items-center gap-3">
                 <CarbonDocumentSignature />
                 <span className="font-semibold text-[#101314]">

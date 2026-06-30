@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Building2,
   CreditCard,
+  FileText,
   ImagePlus,
   KeyRound,
   Loader2,
@@ -45,14 +46,22 @@ type PlanLimits = Record<PlanLimitKey, number | null>;
 type PlanUsage = Record<PlanLimitKey, number>;
 
 type Company = {
+  address: string | null;
+  budgetValidityDays: number;
+  commercialTerms: string | null;
+  defaultMarginPercent: number;
   document: string | null;
+  documentFooter: string | null;
   email: string | null;
   id: string;
+  instagram: string | null;
   logoUrl: string | null;
   name: string;
+  paymentInstructions: string | null;
   phone: string | null;
   slug: string;
   updatedAt: string;
+  website: string | null;
 };
 
 type Member = {
@@ -83,10 +92,18 @@ type SettingsPayload = {
 };
 
 type CompanyFormState = {
+  address: string;
+  budgetValidityDays: string;
+  commercialTerms: string;
+  defaultMarginPercent: string;
   document: string;
+  documentFooter: string;
   email: string;
+  instagram: string;
   name: string;
+  paymentInstructions: string;
   phone: string;
+  website: string;
 };
 
 type InviteFormState = {
@@ -262,10 +279,18 @@ function withUpdatedMembersUsage(
 
 function createFormState(company: Company): CompanyFormState {
   return {
+    address: company.address ?? "",
+    budgetValidityDays: String(company.budgetValidityDays ?? 15),
+    commercialTerms: company.commercialTerms ?? "",
+    defaultMarginPercent: String(company.defaultMarginPercent ?? 30),
     document: company.document ?? "",
+    documentFooter: company.documentFooter ?? "",
     email: company.email ?? "",
+    instagram: company.instagram ?? "",
     name: company.name,
-    phone: company.phone ?? ""
+    paymentInstructions: company.paymentInstructions ?? "",
+    phone: company.phone ?? "",
+    website: company.website ?? ""
   };
 }
 
@@ -297,10 +322,18 @@ function getPermissionSummary(member: Member) {
 
 export function SettingsManager({ companyId, role }: SettingsManagerProps) {
   const [form, setForm] = useState<CompanyFormState>({
+    address: "",
+    budgetValidityDays: "15",
+    commercialTerms: "",
+    defaultMarginPercent: "30",
     document: "",
+    documentFooter: "",
     email: "",
+    instagram: "",
     name: "",
-    phone: ""
+    paymentInstructions: "",
+    phone: "",
+    website: ""
   });
   const [inviteForm, setInviteForm] = useState<InviteFormState>({
     email: "",
@@ -435,12 +468,28 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
     setMessage(null);
 
     try {
+      const budgetValidityDays = Number(form.budgetValidityDays);
+      const defaultMarginPercent = Number(
+        form.defaultMarginPercent.replace(",", ".")
+      );
       const company = await request<Company>("/companies/settings", {
         body: JSON.stringify({
+          address: form.address.trim() || null,
+          budgetValidityDays: Number.isFinite(budgetValidityDays)
+            ? budgetValidityDays
+            : 15,
+          commercialTerms: form.commercialTerms.trim() || null,
+          defaultMarginPercent: Number.isFinite(defaultMarginPercent)
+            ? defaultMarginPercent
+            : 30,
           document: form.document.trim() || null,
+          documentFooter: form.documentFooter.trim() || null,
           email: form.email.trim() || null,
+          instagram: form.instagram.trim() || null,
           name: form.name.trim(),
-          phone: form.phone.trim() || null
+          paymentInstructions: form.paymentInstructions.trim() || null,
+          phone: form.phone.trim() || null,
+          website: form.website.trim() || null
         }),
         method: "PATCH"
       });
@@ -853,6 +902,139 @@ export function SettingsManager({ companyId, role }: SettingsManagerProps) {
                   value={form.email}
                 />
               </label>
+
+              <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                      <FileText
+                        className="h-4 w-4 text-[var(--primary)]"
+                        aria-hidden="true"
+                      />
+                      Configurações comerciais
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                      Usadas como padrão em orçamentos, fichas técnicas,
+                      impressões e documentos profissionais.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2 text-sm text-white">
+                    Validade padrão do orçamento
+                    <input
+                      className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                      disabled={!isAdmin}
+                      max="365"
+                      min="1"
+                      onChange={(event) =>
+                        updateField("budgetValidityDays", event.target.value)
+                      }
+                      type="number"
+                      value={form.budgetValidityDays}
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm text-white">
+                    Margem padrão dos produtos %
+                    <input
+                      className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                      disabled={!isAdmin}
+                      max="1000"
+                      min="0"
+                      onChange={(event) =>
+                        updateField("defaultMarginPercent", event.target.value)
+                      }
+                      step="0.01"
+                      type="number"
+                      value={form.defaultMarginPercent}
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-4 grid gap-2 text-sm text-white">
+                  Endereço comercial
+                  <textarea
+                    className="min-h-20 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                    disabled={!isAdmin}
+                    onChange={(event) =>
+                      updateField("address", event.target.value)
+                    }
+                    placeholder="Rua, número, bairro, cidade/UF"
+                    value={form.address}
+                  />
+                </label>
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="grid gap-2 text-sm text-white">
+                    Site
+                    <input
+                      className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                      disabled={!isAdmin}
+                      onChange={(event) =>
+                        updateField("website", event.target.value)
+                      }
+                      placeholder="https://suaempresa.com.br"
+                      type="text"
+                      value={form.website}
+                    />
+                  </label>
+
+                  <label className="grid gap-2 text-sm text-white">
+                    Instagram
+                    <input
+                      className="h-11 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                      disabled={!isAdmin}
+                      onChange={(event) =>
+                        updateField("instagram", event.target.value)
+                      }
+                      placeholder="@suaempresa"
+                      type="text"
+                      value={form.instagram}
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-4 grid gap-2 text-sm text-white">
+                  Condições comerciais padrão
+                  <textarea
+                    className="min-h-28 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                    disabled={!isAdmin}
+                    onChange={(event) =>
+                      updateField("commercialTerms", event.target.value)
+                    }
+                    placeholder="Ex: produção após aprovação, prazos, alterações de escopo, validade da proposta..."
+                    value={form.commercialTerms}
+                  />
+                </label>
+
+                <label className="mt-4 grid gap-2 text-sm text-white">
+                  Instruções de pagamento
+                  <textarea
+                    className="min-h-24 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                    disabled={!isAdmin}
+                    onChange={(event) =>
+                      updateField("paymentInstructions", event.target.value)
+                    }
+                    placeholder="Pix, entrada, parcelamento, dados bancários ou orientação comercial."
+                    value={form.paymentInstructions}
+                  />
+                </label>
+
+                <label className="mt-4 grid gap-2 text-sm text-white">
+                  Rodapé dos documentos
+                  <textarea
+                    className="min-h-20 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
+                    disabled={!isAdmin}
+                    onChange={(event) =>
+                      updateField("documentFooter", event.target.value)
+                    }
+                    placeholder="Mensagem curta que aparece no rodapé dos documentos."
+                    value={form.documentFooter}
+                  />
+                </label>
+              </div>
 
               <div className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
                 <p className="text-xs text-[var(--muted-foreground)]">Slug</p>

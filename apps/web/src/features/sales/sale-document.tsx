@@ -63,11 +63,19 @@ type SaleDocumentProps = {
 };
 
 type CompanyDetails = {
+  address: string | null;
+  budgetValidityDays: number;
+  commercialTerms: string | null;
+  defaultMarginPercent: number;
   document: string | null;
+  documentFooter: string | null;
   email: string | null;
+  instagram: string | null;
   logoUrl: string | null;
   name: string;
+  paymentInstructions: string | null;
   phone: string | null;
+  website: string | null;
 };
 
 type ContactLine = {
@@ -197,6 +205,18 @@ function getCompanyContactLines(company: CompanyDetails | null) {
     lines.push({ label: "Email", value: company.email });
   }
 
+  if (company?.address) {
+    lines.push({ label: "Endereço", value: company.address });
+  }
+
+  if (company?.website) {
+    lines.push({ label: "Site", value: company.website });
+  }
+
+  if (company?.instagram) {
+    lines.push({ label: "Instagram", value: company.instagram });
+  }
+
   return lines;
 }
 
@@ -298,6 +318,9 @@ export function SaleDocument({
         { label: "Origem", value: originLabel }
       ]
     : [];
+  const footerText =
+    companyDetails?.documentFooter?.trim() ||
+    "Documento gerado pelo Carbon Flow com base na venda registrada e nos itens baixados do estoque.";
 
   useEffect(() => {
     if (!sale) {
@@ -547,6 +570,17 @@ export function SaleDocument({
                   title="Condições do comprovante"
                 />
 
+                {companyDetails?.paymentInstructions ? (
+                  <article className="rounded-md border border-[#dfe5e3] bg-white p-5">
+                    <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
+                      Instruções comerciais
+                    </h2>
+                    <p className="mt-3 whitespace-pre-line text-sm leading-6 text-[#53615d]">
+                      {companyDetails.paymentInstructions}
+                    </p>
+                  </article>
+                ) : null}
+
                 <article className="rounded-md border border-[#dfe5e3] p-5">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
                     Recebimento do cliente
@@ -603,10 +637,7 @@ export function SaleDocument({
             <DocumentMetaStrip items={saleMetaItems} />
 
             <footer className="mt-10 flex flex-col gap-3 border-t border-[#dfe5e3] pt-5 text-xs leading-5 text-[#6a7672] sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Documento gerado pelo Carbon Flow com base na venda registrada e
-                nos itens baixados do estoque.
-              </span>
+              <span>{footerText}</span>
               <div className="flex flex-wrap items-center gap-3">
                 <CarbonDocumentSignature />
                 <span className="font-semibold text-[#101314]">

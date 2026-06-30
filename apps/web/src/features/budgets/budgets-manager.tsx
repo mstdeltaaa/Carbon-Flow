@@ -96,6 +96,11 @@ type Sale = {
   numberLabel: string;
 };
 
+type CompanyCommercialProfile = {
+  budgetValidityDays?: number;
+  commercialTerms?: string | null;
+};
+
 type BudgetFormItem = {
   productId: string;
   quantity: string;
@@ -173,6 +178,23 @@ function cloneEmptyForm(): BudgetFormState {
   };
 }
 
+function getDateInputAfterDays(days: number) {
+  const safeDays = Number.isFinite(days) ? Math.max(1, Math.round(days)) : 15;
+  const date = new Date();
+  date.setDate(date.getDate() + safeDays);
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+
+  return date.toISOString().slice(0, 10);
+}
+
+function buildDefaultBudgetForm(profile: CompanyCommercialProfile | null) {
+  return {
+    ...cloneEmptyForm(),
+    notes: profile?.commercialTerms?.trim() ?? "",
+    validUntil: getDateInputAfterDays(profile?.budgetValidityDays ?? 15)
+  };
+}
+
 function parseDecimal(value: string, fallback = 0) {
   const parsed = Number(value.replace(",", "."));
 
@@ -240,6 +262,8 @@ export function BudgetsManager({
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [commercialProfile, setCommercialProfile] =
+    useState<CompanyCommercialProfile | null>(null);
   const [search, setSearch] = useState("");
   const formSectionRef = useRef<HTMLElement | null>(null);
   const canConvert = canConvertBudgets(role, permissions);
@@ -280,11 +304,12 @@ export function BudgetsManager({
     setIsLoading(true);
     setMessage(null);
 
-    const [customersResult, productsResult, budgetsResult] =
+    const [customersResult, productsResult, budgetsResult, profileResult] =
       await Promise.allSettled([
         request<Customer[]>("/customers"),
         request<Product[]>("/products"),
-        request<Budget[]>("/budgets")
+        request<Budget[]>("/budgets"),
+        request<CompanyCommercialProfile>("/companies/document-profile")
       ]);
 
     if (customersResult.status === "fulfilled") {
@@ -297,6 +322,17 @@ export function BudgetsManager({
 
     if (budgetsResult.status === "fulfilled") {
       setBudgets(budgetsResult.value);
+    }
+
+    if (profileResult.status === "fulfilled") {
+      setCommercialProfile(profileResult.value);
+      setForm((current) => {
+        if (editingId || current.validUntil || current.notes.trim()) {
+          return current;
+        }
+
+        return buildDefaultBudgetForm(profileResult.value);
+      });
     }
 
     const errors = [customersResult, productsResult, budgetsResult]
@@ -312,7 +348,7 @@ export function BudgetsManager({
     }
 
     setIsLoading(false);
-  }, [request]);
+  }, [editingId, request]);
 
   useEffect(() => {
     void loadData();
@@ -429,7 +465,7 @@ export function BudgetsManager({
 
   function resetForm() {
     setEditingId(null);
-    setForm(cloneEmptyForm());
+    setForm(buildDefaultBudgetForm(commercialProfile));
     setMessage(null);
   }
 
