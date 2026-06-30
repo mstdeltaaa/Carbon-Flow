@@ -13,6 +13,7 @@ import { FinanceModule } from "./modules/finance/finance.module";
 import { HealthModule } from "./modules/health/health.module";
 import { IngredientsModule } from "./modules/ingredients/ingredients.module";
 import { ProductsModule } from "./modules/products/products.module";
+import { ReportsModule } from "./modules/reports/reports.module";
 import { SalesModule } from "./modules/sales/sales.module";
 import { StockModule } from "./modules/stock/stock.module";
 import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.module";
@@ -21,7 +22,7 @@ import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.modul
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ["../../.env.local", "../../.env", ".env.local", ".env"]
+      envFilePath: ["../../.env.local", "../../.env", ".env.local", ".env"],
     }),
     AccessControlModule,
     HealthModule,
@@ -35,9 +36,10 @@ import { SubscriptionsModule } from "./modules/subscriptions/subscriptions.modul
     CustomersModule,
     BudgetsModule,
     FinanceModule,
+    ReportsModule,
     SalesModule,
     AuditModule,
-    SubscriptionsModule
-  ]
+    SubscriptionsModule,
+  ],
 })
 export class AppModule {}

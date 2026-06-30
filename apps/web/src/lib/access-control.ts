@@ -13,7 +13,12 @@ export type CompanyPermission =
 export type CompanyPermissionMap = Record<CompanyPermission, boolean>;
 
 export type AppSection =
-  CompanyPermission | "history" | "billing" | "account" | "settings";
+  | CompanyPermission
+  | "history"
+  | "reports"
+  | "billing"
+  | "account"
+  | "settings";
 
 export const companyPermissions: CompanyPermission[] = [
   "dashboard",
@@ -23,7 +28,7 @@ export const companyPermissions: CompanyPermission[] = [
   "customers",
   "budgets",
   "sales",
-  "finance"
+  "finance",
 ];
 
 const employeeDefaultPathOrder: CompanyPermission[] = [
@@ -34,14 +39,14 @@ const employeeDefaultPathOrder: CompanyPermission[] = [
   "products",
   "stock",
   "ingredients",
-  "finance"
+  "finance",
 ];
 
 const sellerSections = new Set<AppSection>([
   "customers",
   "products",
   "budgets",
-  "account"
+  "account",
 ]);
 const adminSections = new Set<AppSection>([
   "dashboard",
@@ -52,10 +57,11 @@ const adminSections = new Set<AppSection>([
   "budgets",
   "sales",
   "finance",
+  "reports",
   "history",
   "billing",
   "account",
-  "settings"
+  "settings",
 ]);
 
 const sectionPaths: Record<CompanyPermission, string> = {
@@ -66,16 +72,16 @@ const sectionPaths: Record<CompanyPermission, string> = {
   ingredients: "/ingredients",
   products: "/products",
   sales: "/sales",
-  stock: "/stock"
+  stock: "/stock",
 };
 
 export function createEmptyPermissionMap(): CompanyPermissionMap {
   return companyPermissions.reduce(
     (permissions, permission) => ({
       ...permissions,
-      [permission]: false
+      [permission]: false,
     }),
-    {} as CompanyPermissionMap
+    {} as CompanyPermissionMap,
   );
 }
 
@@ -83,15 +89,15 @@ export function createDefaultEmployeePermissionMap(): CompanyPermissionMap {
   return companyPermissions.reduce(
     (permissions, permission) => ({
       ...permissions,
-      [permission]: true
+      [permission]: true,
     }),
-    {} as CompanyPermissionMap
+    {} as CompanyPermissionMap,
   );
 }
 
 export function normalizePermissionMap(
   value: unknown,
-  fallback: CompanyPermissionMap = createEmptyPermissionMap()
+  fallback: CompanyPermissionMap = createEmptyPermissionMap(),
 ): CompanyPermissionMap {
   const source =
     value && typeof value === "object" && !Array.isArray(value)
@@ -112,7 +118,7 @@ export function normalizePermissionMap(
 }
 
 export function normalizeRole(
-  role: string | null | undefined
+  role: string | null | undefined,
 ): CompanyRole | null {
   if (role === "admin" || role === "employee" || role === "seller") {
     return role;
@@ -124,7 +130,7 @@ export function normalizeRole(
 export function canAccessSection(
   role: string | null | undefined,
   section: AppSection,
-  permissions?: CompanyPermissionMap | null
+  permissions?: CompanyPermissionMap | null,
 ) {
   const normalizedRole = normalizeRole(role);
 
@@ -144,6 +150,13 @@ export function canAccessSection(
     return true;
   }
 
+  if (section === "reports") {
+    const employeePermissions =
+      permissions ?? createDefaultEmployeePermissionMap();
+
+    return employeePermissions.dashboard;
+  }
+
   if (
     section === "history" ||
     section === "billing" ||
@@ -160,7 +173,7 @@ export function canAccessSection(
 
 export function getDefaultPathForRole(
   role: string | null | undefined,
-  permissions?: CompanyPermissionMap | null
+  permissions?: CompanyPermissionMap | null,
 ) {
   const normalizedRole = normalizeRole(role);
 
@@ -174,7 +187,7 @@ export function getDefaultPathForRole(
 
   if (normalizedRole === "employee") {
     const firstAllowedSection = employeeDefaultPathOrder.find((section) =>
-      canAccessSection(normalizedRole, section, permissions)
+      canAccessSection(normalizedRole, section, permissions),
     );
 
     return firstAllowedSection ? sectionPaths[firstAllowedSection] : "/account";
@@ -185,14 +198,14 @@ export function getDefaultPathForRole(
 
 export function canManageProducts(
   role: string | null | undefined,
-  permissions?: CompanyPermissionMap | null
+  permissions?: CompanyPermissionMap | null,
 ) {
   return canAccessSection(role, "products", permissions) && role !== "seller";
 }
 
 export function canConvertBudgets(
   role: string | null | undefined,
-  permissions?: CompanyPermissionMap | null
+  permissions?: CompanyPermissionMap | null,
 ) {
   return (
     role !== "seller" &&

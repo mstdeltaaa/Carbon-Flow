@@ -8,7 +8,7 @@ import { selectActiveCompanyAction } from "@/app/actions";
 import {
   canAccessSection,
   getDefaultPathForRole,
-  type AppSection
+  type AppSection,
 } from "@/lib/access-control";
 import type { CompanyMembership } from "@/lib/current-company";
 
@@ -21,16 +21,17 @@ const sectionRoutes: Array<{ prefix: string; section: AppSection }> = [
   { prefix: "/budgets", section: "budgets" },
   { prefix: "/sales", section: "sales" },
   { prefix: "/finance", section: "finance" },
+  { prefix: "/reports", section: "reports" },
   { prefix: "/history", section: "history" },
   { prefix: "/billing", section: "billing" },
   { prefix: "/account", section: "account" },
-  { prefix: "/settings", section: "settings" }
+  { prefix: "/settings", section: "settings" },
 ];
 
 const roleLabels: Record<string, string> = {
   admin: "Admin",
   employee: "Funcionário",
-  seller: "Vendedor"
+  seller: "Vendedor",
 };
 
 type CompanySwitcherProps = {
@@ -40,14 +41,14 @@ type CompanySwitcherProps = {
 
 function getPathAfterCompanyChange(
   pathname: string,
-  membership: CompanyMembership
+  membership: CompanyMembership,
 ) {
   if (pathname.startsWith("/budgets/")) {
     return "/budgets";
   }
 
   const currentSection = sectionRoutes.find((route) =>
-    pathname.startsWith(route.prefix)
+    pathname.startsWith(route.prefix),
   )?.section;
 
   if (
@@ -62,7 +63,7 @@ function getPathAfterCompanyChange(
 
 export function CompanySwitcher({
   activeCompanyId,
-  memberships
+  memberships,
 }: CompanySwitcherProps) {
   const pathname = usePathname();
   const router = useRouter();

@@ -265,6 +265,8 @@ const pageTips: Record<string, string> = {
     "Em Insumos você cadastra matérias-primas, custo unitário, estoque atual e estoque mínimo.",
   products:
     "Em Produtos você monta composições com insumos, calcula custo e define preço de venda.",
+  reports:
+    "Em Relatórios você compara vendas, lucro estimado, produtos mais vendidos, financeiro e estoque baixo por período.",
   sales:
     "Em Vendas você registra pedidos aprovados, acompanha valores e baixa estoque automaticamente.",
   settings:
@@ -570,6 +572,13 @@ const quickActionById = {
     reply: "Vou abrir o financeiro.",
     section: "finance",
   },
+  reports: {
+    href: "/reports#app-content",
+    icon: BarChart3,
+    label: "Relatórios",
+    reply: "Vou abrir os relatórios.",
+    section: "reports",
+  },
   openStockList: {
     actionId: "open-stock-list",
     href: "/stock#stock-list",
@@ -641,6 +650,7 @@ const quickActionsByPage: Record<string, QuickAction[]> = {
   ],
   finance: [
     quickActionById.finance,
+    quickActionById.reports,
     quickActionById.sales,
     quickActionById.dashboard,
   ],
@@ -657,7 +667,13 @@ const quickActionsByPage: Record<string, QuickAction[]> = {
   sales: [
     quickActionById.createBudget,
     quickActionById.openStockList,
+    quickActionById.reports,
     quickActionById.dashboard,
+  ],
+  reports: [
+    quickActionById.dashboard,
+    quickActionById.finance,
+    quickActionById.sales,
   ],
   settings: [
     quickActionById.billing,
@@ -681,6 +697,7 @@ const navigationLinks = [
   { href: "/budgets#app-content", label: "Orçamentos", section: "budgets" },
   { href: "/sales#app-content", label: "Vendas", section: "sales" },
   { href: "/finance#app-content", label: "Financeiro", section: "finance" },
+  { href: "/reports#app-content", label: "Relatórios", section: "reports" },
 ] satisfies Array<{
   href: string;
   label: string;
@@ -1395,6 +1412,13 @@ function getDirectQuickAction(prompt: string) {
     ])
   ) {
     return quickActionById.finance;
+  }
+
+  if (
+    wantsNavigation &&
+    hasAnyTerm(normalized, ["relatorio", "relatorios", "analise", "indicador"])
+  ) {
+    return quickActionById.reports;
   }
 
   if (
@@ -2308,6 +2332,19 @@ function getAssistantReply(
   context: ReplyContext,
 ): string | null {
   const normalized = normalizePrompt(prompt);
+
+  if (
+    normalized.includes("relatorio") ||
+    normalized.includes("relatorios") ||
+    normalized.includes("indicador") ||
+    normalized.includes("analise")
+  ) {
+    if (!canAccessSection(context.role, "reports", context.permissions)) {
+      return getRestrictedReply("relatórios");
+    }
+
+    return "Em Relatórios você vê faturamento, lucro estimado, ticket médio, produtos mais vendidos, financeiro por categoria, vendas recentes e estoque baixo por período. Também dá para exportar um CSV.";
+  }
 
   if (
     normalized.includes("resumo") ||
