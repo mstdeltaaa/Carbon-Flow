@@ -5,6 +5,7 @@ import {
   BarChart3,
   Boxes,
   CheckCircle2,
+  ChevronUp,
   CreditCard,
   FileText,
   HelpCircle,
@@ -951,6 +952,84 @@ function getClampedAssistantPosition(
     rect?.width ?? 96,
     rect?.height ?? 96,
   );
+}
+
+function getEstimatedAssistantPanelSize() {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const width =
+    viewportWidth >= 1280
+      ? 544
+      : viewportWidth >= 1024
+        ? 512
+        : viewportWidth >= 768
+          ? 480
+          : viewportWidth >= 640
+            ? 432
+            : viewportWidth - 16;
+  const heightOffset =
+    viewportWidth >= 768 ? 128 : viewportWidth >= 640 ? 112 : 92;
+  const designHeight =
+    viewportWidth >= 1280 ? 832 : viewportWidth >= 768 ? 768 : 704;
+
+  return {
+    height: Math.max(
+      260,
+      Math.min(designHeight, viewportHeight - heightOffset),
+    ),
+    width: Math.max(280, Math.min(width, viewportWidth - 16)),
+  };
+}
+
+function clampAssistantPanelPosition(
+  position: AssistantPosition,
+  width: number,
+  height: number,
+) {
+  const margin = 8;
+  const maxX = Math.max(margin, window.innerWidth - width - margin);
+  const maxY = Math.max(margin, window.innerHeight - height - margin);
+
+  return {
+    x: Math.min(Math.max(position.x, margin), maxX),
+    y: Math.min(Math.max(position.y, margin), maxY),
+  };
+}
+
+function getClampedAssistantPanelPosition(
+  position: AssistantPosition,
+  element: HTMLElement | null,
+) {
+  const rect = element?.getBoundingClientRect();
+  const size = rect
+    ? { height: rect.height, width: rect.width }
+    : getEstimatedAssistantPanelSize();
+
+  return clampAssistantPanelPosition(position, size.width, size.height);
+}
+
+function getAssistantPanelPositionFromAnchor(anchorRect: DOMRect) {
+  const gap = 10;
+  const margin = 8;
+  const size = getEstimatedAssistantPanelSize();
+  const preferredX = anchorRect.right - size.width;
+  const preferredY =
+    anchorRect.top - size.height - gap >= margin
+      ? anchorRect.top - size.height - gap
+      : anchorRect.bottom + gap;
+
+  return clampAssistantPanelPosition(
+    { x: preferredX, y: preferredY },
+    size.width,
+    size.height,
+  );
+}
+
+function areAssistantPositionsEqual(
+  first: AssistantPosition,
+  second: AssistantPosition,
+) {
+  return first.x === second.x && first.y === second.y;
 }
 
 function getPageLoadId() {
@@ -2422,6 +2501,7 @@ export function VirtualAssistant({
 }: VirtualAssistantProps) {
   const router = useRouter();
   const assistantFrameRef = useRef<HTMLDivElement | null>(null);
+  const assistantPanelRef = useRef<HTMLElement | null>(null);
   const assistantDragStateRef = useRef<{
     originX: number;
     originY: number;
@@ -2451,7 +2531,10 @@ export function VirtualAssistant({
   const [openSessionAlertIds, setOpenSessionAlertIds] = useState<string[]>([]);
   const [assistantPosition, setAssistantPosition] =
     useState<AssistantPosition | null>(null);
+  const [assistantPanelPosition, setAssistantPanelPosition] =
+    useState<AssistantPosition | null>(null);
   const [isDraggingAssistant, setIsDraggingAssistant] = useState(false);
+  const [areAssistantActionsOpen, setAreAssistantActionsOpen] = useState(false);
   const [loadedConversationKey, setLoadedConversationKey] = useState<
     string | null
   >(null);
@@ -2631,6 +2714,24 @@ export function VirtualAssistant({
 
   useEffect(() => {
     function clampCurrentPosition() {
+      if (isOpen) {
+        setAssistantPanelPosition((current) => {
+          if (!current) {
+            return current;
+          }
+
+          const clamped = getClampedAssistantPanelPosition(
+            current,
+            assistantPanelRef.current ?? assistantFrameRef.current,
+          );
+
+          return areAssistantPositionsEqual(current, clamped)
+            ? current
+            : clamped;
+        });
+        return;
+      }
+
       setAssistantPosition((current) =>
         current
           ? getClampedAssistantPosition(current, assistantFrameRef.current)
@@ -2643,7 +2744,30 @@ export function VirtualAssistant({
     return () => {
       window.removeEventListener("resize", clampCurrentPosition);
     };
-  }, []);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !assistantPanelPosition) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setAssistantPanelPosition((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const clamped = getClampedAssistantPanelPosition(
+          current,
+          assistantPanelRef.current ?? assistantFrameRef.current,
+        );
+
+        return areAssistantPositionsEqual(current, clamped) ? current : clamped;
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [assistantPanelPosition, isOpen]);
 
   useEffect(
     () => () => {
@@ -3177,6 +3301,12 @@ export function VirtualAssistant({
   function openAssistant() {
     assistantDragCleanupRef.current?.();
     ignoreAssistantClickRef.current = false;
+    const anchorRect = assistantFrameRef.current?.getBoundingClientRect();
+
+    setAssistantPanelPosition(
+      anchorRect ? getAssistantPanelPositionFromAnchor(anchorRect) : null,
+    );
+    setAreAssistantActionsOpen(false);
     setMessages((current) => (current.length ? current : [introMessage]));
     setIsOpen(true);
   }
@@ -3184,6 +3314,8 @@ export function VirtualAssistant({
   function closeAssistant() {
     assistantDragCleanupRef.current?.();
     ignoreAssistantClickRef.current = false;
+    setAssistantPanelPosition(null);
+    setAreAssistantActionsOpen(false);
     setIsOpen(false);
   }
 
@@ -3212,6 +3344,7 @@ export function VirtualAssistant({
     const frame = assistantFrameRef.current;
     const rect = frame?.getBoundingClientRect();
     const dragHandle = event.currentTarget;
+    const shouldMovePanel = isOpen;
 
     if (!rect) {
       return;
@@ -3248,6 +3381,21 @@ export function VirtualAssistant({
         if (options.suppressNextClickOnDrag) {
           ignoreAssistantClickRef.current = true;
         }
+      }
+
+      const nextPosition = {
+        x: dragState.originX + deltaX,
+        y: dragState.originY + deltaY,
+      };
+
+      if (shouldMovePanel) {
+        setAssistantPanelPosition(
+          getClampedAssistantPanelPosition(
+            nextPosition,
+            assistantPanelRef.current ?? frame,
+          ),
+        );
+        return;
       }
 
       setAssistantPosition(
@@ -3347,23 +3495,29 @@ export function VirtualAssistant({
     }
   }
 
+  const activeAssistantPosition = isOpen
+    ? assistantPanelPosition
+    : assistantPosition;
+  const assistantFrameStyle = activeAssistantPosition
+    ? { left: activeAssistantPosition.x, top: activeAssistantPosition.y }
+    : undefined;
+
   return (
     <div
       className={[
         "fixed z-40 flex flex-col items-end justify-end",
-        assistantPosition
+        activeAssistantPosition
           ? ""
           : "inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6",
       ].join(" ")}
       ref={assistantFrameRef}
-      style={
-        assistantPosition
-          ? { left: assistantPosition.x, top: assistantPosition.y }
-          : undefined
-      }
+      style={assistantFrameStyle}
     >
       {isOpen ? (
-        <section className="flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]">
+        <section
+          className="relative flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]"
+          ref={assistantPanelRef}
+        >
           <header
             className={[
               "flex cursor-move touch-none select-none items-start justify-between gap-2 border-b border-[var(--border)] p-3 sm:items-center sm:gap-3 sm:p-4",
@@ -3577,71 +3731,113 @@ export function VirtualAssistant({
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="max-h-[42dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-[var(--border)] p-2.5 sm:max-h-none sm:overflow-visible sm:p-4">
-            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
-              Ações rápidas
-            </p>
-            <div className="mb-2 grid grid-cols-3 gap-1.5 sm:mb-3 sm:grid-cols-2 sm:gap-2">
-              {visibleQuickActions.map((item) => (
-                <button
-                  className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-1.5 text-center text-[11px] text-[var(--foreground)] transition hover:bg-[var(--secondary)] sm:min-h-10 sm:justify-start sm:gap-2 sm:px-2 sm:text-left sm:text-xs"
-                  key={item.label}
-                  onClick={() => runQuickAction(item)}
-                  type="button"
-                >
-                  <item.icon
-                    className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{item.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
-              Perguntas úteis
-            </p>
-            <div className="mb-2 grid grid-cols-2 gap-1.5 sm:mb-3 sm:gap-2">
-              {visibleQuickPrompts.map((item) => (
-                <button
-                  className="flex min-h-9 min-w-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-1.5 text-left text-[11px] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)] sm:min-h-10 sm:gap-2 sm:px-2 sm:text-xs"
-                  disabled={isAiThinking}
-                  key={item.label}
-                  onClick={() => void sendPrompt(item.prompt)}
-                  type="button"
-                >
-                  <item.icon
-                    className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{item.label}</span>
-                </button>
-              ))}
-            </div>
-
-            {visibleNavigationLinks.length ? (
-              <>
-                <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
-                  Navegação
-                </p>
-                <div className="mb-2 flex flex-wrap gap-1.5 sm:mb-3 sm:gap-2">
-                  {visibleNavigationLinks.map((item) => (
-                    <Link
-                      className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--primary)] transition hover:bg-[var(--secondary)] sm:text-xs"
-                      href={item.href}
-                      key={item.href}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </>
-            ) : null}
-
-            <form
-              className="sticky bottom-0 flex gap-2 bg-[var(--panel-strong)] pt-1"
-              onSubmit={handleSubmit}
+          {areAssistantActionsOpen ? (
+            <div
+              className="absolute inset-x-2 bottom-[4.75rem] z-20 max-h-[calc(100%-5.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] p-2.5 shadow-2xl shadow-[color:var(--shadow-color)] sm:inset-x-4 sm:bottom-[5.25rem] sm:max-h-[calc(100%-6rem)] sm:p-4"
+              id="assistant-quick-actions"
             >
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:text-[11px]">
+                  Ações rápidas
+                </p>
+                <button
+                  aria-label="Fechar ações rápidas"
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                  onClick={() => setAreAssistantActionsOpen(false)}
+                  type="button"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="mb-3 grid grid-cols-3 gap-1.5 sm:grid-cols-2 sm:gap-2">
+                {visibleQuickActions.map((item) => (
+                  <button
+                    className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-1.5 text-center text-[11px] text-[var(--foreground)] transition hover:bg-[var(--secondary)] sm:min-h-10 sm:justify-start sm:gap-2 sm:px-2 sm:text-left sm:text-xs"
+                    key={item.label}
+                    onClick={() => runQuickAction(item)}
+                    type="button"
+                  >
+                    <item.icon
+                      className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
+                Perguntas úteis
+              </p>
+              <div className="mb-3 grid grid-cols-2 gap-1.5 sm:gap-2">
+                {visibleQuickPrompts.map((item) => (
+                  <button
+                    className="flex min-h-9 min-w-0 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-1.5 text-left text-[11px] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)] sm:min-h-10 sm:gap-2 sm:px-2 sm:text-xs"
+                    disabled={isAiThinking}
+                    key={item.label}
+                    onClick={() => {
+                      setAreAssistantActionsOpen(false);
+                      void sendPrompt(item.prompt);
+                    }}
+                    type="button"
+                  >
+                    <item.icon
+                      className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4"
+                      aria-hidden="true"
+                    />
+                    <span className="truncate">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {visibleNavigationLinks.length ? (
+                <>
+                  <p className="mb-1.5 text-[10px] font-medium uppercase tracking-normal text-[var(--muted-foreground)] sm:mb-2 sm:text-[11px]">
+                    Navegação
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                    {visibleNavigationLinks.map((item) => (
+                      <Link
+                        className="rounded-md bg-[var(--surface-soft)] px-2 py-1 text-[11px] text-[var(--primary)] transition hover:bg-[var(--secondary)] sm:text-xs"
+                        href={item.href}
+                        key={item.href}
+                        onClick={() => setAreAssistantActionsOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="shrink-0 border-t border-[var(--border)] bg-[var(--panel-strong)] p-2.5 sm:p-4">
+            <button
+              aria-controls="assistant-quick-actions"
+              aria-expanded={areAssistantActionsOpen}
+              className="mb-2 flex w-full items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface-muted)] px-3 py-2 text-left text-xs text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+              onClick={() => setAreAssistantActionsOpen((current) => !current)}
+              type="button"
+            >
+              <span className="font-medium text-[var(--foreground)]">
+                Ações rápidas
+              </span>
+              <span
+                aria-hidden="true"
+                className={[
+                  "flex flex-col items-center justify-center text-[var(--primary)] transition",
+                  areAssistantActionsOpen ? "rotate-180" : "",
+                ].join(" ")}
+              >
+                <ChevronUp className="h-2.5 w-2.5" />
+                <ChevronUp className="-mt-1 h-3 w-3" />
+                <ChevronUp className="-mt-1 h-3.5 w-3.5" />
+              </span>
+            </button>
+
+            <form className="flex gap-2" onSubmit={handleSubmit}>
               <input
                 className="h-10 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
                 disabled={isAiThinking}
