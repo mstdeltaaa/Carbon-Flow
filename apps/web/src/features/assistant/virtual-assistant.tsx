@@ -949,6 +949,26 @@ function getClampedAssistantPosition(
   );
 }
 
+function wasPageReloaded() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  const navigationEntry = window.performance
+    ?.getEntriesByType("navigation")
+    .at(0) as PerformanceNavigationTiming | undefined;
+
+  if (navigationEntry) {
+    return navigationEntry.type === "reload";
+  }
+
+  const legacyPerformance = window.performance as Performance & {
+    navigation?: { type?: number };
+  };
+
+  return legacyPerformance.navigation?.type === 1;
+}
+
 function canUseQuickAction(
   action: QuickAction,
   role: string | null,
@@ -2528,10 +2548,14 @@ export function VirtualAssistant({
     const storedPreferences = readStoredAssistantPreferences(
       preferencesStorageKey,
     );
+    const shouldResetPosition = wasPageReloaded();
+
     setAssistantMode(storedPreferences?.mode ?? "general");
     setDismissedAlertIds(storedPreferences?.dismissedAlertIds ?? []);
     setSeenAlertIds(storedPreferences?.seenAlertIds ?? []);
-    setAssistantPosition(storedPreferences?.position ?? null);
+    setAssistantPosition(
+      shouldResetPosition ? null : (storedPreferences?.position ?? null),
+    );
     setLoadedPreferencesKey(preferencesStorageKey);
   }, [preferencesStorageKey]);
 
