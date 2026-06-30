@@ -2525,18 +2525,12 @@ export function VirtualAssistant({
     const storedPreferences = readStoredAssistantPreferences(
       preferencesStorageKey,
     );
-    const storedMode = storedPreferences?.mode ?? "general";
-
-    setAssistantMode(
-      canUseAssistantMode(storedMode, role, permissions)
-        ? storedMode
-        : "general",
-    );
+    setAssistantMode(storedPreferences?.mode ?? "general");
     setDismissedAlertIds(storedPreferences?.dismissedAlertIds ?? []);
     setSeenAlertIds(storedPreferences?.seenAlertIds ?? []);
     setAssistantPosition(storedPreferences?.position ?? null);
     setLoadedPreferencesKey(preferencesStorageKey);
-  }, [permissions, preferencesStorageKey, role]);
+  }, [preferencesStorageKey]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2559,24 +2553,6 @@ export function VirtualAssistant({
       [...new Set([...current, ...currentUnreadAlertIds])].slice(-50),
     );
   }, [activeProactiveAlerts, isOpen, seenAlertIds]);
-
-  useEffect(() => {
-    if (!assistantPosition) {
-      return;
-    }
-
-    const nextPosition = getClampedAssistantPosition(
-      assistantPosition,
-      assistantFrameRef.current,
-    );
-
-    if (
-      nextPosition.x !== assistantPosition.x ||
-      nextPosition.y !== assistantPosition.y
-    ) {
-      setAssistantPosition(nextPosition);
-    }
-  }, [assistantPosition, isOpen]);
 
   useEffect(() => {
     function clampCurrentPosition() {
