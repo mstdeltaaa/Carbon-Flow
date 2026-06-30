@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { randomUUID } from "crypto";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
 import {
@@ -39,6 +40,29 @@ type MercadoPagoPreapprovalResponse = {
   status?: string;
 };
 
+type MercadoPagoPaymentResponse = {
+  currency_id?: string;
+  date_of_expiration?: string | null;
+  external_reference?: string | null;
+  id?: number | string;
+  payer?: {
+    email?: string | null;
+    id?: number | string | null;
+  };
+  payment_method_id?: string;
+  point_of_interaction?: {
+    transaction_data?: {
+      qr_code?: string;
+      qr_code_base64?: string;
+      ticket_url?: string;
+    };
+  };
+  status?: string;
+  transaction_amount?: number;
+};
+
+const proPixExternalReferencePrefix = "carbon_flow_pro_pix:";
+
 const planLimitKeys: PlanLimitKey[] = [
   "users",
   "ingredients",
@@ -68,6 +92,27 @@ function getNextMonthlyPeriodEndIso() {
   periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
   return periodEnd.toISOString();
+}
+
+function getExtendedMonthlyPeriodEndIso(currentPeriodEnd: string | null) {
+  const parsedCurrentEnd = currentPeriodEnd
+    ? Date.parse(currentPeriodEnd)
+    : Number.NaN;
+  const baseDate =
+    Number.isFinite(parsedCurrentEnd) && parsedCurrentEnd > Date.now()
+      ? new Date(parsedCurrentEnd)
+      : new Date();
+
+  baseDate.setUTCMonth(baseDate.getUTCMonth() + 1);
+
+  return baseDate.toISOString();
+}
+
+function getPixExpirationIso() {
+  const expiration = new Date();
+  expiration.setUTCMinutes(expiration.getUTCMinutes() + 30);
+
+  return expiration.toISOString();
 }
 
 function toCount(value: number | null) {
@@ -268,6 +313,45 @@ export class SubscriptionsService {
     };
   }
 
+  async createProPixPayment(companyId: string, userEmail?: string) {
+    const subscription = await this.getSubscription(companyId);
+
+    if (subscription.plan === "enterprise") {
+      throw new BadRequestException(
+        "O plano Empresa deve ser gerenciado pelo suporte.",
+      );
+    }
+
+    if (!userEmail) {
+      throw new BadRequestException(
+        "Nao foi possivel identificar o email do usuario para gerar o Pix.",
+      );
+    }
+
+    const payment = await this.createMercadoPagoPixPayment(
+      companyId,
+      this.getMercadoPagoPayerReference(userEmail),
+    );
+    const transactionData = payment.point_of_interaction?.transaction_data;
+
+    if (!payment.id || !transactionData?.qr_code) {
+      throw new BadRequestException(
+        "O Mercado Pago nao retornou um Pix valido para pagamento.",
+      );
+    }
+
+    return {
+      amount: payment.transaction_amount ?? this.getMercadoPagoProPrice(),
+      currencyId: payment.currency_id ?? this.getMercadoPagoCurrencyId(),
+      expiresAt: payment.date_of_expiration ?? null,
+      paymentId: String(payment.id),
+      qrCode: transactionData.qr_code,
+      qrCodeBase64: transactionData.qr_code_base64 ?? null,
+      status: payment.status ?? "pending",
+      ticketUrl: transactionData.ticket_url ?? null,
+    };
+  }
+
   async syncMercadoPagoSubscription(preapprovalId: string) {
     const preapproval = {
       ...(await this.getMercadoPagoPreapprovalById(preapprovalId)),
@@ -360,6 +444,98 @@ export class SubscriptionsService {
     };
   }
 
+  async syncMercadoPagoPayment(paymentId: string) {
+    const payment = {
+      ...(await this.getMercadoPagoPaymentById(paymentId)),
+      id: paymentId,
+    };
+    const companyId = this.getCompanyIdFromPixExternalReference(
+      payment.external_reference,
+    );
+
+    if (!companyId || payment.payment_method_id !== "pix") {
+      return {
+        ignored: true,
+        paymentId,
+        status: payment.status ?? "unknown",
+      };
+    }
+
+    if (payment.status !== "approved") {
+      return {
+        companyId,
+        paymentId,
+        status: payment.status ?? "pending",
+      };
+    }
+
+    const supabase = this.supabaseFactory.createAdmin();
+    const { data: currentSubscription, error: selectError } = await supabase
+      .from("subscriptions")
+      .select("current_period_end, provider_subscription_id")
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (selectError) {
+      throwDatabaseError(selectError);
+    }
+
+    const subscription = currentSubscription as Pick<
+      SubscriptionRow,
+      "current_period_end" | "provider_subscription_id"
+    > | null;
+    const providerPaymentReference = `pix:${payment.id}`;
+
+    if (subscription?.provider_subscription_id === providerPaymentReference) {
+      return {
+        alreadyProcessed: true,
+        companyId,
+        paymentId,
+        plan: "pro",
+        status: "active",
+      };
+    }
+
+    const { error } = await supabase.from("subscriptions").upsert(
+      {
+        company_id: companyId,
+        current_period_end: getExtendedMonthlyPeriodEndIso(
+          subscription?.current_period_end ?? null,
+        ),
+        limits: defaultPlanLimits.pro,
+        plan: "pro",
+        provider: "mercado_pago",
+        provider_customer_id: this.getMercadoPagoPaymentCustomerId(payment),
+        provider_subscription_id: providerPaymentReference,
+        status: "active",
+      },
+      { onConflict: "company_id" },
+    );
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return {
+      companyId,
+      paymentId,
+      plan: "pro",
+      status: "active",
+    };
+  }
+
+  async refreshProPixPayment(companyId: string, paymentId: string) {
+    const result = await this.syncMercadoPagoPayment(paymentId);
+
+    if (!("companyId" in result) || result.companyId !== companyId) {
+      throw new BadRequestException(
+        "Pagamento Pix nao vinculado a esta empresa.",
+      );
+    }
+
+    return this.getOverview(companyId);
+  }
+
   async assertCanCreate(companyId: string, resource: PlanLimitKey) {
     const overview = await this.getOverview(companyId);
     const limit = overview.limits[resource];
@@ -430,8 +606,7 @@ export class SubscriptionsService {
     const notificationUrl = this.getMercadoPagoWebhookUrl();
     const payload: Record<string, unknown> = {
       auto_recurring: {
-        currency_id:
-          this.config.get<string>("MERCADO_PAGO_CURRENCY_ID") ?? "BRL",
+        currency_id: this.getMercadoPagoCurrencyId(),
         frequency: 1,
         frequency_type: "months",
         transaction_amount: price,
@@ -460,12 +635,59 @@ export class SubscriptionsService {
     );
   }
 
+  private createMercadoPagoPixPayment(companyId: string, userEmail: string) {
+    const accessToken = this.getRequiredConfig("MERCADO_PAGO_ACCESS_TOKEN");
+    const notificationUrl = this.getMercadoPagoWebhookUrl();
+    const payload: Record<string, unknown> = {
+      date_of_expiration: getPixExpirationIso(),
+      description: "Carbon Flow Pro - 1 mes",
+      external_reference: `${proPixExternalReferencePrefix}${companyId}`,
+      payer: {
+        email: userEmail,
+      },
+      payment_method_id: "pix",
+      transaction_amount: this.getMercadoPagoProPrice(),
+    };
+
+    if (notificationUrl) {
+      payload.notification_url = notificationUrl;
+    }
+
+    return this.mercadoPagoFetch<MercadoPagoPaymentResponse>(
+      "https://api.mercadopago.com/v1/payments",
+      {
+        body: JSON.stringify(payload),
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "X-Idempotency-Key": randomUUID(),
+        },
+        method: "POST",
+      },
+    );
+  }
+
   private getMercadoPagoPreapprovalById(preapprovalId: string) {
     const accessToken = this.getRequiredConfig("MERCADO_PAGO_ACCESS_TOKEN");
 
     return this.mercadoPagoFetch<MercadoPagoPreapprovalResponse>(
       `https://api.mercadopago.com/preapproval/${encodeURIComponent(
         preapprovalId,
+      )}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      },
+    );
+  }
+
+  private getMercadoPagoPaymentById(paymentId: string) {
+    const accessToken = this.getRequiredConfig("MERCADO_PAGO_ACCESS_TOKEN");
+
+    return this.mercadoPagoFetch<MercadoPagoPaymentResponse>(
+      `https://api.mercadopago.com/v1/payments/${encodeURIComponent(
+        paymentId,
       )}`,
       {
         headers: {
@@ -522,6 +744,20 @@ export class SubscriptionsService {
     return customerId === null ? null : String(customerId);
   }
 
+  private getMercadoPagoPaymentCustomerId(payment: MercadoPagoPaymentResponse) {
+    const customerId = payment.payer?.id ?? payment.payer?.email ?? null;
+
+    return customerId === null ? null : String(customerId);
+  }
+
+  private getCompanyIdFromPixExternalReference(reference?: string | null) {
+    if (!reference?.startsWith(proPixExternalReferencePrefix)) {
+      return null;
+    }
+
+    return reference.slice(proPixExternalReferencePrefix.length);
+  }
+
   private getMercadoPagoProPrice() {
     const configuredPrice =
       this.config.get<string>("MERCADO_PAGO_PRO_PRICE") ?? "45";
@@ -534,6 +770,10 @@ export class SubscriptionsService {
     }
 
     return parsedPrice;
+  }
+
+  private getMercadoPagoCurrencyId() {
+    return this.config.get<string>("MERCADO_PAGO_CURRENCY_ID") ?? "BRL";
   }
 
   private getAppBackUrl() {

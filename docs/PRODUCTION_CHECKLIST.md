@@ -97,10 +97,11 @@ Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, `OPENAI_API_KE
 ## 9. Mercado Pago
 
 - Configure o webhook para `https://SUA-API/webhooks/mercado-pago`.
-- Ative o evento de assinaturas/preapproval no Mercado Pago.
+- Ative os eventos de assinaturas/preapproval e pagamentos/payment no Mercado Pago.
 - Guarde o segredo do webhook em `MERCADO_PAGO_WEBHOOK_SECRET`.
 - Ao usar credenciais de teste, configure `MERCADO_PAGO_TEST_PAYER_EMAIL` com o email de uma conta compradora teste. O campo Usuario serve apenas para login no checkout.
 - Teste o checkout do plano Pro com uma empresa de teste.
+- Teste o Pix mensal avulso do plano Pro.
 - Confirme que a empresa so muda para Pro depois do pagamento autorizado.
 - Confirme que cancelamento ou pausa remove os limites Pro.
 

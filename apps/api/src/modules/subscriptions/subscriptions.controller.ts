@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
@@ -41,5 +41,29 @@ export class SubscriptionsController {
     @CurrentUser() user?: CurrentUserPayload,
   ) {
     return this.subscriptionsService.createProCheckout(company.id, user?.email);
+  }
+
+  @Post("checkout/pro-pix")
+  @CompanyRoles("admin")
+  createProPixPayment(
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.subscriptionsService.createProPixPayment(
+      company.id,
+      user?.email,
+    );
+  }
+
+  @Post("checkout/pro-pix/:paymentId/sync")
+  @CompanyRoles("admin")
+  syncProPixPayment(
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @Param("paymentId") paymentId: string,
+  ) {
+    return this.subscriptionsService.refreshProPixPayment(
+      company.id,
+      paymentId,
+    );
   }
 }

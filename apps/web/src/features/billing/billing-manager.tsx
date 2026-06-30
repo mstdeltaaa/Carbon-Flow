@@ -2,9 +2,13 @@
 
 import {
   Check,
+  Copy,
   CreditCard,
+  ExternalLink,
   Loader2,
   MessageCircle,
+  QrCode,
+  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -42,6 +46,17 @@ type SettingsPayload = {
 type CheckoutPayload = {
   checkoutUrl: string;
   providerSubscriptionId: string;
+};
+
+type PixPaymentPayload = {
+  amount: number;
+  currencyId: string;
+  expiresAt: string | null;
+  paymentId: string;
+  qrCode: string;
+  qrCodeBase64: string | null;
+  status: string;
+  ticketUrl: string | null;
 };
 
 type BillingManagerProps = {
@@ -224,10 +239,39 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
+function formatDateTime(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function formatCurrency(value: number, currencyId = "BRL") {
+  return new Intl.NumberFormat("pt-BR", {
+    currency: currencyId,
+    style: "currency",
+  }).format(value);
+}
+
 export function BillingManager({ companyId }: BillingManagerProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isPixAction, setIsPixAction] = useState(false);
+  const [isSyncingPix, setIsSyncingPix] = useState(false);
   const [planAction, setPlanAction] = useState<SubscriptionPlan | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [pixPayment, setPixPayment] = useState<PixPaymentPayload | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
 
   const request = useCallback(
@@ -369,6 +413,82 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     );
   }
 
+  async function handleProPixClick() {
+    setIsPixAction(true);
+    setMessage(null);
+    setPixPayment(null);
+
+    try {
+      const payment = await request<PixPaymentPayload>(
+        "/subscriptions/checkout/pro-pix",
+        { method: "POST" },
+      );
+
+      setPixPayment(payment);
+      setMessage(
+        "Pix gerado. Depois do pagamento, o Pro será liberado por 1 mês.",
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível gerar o Pix do Pro.",
+      );
+    } finally {
+      setIsPixAction(false);
+    }
+  }
+
+  async function handleCopyPixCode() {
+    if (!pixPayment) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(pixPayment.qrCode);
+      setMessage("Código Pix copiado.");
+    } catch {
+      setMessage("Não foi possível copiar automaticamente o código Pix.");
+    }
+  }
+
+  async function handleRefreshPixPayment() {
+    if (!pixPayment) {
+      return;
+    }
+
+    setIsSyncingPix(true);
+    setMessage(null);
+
+    try {
+      const updatedSubscription = await request<Subscription>(
+        `/subscriptions/checkout/pro-pix/${pixPayment.paymentId}/sync`,
+        { method: "POST" },
+      );
+
+      setSubscription(updatedSubscription);
+
+      if (
+        updatedSubscription.plan === "pro" &&
+        updatedSubscription.status === "active"
+      ) {
+        setPixPayment(null);
+        setMessage("Pagamento confirmado. O plano Pro está ativo.");
+        return;
+      }
+
+      setMessage("Ainda não identificamos a confirmação do Pix.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível atualizar o status do Pix.",
+      );
+    } finally {
+      setIsSyncingPix(false);
+    }
+  }
+
   return (
     <>
       <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
@@ -406,6 +526,72 @@ export function BillingManager({ companyId }: BillingManagerProps) {
         <p className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-4 text-sm text-[var(--muted-foreground)]">
           {message}
         </p>
+      ) : null}
+
+      {pixPayment ? (
+        <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm text-[var(--primary)]">Pix mensal</p>
+              <h2 className="mt-2 text-xl font-semibold text-white">
+                Pro por 1 mês
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                Valor:{" "}
+                <span className="font-medium text-white">
+                  {formatCurrency(pixPayment.amount, pixPayment.currencyId)}
+                </span>
+                {formatDateTime(pixPayment.expiresAt)
+                  ? ` • vence em ${formatDateTime(pixPayment.expiresAt)}`
+                  : ""}
+              </p>
+            </div>
+
+            {pixPayment.qrCodeBase64 ? (
+              <div className="flex justify-start lg:justify-end">
+                <img
+                  alt="QR Code Pix do plano Pro"
+                  className="h-44 w-44 rounded-md border border-[var(--border)] bg-white p-2"
+                  src={`data:image/png;base64,${pixPayment.qrCodeBase64}`}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <textarea
+            className="mt-5 min-h-28 w-full resize-none rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.52)] p-3 text-xs leading-5 text-white outline-none"
+            readOnly
+            value={pixPayment.qrCode}
+          />
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <Button onClick={handleCopyPixCode} type="button">
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Copiar código Pix
+            </Button>
+            <Button
+              disabled={isSyncingPix}
+              onClick={handleRefreshPixPayment}
+              type="button"
+              variant="secondary"
+            >
+              {isSyncingPix ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              )}
+              Já paguei
+            </Button>
+            {pixPayment.ticketUrl ? (
+              <Button asChild type="button" variant="secondary">
+                <a href={pixPayment.ticketUrl} rel="noreferrer" target="_blank">
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  Abrir pagamento
+                </a>
+              </Button>
+            ) : null}
+          </div>
+        </section>
       ) : null}
 
       {isLoading ? (
@@ -583,6 +769,34 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                                 : "Solicitar upgrade"}
                       </Button>
                     )}
+                    {plan.id === "pro" ? (
+                      <Button
+                        className="mt-2 w-full"
+                        disabled={
+                          Boolean(planAction) || isPixAction || isSyncingPix
+                        }
+                        onClick={handleProPixClick}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {isPixAction ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <QrCode className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        {isPixAction
+                          ? "Gerando Pix..."
+                          : currentPlan === "pro" &&
+                              subscription.status === "active"
+                            ? "Adicionar 1 mês com Pix"
+                            : isProTrialCard
+                              ? "Garantir 1 mês com Pix"
+                              : "Pagar 1 mês com Pix"}
+                      </Button>
+                    ) : null}
                   </div>
                 </article>
               );

@@ -62,6 +62,16 @@ export class MercadoPagoWebhookController {
       };
     }
 
+    if (eventType.includes("payment")) {
+      const result =
+        await this.subscriptionsService.syncMercadoPagoPayment(eventId);
+
+      return {
+        received: true,
+        result,
+      };
+    }
+
     return {
       received: true,
     };
