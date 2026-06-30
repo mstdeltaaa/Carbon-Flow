@@ -393,6 +393,12 @@ body {
   letter-spacing: 0;
 }
 
+.carbon-mobile-glass {
+  background-color: color-mix(in srgb, var(--panel-strong) 50%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
 * {
   scrollbar-color: var(--border) transparent;
   scrollbar-width: thin;
