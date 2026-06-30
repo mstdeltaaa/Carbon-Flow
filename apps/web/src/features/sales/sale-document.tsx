@@ -7,7 +7,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   CarbonDocumentSignature,
-  DocumentPrimaryLogo
+  DocumentMetaStrip,
+  DocumentPrimaryLogo,
+  DocumentTermsList,
+  DocumentWatermark
 } from "@/features/documents/document-branding";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -281,6 +284,33 @@ export function SaleDocument({
   const companyContactLines = getCompanyContactLines(companyDetails);
   const customerContactLines = getCustomerContactLines(sale?.customer ?? null);
   const originLabel = sale?.budget?.numberLabel ?? "Venda direta";
+  const saleTerms = [
+    "Este comprovante registra a venda dentro do Carbon Flow e resume os produtos vendidos.",
+    "A baixa de estoque é operacional e considera a composição cadastrada nos produtos.",
+    "Cancelamentos e estornos devem ser feitos no sistema para manter estoque e histórico corretos.",
+    "Este documento tem finalidade gerencial e não substitui documento fiscal quando aplicável."
+  ];
+  const saleMetaItems = sale
+    ? [
+        { label: "Documento", value: "Comprovante de venda" },
+        { label: "Número", value: sale.numberLabel },
+        { label: "Status", value: statusLabels[sale.status] },
+        { label: "Origem", value: originLabel }
+      ]
+    : [];
+
+  useEffect(() => {
+    if (!sale) {
+      return;
+    }
+
+    const previousTitle = document.title;
+    document.title = `Venda ${sale.numberLabel} - ${displayCompanyName}`;
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [displayCompanyName, sale]);
 
   return (
     <main className="sale-print-page min-h-screen bg-[#080a0b] px-4 py-4 sm:px-6 lg:py-8">
@@ -328,8 +358,9 @@ export function SaleDocument({
       ) : null}
 
       {!isLoading && sale ? (
-        <section className="sale-document mx-auto max-w-6xl overflow-hidden rounded-lg bg-white text-[#101314] shadow-2xl shadow-black/30">
-          <header className="sale-document-cover bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
+        <section className="sale-document relative mx-auto max-w-6xl overflow-hidden rounded-lg bg-white text-[#101314] shadow-2xl shadow-black/30">
+          <DocumentWatermark text="Venda" />
+          <header className="sale-document-cover relative z-10 bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 gap-4">
                 <DocumentPrimaryLogo
@@ -393,7 +424,7 @@ export function SaleDocument({
             </div>
           </header>
 
-          <div className="p-6 sm:p-8 lg:p-10">
+          <div className="relative z-10 p-6 sm:p-8 lg:p-10">
             <section className="sale-document-summary grid gap-4 border-b border-[#dfe5e3] pb-7 md:grid-cols-[1.4fr_1fr_1fr]">
               <article className="rounded-md border border-[#dfe5e3] bg-[#f7faf8] p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#17633f]">
@@ -511,6 +542,11 @@ export function SaleDocument({
                   </p>
                 </article>
 
+                <DocumentTermsList
+                  items={saleTerms}
+                  title="Condições do comprovante"
+                />
+
                 <article className="rounded-md border border-[#dfe5e3] p-5">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
                     Recebimento do cliente
@@ -563,6 +599,8 @@ export function SaleDocument({
                 </p>
               </aside>
             </section>
+
+            <DocumentMetaStrip items={saleMetaItems} />
 
             <footer className="mt-10 flex flex-col gap-3 border-t border-[#dfe5e3] pt-5 text-xs leading-5 text-[#6a7672] sm:flex-row sm:items-center sm:justify-between">
               <span>

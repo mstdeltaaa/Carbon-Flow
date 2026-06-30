@@ -7,7 +7,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   CarbonDocumentSignature,
-  DocumentPrimaryLogo
+  DocumentMetaStrip,
+  DocumentPrimaryLogo,
+  DocumentTermsList,
+  DocumentWatermark
 } from "@/features/documents/document-branding";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -310,6 +313,33 @@ export function ProductTechnicalSheet({
     product && product.salePrice > 0 ? profit / product.salePrice : 0;
   const markup =
     product && product.estimatedCost > 0 ? profit / product.estimatedCost : 0;
+  const productTerms = [
+    "Ficha técnica de uso interno para orientar produção, compra de insumos e conferência de custos.",
+    "Os custos são calculados com base nos insumos e fatores de conversão cadastrados no produto.",
+    "A produção possível é uma estimativa pelo estoque atual e pode variar conforme perdas ou ajustes manuais.",
+    "Revise composição, unidades e preços antes de usar esta ficha para produção em escala."
+  ];
+  const productMetaItems = product
+    ? [
+        { label: "Documento", value: "Ficha técnica" },
+        { label: "Produto", value: product.name },
+        { label: "SKU", value: product.sku ?? "Sem SKU" },
+        { label: "Atualizada em", value: formatDateTime(product.updatedAt) }
+      ]
+    : [];
+
+  useEffect(() => {
+    if (!product) {
+      return;
+    }
+
+    const previousTitle = document.title;
+    document.title = `Ficha técnica ${product.name} - ${displayCompanyName}`;
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [displayCompanyName, product]);
 
   return (
     <main className="product-sheet-page min-h-screen bg-[#080a0b] px-4 py-4 sm:px-6 lg:py-8">
@@ -361,8 +391,9 @@ export function ProductTechnicalSheet({
       ) : null}
 
       {!isLoading && product ? (
-        <section className="product-sheet mx-auto max-w-6xl overflow-hidden rounded-lg bg-white text-[#101314] shadow-2xl shadow-black/30">
-          <header className="product-sheet-cover bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
+        <section className="product-sheet relative mx-auto max-w-6xl overflow-hidden rounded-lg bg-white text-[#101314] shadow-2xl shadow-black/30">
+          <DocumentWatermark text="Ficha técnica" />
+          <header className="product-sheet-cover relative z-10 bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 gap-4">
                 <DocumentPrimaryLogo
@@ -432,7 +463,7 @@ export function ProductTechnicalSheet({
             </div>
           </header>
 
-          <div className="p-6 sm:p-8 lg:p-10">
+          <div className="relative z-10 p-6 sm:p-8 lg:p-10">
             <section className="grid gap-4 border-b border-[#dfe5e3] pb-7 md:grid-cols-2 xl:grid-cols-4">
               <article className="rounded-md border border-[#dfe5e3] bg-[#f7faf8] p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#17633f]">
@@ -598,6 +629,11 @@ export function ProductTechnicalSheet({
                   </p>
                 </article>
 
+                <DocumentTermsList
+                  items={productTerms}
+                  title="Uso da ficha técnica"
+                />
+
                 <article className="rounded-md border border-[#dfe5e3] p-5">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
                     Insumo limitante
@@ -656,6 +692,8 @@ export function ProductTechnicalSheet({
                 </p>
               </aside>
             </section>
+
+            <DocumentMetaStrip items={productMetaItems} />
 
             <footer className="mt-10 flex flex-col gap-3 border-t border-[#dfe5e3] pt-5 text-xs leading-5 text-[#6a7672] sm:flex-row sm:items-center sm:justify-between">
               <span>

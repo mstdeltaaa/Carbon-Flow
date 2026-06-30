@@ -7,7 +7,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   CarbonDocumentSignature,
-  DocumentPrimaryLogo
+  DocumentMetaStrip,
+  DocumentPrimaryLogo,
+  DocumentTermsList,
+  DocumentWatermark
 } from "@/features/documents/document-branding";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -316,6 +319,33 @@ export function BudgetDocument({
   const notes =
     budget?.notes?.trim() ||
     "Valores sujeitos às condições comerciais informadas neste documento. A produção começa após aprovação do orçamento.";
+  const budgetTerms = [
+    "A proposta considera apenas os produtos, quantidades e observações descritos neste documento.",
+    "Alterações de escopo, materiais, medidas ou prazo podem gerar revisão de valores.",
+    "A produção deve iniciar somente após aprovação do cliente e confirmação das condições comerciais.",
+    "Este documento tem finalidade comercial e não substitui documento fiscal quando aplicável."
+  ];
+  const budgetMetaItems = budget
+    ? [
+        { label: "Documento", value: "Proposta comercial" },
+        { label: "Número", value: budget.numberLabel },
+        { label: "Status", value: statusLabels[budget.status] },
+        { label: "Emitido em", value: issuedAt }
+      ]
+    : [];
+
+  useEffect(() => {
+    if (!budget) {
+      return;
+    }
+
+    const previousTitle = document.title;
+    document.title = `Orçamento ${budget.numberLabel} - ${displayCompanyName}`;
+
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [budget, displayCompanyName]);
 
   return (
     <main className="budget-print-page min-h-screen bg-[#080a0b] px-4 py-4 sm:px-6 lg:py-8">
@@ -367,8 +397,9 @@ export function BudgetDocument({
       ) : null}
 
       {!isLoading && budget ? (
-        <section className="budget-document mx-auto max-w-6xl overflow-hidden rounded-lg bg-white text-[#101314] shadow-2xl shadow-black/30">
-          <header className="budget-document-cover bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
+        <section className="budget-document relative mx-auto max-w-6xl overflow-hidden rounded-lg bg-white text-[#101314] shadow-2xl shadow-black/30">
+          <DocumentWatermark text="Proposta" />
+          <header className="budget-document-cover relative z-10 bg-[rgb(14_17_18)] px-6 py-7 text-[#f7faf8] sm:px-8 lg:px-10">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex min-w-0 gap-4">
                 <DocumentPrimaryLogo
@@ -432,7 +463,7 @@ export function BudgetDocument({
             </div>
           </header>
 
-          <div className="p-6 sm:p-8 lg:p-10">
+          <div className="relative z-10 p-6 sm:p-8 lg:p-10">
             <section className="budget-document-summary grid gap-4 border-b border-[#dfe5e3] pb-7 md:grid-cols-[1.4fr_1fr_1fr]">
               <article className="rounded-md border border-[#dfe5e3] bg-[#f7faf8] p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#17633f]">
@@ -547,6 +578,11 @@ export function BudgetDocument({
                   </p>
                 </article>
 
+                <DocumentTermsList
+                  items={budgetTerms}
+                  title="Condições comerciais"
+                />
+
                 <article className="rounded-md border border-[#dfe5e3] p-5">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#4d5a56]">
                     Aceite do cliente
@@ -599,6 +635,8 @@ export function BudgetDocument({
                 </p>
               </aside>
             </section>
+
+            <DocumentMetaStrip items={budgetMetaItems} />
 
             <footer className="mt-10 flex flex-col gap-3 border-t border-[#dfe5e3] pt-5 text-xs leading-5 text-[#6a7672] sm:flex-row sm:items-center sm:justify-between">
               <span>

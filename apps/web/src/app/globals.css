@@ -701,6 +701,17 @@ html[data-theme="green-light"] option {
     -webkit-print-color-adjust: exact;
   }
 
+  .document-watermark {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .document-meta-strip {
+    break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   .budget-document-table {
     overflow: visible !important;
   }
