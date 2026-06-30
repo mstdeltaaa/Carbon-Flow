@@ -166,13 +166,37 @@ function mergeLimits(
 
 function mapSubscription(row: SubscriptionRow | null) {
   const plan = row?.plan ?? "free";
+  const billingMode = getBillingMode(row);
 
   return {
+    billingMode,
+    canCancelProSubscription:
+      plan === "pro" && row?.status === "active" && billingMode === "recurring",
     currentPeriodEnd: row?.current_period_end ?? null,
     limits: mergeLimits(plan, row?.limits ?? null),
     plan,
     status: row?.status ?? "active",
   };
+}
+
+function getBillingMode(row: SubscriptionRow | null) {
+  if (row?.plan === "pro" && row.status === "trialing") {
+    return "trial";
+  }
+
+  if (row?.plan === "pro" && row.provider_subscription_id?.startsWith("pix:")) {
+    return "pix";
+  }
+
+  if (
+    row?.plan === "pro" &&
+    row.provider === "mercado_pago" &&
+    row.provider_subscription_id
+  ) {
+    return "recurring";
+  }
+
+  return null;
 }
 
 function isExpiredTrial(row: SubscriptionRow | null) {
@@ -183,6 +207,26 @@ function isExpiredTrial(row: SubscriptionRow | null) {
   const trialEndsAt = Date.parse(row.current_period_end);
 
   return Number.isFinite(trialEndsAt) && trialEndsAt <= Date.now();
+}
+
+function isExpiredPeriodBasedPro(row: SubscriptionRow | null) {
+  if (row?.plan !== "pro" || !row.current_period_end) {
+    return false;
+  }
+
+  if (row.status === "trialing") {
+    return false;
+  }
+
+  const billingMode = getBillingMode(row);
+
+  if (billingMode !== "pix" && row.status !== "cancelled") {
+    return false;
+  }
+
+  const periodEndsAt = Date.parse(row.current_period_end);
+
+  return Number.isFinite(periodEndsAt) && periodEndsAt <= Date.now();
 }
 
 function throwDatabaseError(error: { message?: string }): never {
@@ -322,6 +366,12 @@ export class SubscriptionsService {
       );
     }
 
+    if (subscription.billingMode === "recurring") {
+      throw new BadRequestException(
+        "A empresa ja possui assinatura recorrente ativa. Cancele a renovacao antes de pagar por Pix.",
+      );
+    }
+
     if (!userEmail) {
       throw new BadRequestException(
         "Nao foi possivel identificar o email do usuario para gerar o Pix.",
@@ -394,16 +444,33 @@ export class SubscriptionsService {
     }
 
     if (normalizedStatus === "cancelled") {
+      const currentSubscription =
+        await this.getSubscriptionRowByCompanyId(companyId);
+      const shouldKeepProAccess =
+        currentSubscription?.plan === "pro" &&
+        currentSubscription.current_period_end &&
+        Date.parse(currentSubscription.current_period_end) > Date.now();
       const { error } = await supabase.from("subscriptions").upsert(
-        {
-          company_id: companyId,
-          limits: defaultPlanLimits.free,
-          plan: "free",
-          provider: "mercado_pago",
-          provider_customer_id: this.getMercadoPagoCustomerId(preapproval),
-          provider_subscription_id: preapproval.id,
-          status: "cancelled",
-        },
+        shouldKeepProAccess
+          ? {
+              company_id: companyId,
+              current_period_end: currentSubscription.current_period_end,
+              limits: defaultPlanLimits.pro,
+              plan: "pro",
+              provider: "mercado_pago",
+              provider_customer_id: this.getMercadoPagoCustomerId(preapproval),
+              provider_subscription_id: preapproval.id,
+              status: "cancelled",
+            }
+          : {
+              company_id: companyId,
+              limits: defaultPlanLimits.free,
+              plan: "free",
+              provider: "mercado_pago",
+              provider_customer_id: this.getMercadoPagoCustomerId(preapproval),
+              provider_subscription_id: preapproval.id,
+              status: "active",
+            },
         { onConflict: "company_id" },
       );
 
@@ -411,7 +478,9 @@ export class SubscriptionsService {
         throwDatabaseError(error);
       }
 
-      return { companyId, plan: "free", status: "cancelled" };
+      return shouldKeepProAccess
+        ? { companyId, plan: "pro", status: "cancelled" }
+        : { companyId, plan: "free", status: "active" };
     }
 
     if (normalizedStatus === "paused") {
@@ -536,12 +605,67 @@ export class SubscriptionsService {
     return this.getOverview(companyId);
   }
 
+  async cancelProSubscription(companyId: string) {
+    const subscription = await this.getSubscriptionRowByCompanyId(companyId);
+
+    if (!subscription || subscription.plan !== "pro") {
+      throw new BadRequestException("A empresa nao esta no plano Pro.");
+    }
+
+    if (subscription.status === "cancelled") {
+      return this.getOverview(companyId);
+    }
+
+    if (getBillingMode(subscription) !== "recurring") {
+      throw new BadRequestException(
+        "Este plano Pro nao possui assinatura recorrente para cancelar.",
+      );
+    }
+
+    if (!subscription.provider_subscription_id) {
+      throw new BadRequestException(
+        "Nao encontramos a assinatura recorrente do Mercado Pago.",
+      );
+    }
+
+    await this.updateMercadoPagoPreapprovalStatus(
+      subscription.provider_subscription_id,
+      "cancelled",
+    );
+
+    const supabase = this.supabaseFactory.createAdmin();
+    const { error } = await supabase
+      .from("subscriptions")
+      .update({
+        current_period_end:
+          subscription.current_period_end ?? getNextMonthlyPeriodEndIso(),
+        limits: defaultPlanLimits.pro,
+        plan: "pro",
+        status: "cancelled",
+      })
+      .eq("company_id", companyId);
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return this.getOverview(companyId);
+  }
+
   async assertCanCreate(companyId: string, resource: PlanLimitKey) {
     const overview = await this.getOverview(companyId);
     const limit = overview.limits[resource];
     const currentUsage = overview.usage[resource];
+    const hasCancelledProAccess =
+      overview.plan === "pro" &&
+      overview.status === "cancelled" &&
+      Boolean(overview.currentPeriodEnd) &&
+      Date.parse(overview.currentPeriodEnd ?? "") > Date.now();
 
-    if (!["active", "trialing"].includes(overview.status)) {
+    if (
+      !["active", "trialing"].includes(overview.status) &&
+      !hasCancelledProAccess
+    ) {
       throw new BadRequestException(
         "O plano da empresa precisa estar ativo para criar novos registros.",
       );
@@ -557,22 +681,10 @@ export class SubscriptionsService {
   }
 
   private async getSubscription(companyId: string) {
-    const supabase = this.supabaseFactory.createAdmin();
-    const { data, error } = await supabase
-      .from("subscriptions")
-      .select(
-        "plan, status, limits, current_period_end, provider, provider_customer_id, provider_subscription_id",
-      )
-      .eq("company_id", companyId)
-      .maybeSingle();
+    let subscription = await this.getSubscriptionRowByCompanyId(companyId);
 
-    if (error) {
-      throwDatabaseError(error);
-    }
-
-    let subscription = (data as SubscriptionRow | null) ?? null;
-
-    if (isExpiredTrial(subscription)) {
+    if (isExpiredTrial(subscription) || isExpiredPeriodBasedPro(subscription)) {
+      const supabase = this.supabaseFactory.createAdmin();
       const { data: updatedSubscription, error: updateError } = await supabase
         .from("subscriptions")
         .update({
@@ -594,6 +706,23 @@ export class SubscriptionsService {
     }
 
     return mapSubscription(subscription);
+  }
+
+  private async getSubscriptionRowByCompanyId(companyId: string) {
+    const supabase = this.supabaseFactory.createAdmin();
+    const { data, error } = await supabase
+      .from("subscriptions")
+      .select(
+        "plan, status, limits, current_period_end, provider, provider_customer_id, provider_subscription_id",
+      )
+      .eq("company_id", companyId)
+      .maybeSingle();
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return (data as SubscriptionRow | null) ?? null;
   }
 
   private async createMercadoPagoPreapproval(
@@ -678,6 +807,27 @@ export class SubscriptionsService {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
+      },
+    );
+  }
+
+  private updateMercadoPagoPreapprovalStatus(
+    preapprovalId: string,
+    status: "cancelled" | "paused" | "authorized",
+  ) {
+    const accessToken = this.getRequiredConfig("MERCADO_PAGO_ACCESS_TOKEN");
+
+    return this.mercadoPagoFetch<MercadoPagoPreapprovalResponse>(
+      `https://api.mercadopago.com/preapproval/${encodeURIComponent(
+        preapprovalId,
+      )}`,
+      {
+        body: JSON.stringify({ status }),
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        method: "PUT",
       },
     );
   }

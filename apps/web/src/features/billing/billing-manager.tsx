@@ -10,6 +10,7 @@ import {
   QrCode,
   RefreshCw,
   Sparkles,
+  XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -29,8 +30,11 @@ type PlanLimitKey =
   | "sales_per_month";
 type PlanLimits = Record<PlanLimitKey, number | null>;
 type PlanUsage = Record<PlanLimitKey, number>;
+type BillingMode = "pix" | "recurring" | "trial" | null;
 
 type Subscription = {
+  billingMode: BillingMode;
+  canCancelProSubscription: boolean;
   canStartProTrial: boolean;
   currentPeriodEnd: string | null;
   limits: PlanLimits;
@@ -267,6 +271,8 @@ function formatCurrency(value: number, currencyId = "BRL") {
 
 export function BillingManager({ companyId }: BillingManagerProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [isCancellingSubscription, setIsCancellingSubscription] =
+    useState(false);
   const [isPixAction, setIsPixAction] = useState(false);
   const [isSyncingPix, setIsSyncingPix] = useState(false);
   const [planAction, setPlanAction] = useState<SubscriptionPlan | null>(null);
@@ -309,11 +315,17 @@ export function BillingManager({ companyId }: BillingManagerProps) {
   const currentPlanName =
     isTrialing && currentPlan === "pro"
       ? "Pro grátis"
-      : planLabels[currentPlan];
+      : subscription?.status === "cancelled" && currentPlan === "pro"
+        ? "Pro cancelado"
+        : planLabels[currentPlan];
   const currentStatus = subscription
     ? isTrialing
       ? getTrialLabel(subscription.currentPeriodEnd)
-      : subscriptionStatusLabels[subscription.status]
+      : subscription.status === "cancelled" && currentPlan === "pro"
+        ? formatDate(subscription.currentPeriodEnd)
+          ? `Ativo até ${formatDate(subscription.currentPeriodEnd)}`
+          : "Cancelado"
+        : subscriptionStatusLabels[subscription.status]
     : "Carregando";
   const trialEndDate =
     subscription && isTrialing
@@ -436,6 +448,50 @@ export function BillingManager({ companyId }: BillingManagerProps) {
       );
     } finally {
       setIsPixAction(false);
+    }
+  }
+
+  async function handleCancelSubscription() {
+    if (!subscription?.canCancelProSubscription) {
+      return;
+    }
+
+    const periodEnd = formatDate(subscription.currentPeriodEnd);
+    const confirmed = window.confirm(
+      periodEnd
+        ? `Cancelar a renovação do Pro? A empresa continua com acesso até ${periodEnd}.`
+        : "Cancelar a renovação do Pro?",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsCancellingSubscription(true);
+    setMessage(null);
+
+    try {
+      const updatedSubscription = await request<Subscription>(
+        "/subscriptions/cancel-pro",
+        { method: "POST" },
+      );
+
+      setSubscription(updatedSubscription);
+      setMessage(
+        formatDate(updatedSubscription.currentPeriodEnd)
+          ? `Assinatura cancelada. O Pro continua ativo até ${formatDate(
+              updatedSubscription.currentPeriodEnd,
+            )}.`
+          : "Assinatura cancelada.",
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível cancelar a assinatura.",
+      );
+    } finally {
+      setIsCancellingSubscription(false);
     }
   }
 
@@ -614,6 +670,19 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </section>
           ) : null}
 
+          {subscription.status === "cancelled" && currentPlan === "pro" ? (
+            <section className="rounded-lg border border-[rgb(250_204_21/0.3)] bg-[rgb(250_204_21/0.08)] p-5 text-sm text-[var(--muted-foreground)] sm:p-6">
+              <p className="font-medium text-white">Renovação cancelada</p>
+              <p className="mt-2 leading-6">
+                A empresa continua usando o Pro
+                {formatDate(subscription.currentPeriodEnd)
+                  ? ` até ${formatDate(subscription.currentPeriodEnd)}`
+                  : ""}{" "}
+                e depois volta automaticamente para o Free.
+              </p>
+            </section>
+          ) : null}
+
           <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -682,6 +751,8 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                 plan.id === "pro" && subscription.status === "trialing";
               const isFeatured = plan.id === "pro";
               const isStartingPlan = planAction === plan.id;
+              const shouldShowPixButton =
+                plan.id === "pro" && subscription.billingMode !== "recurring";
               const canStartTrial =
                 plan.id === "pro" && Boolean(subscription.canStartProTrial);
 
@@ -770,6 +841,33 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                       </Button>
                     )}
                     {plan.id === "pro" ? (
+                      <>
+                        {subscription.canCancelProSubscription ? (
+                          <Button
+                            className="mt-2 w-full"
+                            disabled={
+                              Boolean(planAction) || isCancellingSubscription
+                            }
+                            onClick={handleCancelSubscription}
+                            type="button"
+                            variant="secondary"
+                          >
+                            {isCancellingSubscription ? (
+                              <Loader2
+                                className="h-4 w-4 animate-spin"
+                                aria-hidden="true"
+                              />
+                            ) : (
+                              <XCircle className="h-4 w-4" aria-hidden="true" />
+                            )}
+                            {isCancellingSubscription
+                              ? "Cancelando..."
+                              : "Cancelar assinatura"}
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {shouldShowPixButton ? (
                       <Button
                         className="mt-2 w-full"
                         disabled={

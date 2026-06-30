@@ -66,4 +66,10 @@ export class SubscriptionsController {
       paymentId,
     );
   }
+
+  @Post("cancel-pro")
+  @CompanyRoles("admin")
+  cancelProSubscription(@CurrentCompany() company: CurrentCompanyPayload) {
+    return this.subscriptionsService.cancelProSubscription(company.id);
+  }
 }

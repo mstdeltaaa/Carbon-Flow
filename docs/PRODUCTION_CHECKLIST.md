@@ -103,6 +103,7 @@ Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, `OPENAI_API_KE
 - Teste o checkout do plano Pro com uma empresa de teste.
 - Teste o Pix mensal avulso do plano Pro.
 - Confirme que a empresa so muda para Pro depois do pagamento autorizado.
+- Teste cancelamento de assinatura recorrente e confirme acesso ate o fim do periodo pago.
 - Confirme que cancelamento ou pausa remove os limites Pro.
 
 ## 10. Teste final de aceite
