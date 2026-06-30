@@ -45,6 +45,8 @@ Um usuario pode pertencer a uma ou mais empresas por meio de `company_users`. Em
 - Guard de empresa ativa.
 - Guard de papel/permissao.
 - DTOs validados.
+- Headers de seguranca HTTP na API.
+- Swagger desativado por padrao em producao.
 - Operacoes criticas dentro de transacao.
 - Logs de auditoria para acoes sensiveis.
 
@@ -59,13 +61,17 @@ Um usuario pode pertencer a uma ou mais empresas por meio de `company_users`. Em
 
 Quando o frontend acessar dados diretamente via Supabase, `auth.uid()` identifica o usuario.
 
-Quando a API NestJS acessar o banco por conexao PostgreSQL, ela deve definir o usuario atual no inicio da transacao:
+Quando a API NestJS acessar o banco com cliente Supabase do usuario, o token do usuario e enviado no header `Authorization` e as politicas RLS continuam usando `auth.uid()`.
+
+Quando a API NestJS acessar o banco por conexao PostgreSQL direta no futuro, ela deve definir o usuario atual no inicio da transacao:
 
 ```sql
 select set_config('app.current_user_id', '<uuid-do-usuario>', true);
 ```
 
 As funcoes de RLS usam primeiro `app.current_user_id` e, quando ausente, usam `auth.uid()`.
+
+A chave administrativa do Supabase deve ficar restrita a fluxos server-side inevitaveis, como convite de usuarios, leitura administrativa necessaria para configuracoes, limites de assinatura e gravacao de auditoria. Esses fluxos ainda precisam validar membership/papel antes de qualquer operacao.
 
 ## Auditoria
 
@@ -98,4 +104,3 @@ Preparar desde o inicio:
 - Nao deletar registros financeiros importantes; preferir status/cancelamento.
 - Usar snapshots em orcamentos e vendas para preservar historico.
 - Usar rate limiting em login e endpoints sensiveis.
-

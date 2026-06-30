@@ -41,6 +41,7 @@ Proposta de valor:
 - [Arquitetura](docs/ARCHITECTURE.md)
 - [Modelagem do banco](docs/DATABASE_MODEL.md)
 - [Seguranca e multiempresa](docs/SECURITY.md)
+- [Checklist de producao](docs/PRODUCTION_CHECKLIST.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Configuracao local](docs/SETUP.md)
 
