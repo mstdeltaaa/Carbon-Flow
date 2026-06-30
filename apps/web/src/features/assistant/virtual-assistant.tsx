@@ -719,6 +719,7 @@ function AssistantAvatar({
         alt=""
         aria-hidden="true"
         className="object-contain"
+        draggable={false}
         fill
         quality={95}
         sizes={sizes}
@@ -3195,6 +3196,9 @@ export function VirtualAssistant({
       window.removeEventListener("pointercancel", cleanupAssistantDrag);
       window.removeEventListener("mouseup", cleanupAssistantDrag);
       window.removeEventListener("blur", cleanupAssistantDrag);
+      dragHandle.removeEventListener("pointermove", handlePointerMove);
+      dragHandle.removeEventListener("pointerup", cleanupAssistantDrag);
+      dragHandle.removeEventListener("pointercancel", cleanupAssistantDrag);
       dragHandle.removeEventListener(
         "lostpointercapture",
         cleanupAssistantDrag,
@@ -3217,6 +3221,9 @@ export function VirtualAssistant({
     window.addEventListener("pointercancel", cleanupAssistantDrag);
     window.addEventListener("mouseup", cleanupAssistantDrag);
     window.addEventListener("blur", cleanupAssistantDrag);
+    dragHandle.addEventListener("pointermove", handlePointerMove);
+    dragHandle.addEventListener("pointerup", cleanupAssistantDrag);
+    dragHandle.addEventListener("pointercancel", cleanupAssistantDrag);
     dragHandle.addEventListener("lostpointercapture", cleanupAssistantDrag);
   }
 
