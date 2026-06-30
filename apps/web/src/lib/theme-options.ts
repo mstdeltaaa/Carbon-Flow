@@ -4,6 +4,7 @@ export type ThemeOption = {
   id: string;
   label: string;
   specialLabel?: string;
+  statusBarStyle: "black-translucent" | "default";
   themeColor: string;
 };
 
@@ -24,42 +25,48 @@ export const themes: ThemeOption[] = [
     background: "#090b0f",
     id: "carbon-dark",
     label: "Dark mode",
-    themeColor: "#090b0f"
+    statusBarStyle: "black-translucent",
+    themeColor: "#090b0f",
   },
   {
     accent: "#334155",
     background: "#f5f7fb",
     id: "carbon-light",
     label: "Light mode",
-    themeColor: "#f5f7fb"
+    statusBarStyle: "default",
+    themeColor: "#f5f7fb",
   },
   {
     accent: "#0284c7",
     background: "#f3f9ff",
     id: "blue-light",
     label: "Azul futurista / branco",
-    themeColor: "#f3f9ff"
+    statusBarStyle: "default",
+    themeColor: "#f3f9ff",
   },
   {
     accent: "#38bdf8",
     background: "#050b14",
     id: "blue-dark",
     label: "Azul futurista / preto",
-    themeColor: "#050b14"
+    statusBarStyle: "black-translucent",
+    themeColor: "#050b14",
   },
   {
     accent: "#9ff3c4",
     background: "#080a0b",
     id: "green-dark",
     label: "Verde / preto",
-    themeColor: "#080a0b"
+    statusBarStyle: "black-translucent",
+    themeColor: "#080a0b",
   },
   {
     accent: "#119b68",
     background: "#f4fff8",
     id: "green-light",
     label: "Verde / branco",
-    themeColor: "#f4fff8"
+    statusBarStyle: "default",
+    themeColor: "#f4fff8",
   },
   {
     accent: "#ffdf00",
@@ -67,7 +74,8 @@ export const themes: ThemeOption[] = [
     id: brazil2026ThemeId,
     label: "Torcida brasileira 2026",
     specialLabel: "Especial",
-    themeColor: "#001b44"
+    statusBarStyle: "black-translucent",
+    themeColor: "#001b44",
   },
   {
     accent: "#7ddfd3",
@@ -75,8 +83,9 @@ export const themes: ThemeOption[] = [
     id: brazil2026BlueThemeId,
     label: "Seleção brasileira 2026 azul",
     specialLabel: "Especial",
-    themeColor: "#003da5"
-  }
+    statusBarStyle: "black-translucent",
+    themeColor: "#003da5",
+  },
 ];
 
 export const specialThemeAccessById: Record<
@@ -88,12 +97,12 @@ export const specialThemeAccessById: Record<
 > = {
   [brazil2026ThemeId]: {
     storageKey: brazil2026ThemeUnlockStorageKey,
-    unlockEndsAt: brazil2026ThemeUnlockEndsAt
+    unlockEndsAt: brazil2026ThemeUnlockEndsAt,
   },
   [brazil2026BlueThemeId]: {
     storageKey: brazil2026ThemeUnlockStorageKey,
-    unlockEndsAt: brazil2026ThemeUnlockEndsAt
-  }
+    unlockEndsAt: brazil2026ThemeUnlockEndsAt,
+  },
 };
 
 export const themeColorById = themes.reduce<Record<string, string>>(
@@ -101,8 +110,15 @@ export const themeColorById = themes.reduce<Record<string, string>>(
     colors[theme.id] = theme.themeColor;
     return colors;
   },
-  {}
+  {},
 );
+
+export const themeStatusBarStyleById = themes.reduce<
+  Record<string, ThemeOption["statusBarStyle"]>
+>((styles, theme) => {
+  styles[theme.id] = theme.statusBarStyle;
+  return styles;
+}, {});
 
 export function isThemeId(value: string | null | undefined): value is string {
   return themes.some((item) => item.id === value);
@@ -119,14 +135,14 @@ export function getLocallyUnlockedSpecialThemes() {
 
   return Object.entries(specialThemeAccessById)
     .filter(
-      ([, access]) => window.localStorage.getItem(access.storageKey) === "true"
+      ([, access]) => window.localStorage.getItem(access.storageKey) === "true",
     )
     .map(([themeId]) => themeId);
 }
 
 export function isThemeAvailable(
   themeId: string | null | undefined,
-  unlockedSpecialThemes: readonly string[]
+  unlockedSpecialThemes: readonly string[],
 ) {
   if (!isThemeId(themeId)) {
     return false;
@@ -137,7 +153,7 @@ export function isThemeAvailable(
 
 export function getVisibleThemes(unlockedSpecialThemes: readonly string[]) {
   return themes.filter((theme) =>
-    isThemeAvailable(theme.id, unlockedSpecialThemes)
+    isThemeAvailable(theme.id, unlockedSpecialThemes),
   );
 }
 

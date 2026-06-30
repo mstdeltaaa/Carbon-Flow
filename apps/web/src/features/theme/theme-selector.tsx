@@ -14,7 +14,7 @@ import {
   getVisibleThemes,
   isThemeAvailable,
   specialThemeAccessById,
-  themeStorageKey
+  themeStorageKey,
 } from "@/lib/theme-options";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
@@ -26,18 +26,27 @@ type ThemeSelectorProps = {
 function applyTheme(themeId: string) {
   document.documentElement.dataset.theme = themeId;
 
-  let meta = document.querySelector<HTMLMetaElement>(
-    'meta[name="theme-color"]'
-  );
-  if (!meta) {
-    meta = document.createElement("meta");
-    meta.name = "theme-color";
-    document.head.appendChild(meta);
+  const themeOption = getThemeOption(themeId);
+  const metaUpdates = [
+    ["theme-color", themeOption.themeColor],
+    ["msapplication-navbutton-color", themeOption.themeColor],
+    ["apple-mobile-web-app-status-bar-style", themeOption.statusBarStyle],
+  ] as const;
+
+  for (const [name, content] of metaUpdates) {
+    let meta = document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
+
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = name;
+      document.head.appendChild(meta);
+    }
+
+    meta.content = content;
   }
 
-  meta.content = getThemeOption(themeId).themeColor;
   window.dispatchEvent(
-    new CustomEvent("carbon-flow-theme-change", { detail: themeId })
+    new CustomEvent("carbon-flow-theme-change", { detail: themeId }),
   );
 }
 
@@ -55,13 +64,13 @@ function getPreferredTheme() {
 
 export function ThemeSelector({
   className,
-  variant = "panel"
+  variant = "panel",
 }: ThemeSelectorProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [theme, setTheme] = useState(defaultTheme);
   const [isOpen, setIsOpen] = useState(false);
   const [unlockedSpecialThemes, setUnlockedSpecialThemes] = useState<string[]>(
-    []
+    [],
   );
 
   useEffect(() => {
@@ -86,7 +95,7 @@ export function ThemeSelector({
       try {
         const supabase = createSupabaseBrowserClient();
         const {
-          data: { session }
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!session) {
@@ -94,7 +103,7 @@ export function ThemeSelector({
         }
 
         const locallyUnlockedThemes = new Set(
-          getLocallyUnlockedSpecialThemes()
+          getLocallyUnlockedSpecialThemes(),
         );
         const brazilAccess = specialThemeAccessById[brazil2026ThemeId];
         let hasBrazilAccountAccess = false;
@@ -104,7 +113,7 @@ export function ThemeSelector({
           Date.now() < Date.parse(brazilAccess.unlockEndsAt)
         ) {
           const { data, error } = await supabase.rpc(
-            "unlock_brazil_2026_theme"
+            "unlock_brazil_2026_theme",
           );
 
           if (!error && data === true) {
@@ -129,12 +138,12 @@ export function ThemeSelector({
         if (brazilAccess && hasBrazilAccountAccess) {
           window.localStorage.setItem(brazilAccess.storageKey, "true");
           brazil2026ThemeIds.forEach((themeId) =>
-            locallyUnlockedThemes.add(themeId)
+            locallyUnlockedThemes.add(themeId),
           );
         } else if (brazilAccess) {
           window.localStorage.removeItem(brazilAccess.storageKey);
           brazil2026ThemeIds.forEach((themeId) =>
-            locallyUnlockedThemes.delete(themeId)
+            locallyUnlockedThemes.delete(themeId),
           );
         }
 
@@ -185,13 +194,13 @@ export function ThemeSelector({
 
   const visibleThemes = useMemo(
     () => getVisibleThemes(unlockedSpecialThemes),
-    [unlockedSpecialThemes]
+    [unlockedSpecialThemes],
   );
   const selectedTheme = useMemo(
     () =>
       visibleThemes.find((item) => item.id === theme) ??
       getThemeOption(defaultTheme),
-    [theme, visibleThemes]
+    [theme, visibleThemes],
   );
 
   useEffect(() => {
@@ -248,7 +257,7 @@ export function ThemeSelector({
                       "flex h-10 min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm transition focus-visible:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
                       isSelected
                         ? "bg-slate-800 font-medium text-white ring-1 ring-[var(--primary)]"
-                        : "text-slate-200 hover:bg-slate-900 hover:text-white"
+                        : "text-slate-200 hover:bg-slate-900 hover:text-white",
                     ].join(" ")}
                     key={item.id}
                     onClick={() => {
@@ -261,7 +270,7 @@ export function ThemeSelector({
                     <span
                       className="h-5 w-5 shrink-0 rounded-md border border-slate-600"
                       style={{
-                        background: `linear-gradient(135deg, ${item.background} 0 50%, ${item.accent} 50% 100%)`
+                        background: `linear-gradient(135deg, ${item.background} 0 50%, ${item.accent} 50% 100%)`,
                       }}
                     />
                     <span className="min-w-0 flex-1 truncate">
@@ -290,7 +299,7 @@ export function ThemeSelector({
     <div
       className={[
         "relative mt-4 grid gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-muted)] p-3 text-xs text-[var(--muted-foreground)]",
-        className
+        className,
       ]
         .filter(Boolean)
         .join(" ")}
@@ -304,7 +313,7 @@ export function ThemeSelector({
         <span
           className="h-5 w-5 shrink-0 rounded-md border border-[var(--border)]"
           style={{
-            background: `linear-gradient(135deg, ${selectedTheme.background} 0 50%, ${selectedTheme.accent} 50% 100%)`
+            background: `linear-gradient(135deg, ${selectedTheme.background} 0 50%, ${selectedTheme.accent} 50% 100%)`,
           }}
         />
         <span className="relative min-w-0">
@@ -335,7 +344,7 @@ export function ThemeSelector({
                       "flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-sm transition focus-visible:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]",
                       isSelected
                         ? "bg-slate-800 font-medium text-white ring-1 ring-[var(--primary)]"
-                        : "text-slate-100 hover:bg-slate-900 hover:text-white"
+                        : "text-slate-100 hover:bg-slate-900 hover:text-white",
                     ].join(" ")}
                     key={item.id}
                     onClick={() => {
@@ -348,7 +357,7 @@ export function ThemeSelector({
                     <span
                       className="h-4 w-4 shrink-0 rounded border border-slate-600"
                       style={{
-                        background: `linear-gradient(135deg, ${item.background} 0 50%, ${item.accent} 50% 100%)`
+                        background: `linear-gradient(135deg, ${item.background} 0 50%, ${item.accent} 50% 100%)`,
                       }}
                     />
                     <span className="min-w-0 flex-1 truncate">

@@ -9,7 +9,8 @@ import {
   defaultTheme,
   specialThemeAccessById,
   themeColorById,
-  themeStorageKey
+  themeStatusBarStyleById,
+  themeStorageKey,
 } from "@/lib/theme-options";
 
 export const metadata: Metadata = {
@@ -20,18 +21,18 @@ export const metadata: Metadata = {
       {
         media: "(prefers-color-scheme: dark)",
         type: "image/png",
-        url: "/brand/carbon-flow-logo-on-dark-v2.png"
+        url: "/brand/carbon-flow-logo-on-dark-v2.png",
       },
       {
         media: "(prefers-color-scheme: light)",
         type: "image/png",
-        url: "/brand/carbon-flow-logo-on-light-v2.png"
-      }
+        url: "/brand/carbon-flow-logo-on-light-v2.png",
+      },
     ],
     apple: [
-      { url: "/brand/carbon-flow-logo-on-light-v2.png", type: "image/png" }
-    ]
-  }
+      { url: "/brand/carbon-flow-logo-on-light-v2.png", type: "image/png" },
+    ],
+  },
 };
 
 const themeScript = `
@@ -41,6 +42,7 @@ const themeScript = `
   const defaultLightTheme = ${JSON.stringify(defaultLightTheme)};
   const storageKey = ${JSON.stringify(themeStorageKey)};
   const themeColors = ${JSON.stringify(themeColorById)};
+  const themeStatusBarStyles = ${JSON.stringify(themeStatusBarStyleById)};
   const specialThemeAccess = ${JSON.stringify(specialThemeAccessById)};
   const getSystemTheme = () =>
     window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
@@ -56,14 +58,24 @@ const themeScript = `
     return window.localStorage.getItem(access.storageKey) === "true";
   };
   const setThemeColor = (theme) => {
-    let meta = document.querySelector('meta[name="theme-color"]');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.setAttribute("name", "theme-color");
-      document.head.appendChild(meta);
-    }
+    const themeColor = themeColors[theme] || themeColors[defaultTheme];
+    const statusBarStyle = themeStatusBarStyles[theme] || themeStatusBarStyles[defaultTheme];
+    const metaUpdates = [
+      ["theme-color", themeColor],
+      ["msapplication-navbutton-color", themeColor],
+      ["apple-mobile-web-app-status-bar-style", statusBarStyle]
+    ];
 
-    meta.setAttribute("content", themeColors[theme] || themeColors[defaultTheme]);
+    for (const [name, content] of metaUpdates) {
+      let meta = document.querySelector('meta[name="' + name + '"]');
+      if (!meta) {
+        meta = document.createElement("meta");
+        meta.setAttribute("name", name);
+        document.head.appendChild(meta);
+      }
+
+      meta.setAttribute("content", content);
+    }
   };
 
   try {
@@ -82,7 +94,7 @@ const themeScript = `
 `;
 
 export default function RootLayout({
-  children
+  children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
@@ -90,6 +102,16 @@ export default function RootLayout({
     <html data-theme={defaultTheme} lang="pt-BR" suppressHydrationWarning>
       <head>
         <meta content={themeColorById[defaultTheme]} name="theme-color" />
+        <meta
+          content={themeColorById[defaultTheme]}
+          name="msapplication-navbutton-color"
+        />
+        <meta
+          content="black-translucent"
+          name="apple-mobile-web-app-status-bar-style"
+        />
+        <meta content="yes" name="apple-mobile-web-app-capable" />
+        <meta content="yes" name="mobile-web-app-capable" />
         <meta content="dark light" name="color-scheme" />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
