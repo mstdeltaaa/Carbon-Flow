@@ -24,6 +24,7 @@ Use este checklist antes de liberar o sistema para clientes reais.
 - `OPENAI_MODEL`: opcional.
 - `API_PUBLIC_URL`: URL publica da API.
 - `MERCADO_PAGO_ACCESS_TOKEN`: access token da conta Mercado Pago.
+- `MERCADO_PAGO_TEST_PAYER_EMAIL`: email do comprador teste, apenas enquanto usar credencial `TEST-`.
 - `MERCADO_PAGO_WEBHOOK_SECRET`: segredo de validacao do webhook.
 - `MERCADO_PAGO_WEBHOOK_URL`: URL publica do webhook, por exemplo `https://carbon-flow-api.vercel.app/webhooks/mercado-pago`.
 - `MERCADO_PAGO_BACK_URL`: URL para voltar ao painel apos o checkout, por exemplo `https://carbon-flow-web.vercel.app/settings?section=billing`.
@@ -98,6 +99,7 @@ Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, `OPENAI_API_KE
 - Configure o webhook para `https://SUA-API/webhooks/mercado-pago`.
 - Ative o evento de assinaturas/preapproval no Mercado Pago.
 - Guarde o segredo do webhook em `MERCADO_PAGO_WEBHOOK_SECRET`.
+- Ao usar credenciais de teste, configure `MERCADO_PAGO_TEST_PAYER_EMAIL` com o email de uma conta compradora teste.
 - Teste o checkout do plano Pro com uma empresa de teste.
 - Confirme que a empresa so muda para Pro depois do pagamento autorizado.
 - Confirme que cancelamento ou pausa remove os limites Pro.

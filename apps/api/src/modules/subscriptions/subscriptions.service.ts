@@ -249,7 +249,7 @@ export class SubscriptionsService {
 
     const preapproval = await this.createMercadoPagoPreapproval(
       companyId,
-      userEmail,
+      this.getMercadoPagoPayerEmail(userEmail),
     );
     const checkoutUrl =
       preapproval.init_point ?? preapproval.sandbox_init_point ?? null;
@@ -580,6 +580,25 @@ export class SubscriptionsService {
     }
 
     return value;
+  }
+
+  private getMercadoPagoPayerEmail(userEmail: string) {
+    const accessToken = this.getRequiredConfig("MERCADO_PAGO_ACCESS_TOKEN");
+    const testPayerEmail = this.config.get<string>(
+      "MERCADO_PAGO_TEST_PAYER_EMAIL",
+    );
+
+    if (accessToken.startsWith("TEST-")) {
+      if (!testPayerEmail) {
+        throw new BadRequestException(
+          "Configure MERCADO_PAGO_TEST_PAYER_EMAIL com o email do comprador teste do Mercado Pago.",
+        );
+      }
+
+      return testPayerEmail;
+    }
+
+    return userEmail;
   }
 
   private async getUsage(companyId: string) {
