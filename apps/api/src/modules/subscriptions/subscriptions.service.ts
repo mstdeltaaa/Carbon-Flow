@@ -108,6 +108,26 @@ function getExtendedMonthlyPeriodEndIso(currentPeriodEnd: string | null) {
   return baseDate.toISOString();
 }
 
+function getLaterPeriodEndIso(
+  currentPeriodEnd: string | null,
+  nextPeriodEnd: string,
+) {
+  const parsedCurrentEnd = currentPeriodEnd
+    ? Date.parse(currentPeriodEnd)
+    : Number.NaN;
+  const parsedNextPeriodEnd = Date.parse(nextPeriodEnd);
+
+  if (
+    Number.isFinite(parsedCurrentEnd) &&
+    Number.isFinite(parsedNextPeriodEnd) &&
+    parsedCurrentEnd > parsedNextPeriodEnd
+  ) {
+    return currentPeriodEnd;
+  }
+
+  return nextPeriodEnd;
+}
+
 function getPixExpirationIso() {
   const expiration = new Date();
   expiration.setUTCMinutes(expiration.getUTCMinutes() + 30);
@@ -326,7 +346,11 @@ export class SubscriptionsService {
       );
     }
 
-    if (subscription.plan === "pro" && subscription.status === "active") {
+    if (
+      subscription.plan === "pro" &&
+      subscription.status === "active" &&
+      subscription.billingMode !== "pix"
+    ) {
       throw new BadRequestException("A empresa ja esta no plano Pro.");
     }
 
@@ -349,7 +373,13 @@ export class SubscriptionsService {
       );
     }
 
-    await this.saveMercadoPagoReference(companyId, preapproval);
+    if (!(
+      subscription.plan === "pro" &&
+      subscription.status === "active" &&
+      subscription.billingMode === "pix"
+    )) {
+      await this.saveMercadoPagoReference(companyId, preapproval);
+    }
 
     return {
       checkoutUrl,
@@ -419,9 +449,15 @@ export class SubscriptionsService {
     const supabase = this.supabaseFactory.createAdmin();
 
     if (normalizedStatus === "authorized") {
-      const periodEnd =
+      const currentSubscription =
+        await this.getSubscriptionRowByCompanyId(companyId);
+      const nextPeriodEnd =
         preapproval.auto_recurring?.next_payment_date ??
         getNextMonthlyPeriodEndIso();
+      const periodEnd = getLaterPeriodEndIso(
+        currentSubscription?.current_period_end ?? null,
+        nextPeriodEnd,
+      );
       const { error } = await supabase.from("subscriptions").upsert(
         {
           company_id: companyId,

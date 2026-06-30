@@ -146,6 +146,9 @@ const usageOrder: PlanLimitKey[] = [
 ];
 const millisecondsInDay = 24 * 60 * 60 * 1000;
 const pixAutoRefreshIntervalMs = 5000;
+const supportWhatsappUrl = `https://wa.me/5512981000844?text=${encodeURIComponent(
+  "Olá, preciso de suporte no Carbon Flow.",
+)}`;
 
 function getApiMessage(payload: unknown, fallback: string) {
   if (
@@ -224,6 +227,16 @@ function getTrialLabel(currentPeriodEnd: string | null) {
   }
 
   return daysLeft === 1 ? "1 dia restante" : `${daysLeft} dias restantes`;
+}
+
+function hasFuturePeriod(currentPeriodEnd: string | null) {
+  if (!currentPeriodEnd) {
+    return false;
+  }
+
+  const endsAt = Date.parse(currentPeriodEnd);
+
+  return Number.isFinite(endsAt) && endsAt > Date.now();
 }
 
 function formatDate(value: string | null) {
@@ -332,6 +345,28 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     subscription && isTrialing
       ? formatDate(subscription.currentPeriodEnd)
       : null;
+  const hasActiveProAccess =
+    subscription?.plan === "pro" &&
+    (subscription.status === "active" ||
+      subscription.status === "trialing" ||
+      (subscription.status === "cancelled" &&
+        hasFuturePeriod(subscription.currentPeriodEnd)));
+  const proRemainingLabel =
+    subscription?.plan === "pro" && subscription.currentPeriodEnd
+      ? getTrialLabel(subscription.currentPeriodEnd)
+      : null;
+  const proAccessEndDate =
+    subscription?.plan === "pro"
+      ? formatDate(subscription.currentPeriodEnd)
+      : null;
+  const proAccessSummary =
+    hasActiveProAccess && proRemainingLabel
+      ? `Seu Pro ainda está ativo: ${proRemainingLabel}${
+          proAccessEndDate ? `, até ${proAccessEndDate}` : ""
+        }.`
+      : hasActiveProAccess
+        ? "Seu Pro está ativo."
+        : null;
 
   const reachedLimits = useMemo(() => {
     if (!subscription) {
@@ -479,6 +514,16 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     }
 
     if (plan === "pro" && subscription && !subscription.canStartProTrial) {
+      if (hasActiveProAccess) {
+        const confirmed = window.confirm(
+          `${proAccessSummary ?? "Seu Pro já está ativo."} Deseja continuar e abrir a assinatura recorrente mesmo assim?`,
+        );
+
+        if (!confirmed) {
+          return;
+        }
+      }
+
       setPlanAction(plan);
       setMessage(null);
 
@@ -508,6 +553,16 @@ export function BillingManager({ companyId }: BillingManagerProps) {
   }
 
   async function handleProPixClick() {
+    if (hasActiveProAccess) {
+      const confirmed = window.confirm(
+        `${proAccessSummary ?? "Seu Pro já está ativo."} Se continuar pelo Pix, mais 1 mês será somado ao período atual. Deseja gerar outro Pix?`,
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
     setIsPixAction(true);
     setMessage(null);
     setPixPayment(null);
@@ -612,7 +667,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </p>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[24rem] xl:min-w-[28rem]">
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[32rem] xl:min-w-[38rem] xl:grid-cols-3">
             <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
                 Plano atual
@@ -626,6 +681,21 @@ export function BillingManager({ companyId }: BillingManagerProps) {
               <p className="mt-2 text-xl font-semibold text-white">
                 {currentStatus}
               </p>
+            </article>
+            <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+              <p className="text-xs text-[var(--muted-foreground)]">
+                Acesso Pro
+              </p>
+              <p className="mt-2 text-xl font-semibold text-white">
+                {hasActiveProAccess
+                  ? (proRemainingLabel ?? "Ativo")
+                  : "Sem Pro ativo"}
+              </p>
+              {hasActiveProAccess && proAccessEndDate ? (
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+                  Até {proAccessEndDate}
+                </p>
+              ) : null}
             </article>
           </div>
         </div>
@@ -736,6 +806,20 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </section>
           ) : null}
 
+          {hasActiveProAccess &&
+          !isTrialing &&
+          subscription.status !== "cancelled" ? (
+            <section className="rounded-lg border border-[rgb(159_243_196/0.32)] bg-[rgb(159_243_196/0.08)] p-5 text-sm text-[var(--muted-foreground)] sm:p-6">
+              <p className="font-medium text-white">Plano Pro ativo</p>
+              <p className="mt-2 leading-6">
+                {proAccessSummary}
+                {subscription.billingMode === "pix"
+                  ? " Se você pagar outro Pix, o Carbon Flow soma mais 1 mês ao período atual."
+                  : " A renovação recorrente permanece ativa enquanto a assinatura estiver em dia."}
+              </p>
+            </section>
+          ) : null}
+
           <section className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -804,6 +888,14 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                 plan.id === "pro" && subscription.status === "trialing";
               const isFeatured = plan.id === "pro";
               const isStartingPlan = planAction === plan.id;
+              const isLowerPlan =
+                (currentPlan === "pro" && plan.id === "free") ||
+                (currentPlan === "enterprise" && plan.id !== "enterprise");
+              const canStartRecurringFromPix =
+                plan.id === "pro" &&
+                currentPlan === "pro" &&
+                subscription.billingMode === "pix" &&
+                subscription.status === "active";
               const shouldShowPixButton =
                 plan.id === "pro" && subscription.billingMode !== "recurring";
               const canStartTrial =
@@ -856,16 +948,24 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                         <Check className="h-4 w-4" aria-hidden="true" />
                         Plano atual
                       </Button>
+                    ) : isLowerPlan ? (
+                      <Button className="w-full" disabled type="button">
+                        <Check className="h-4 w-4" aria-hidden="true" />
+                        Plano anterior
+                      </Button>
                     ) : plan.id === "enterprise" ? (
-                      <Button
-                        disabled={Boolean(planAction)}
-                        className="w-full"
-                        onClick={() => handleUpgradeClick(plan.id)}
-                        type="button"
-                        variant="secondary"
-                      >
-                        <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                        Falar com suporte
+                      <Button asChild className="w-full" variant="secondary">
+                        <a
+                          href={supportWhatsappUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <MessageCircle
+                            className="h-4 w-4"
+                            aria-hidden="true"
+                          />
+                          Falar com suporte
+                        </a>
                       </Button>
                     ) : (
                       <Button
@@ -919,6 +1019,25 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                           </Button>
                         ) : null}
                       </>
+                    ) : null}
+                    {canStartRecurringFromPix ? (
+                      <Button
+                        className="mt-2 w-full"
+                        disabled={Boolean(planAction) || isPixAction}
+                        onClick={() => handleUpgradeClick("pro")}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {isStartingPlan ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <CreditCard className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        Assinar Pro recorrente
+                      </Button>
                     ) : null}
                     {shouldShowPixButton ? (
                       <Button
