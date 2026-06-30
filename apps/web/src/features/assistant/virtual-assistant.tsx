@@ -994,18 +994,18 @@ function getEstimatedAssistantPanelSize() {
           ? 480
           : viewportWidth >= 640
             ? 432
-            : viewportWidth - 16;
+            : viewportWidth - 12;
   const heightOffset =
-    viewportWidth >= 768 ? 128 : viewportWidth >= 640 ? 112 : 92;
+    viewportWidth >= 768 ? 128 : viewportWidth >= 640 ? 112 : 72;
   const designHeight =
-    viewportWidth >= 1280 ? 832 : viewportWidth >= 768 ? 768 : 704;
+    viewportWidth >= 1280 ? 832 : viewportWidth >= 768 ? 768 : 640;
 
   return {
     height: Math.max(
       260,
       Math.min(designHeight, viewportHeight - heightOffset),
     ),
-    width: Math.max(280, Math.min(width, viewportWidth - 16)),
+    width: Math.max(280, Math.min(width, viewportWidth - 12)),
   };
 }
 
@@ -3616,7 +3616,7 @@ export function VirtualAssistant({
     >
       {isOpen ? (
         <section
-          className="relative flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]"
+          className="relative flex h-[min(40rem,calc(100dvh-4.5rem))] max-h-[calc(100dvh-4.5rem)] w-[calc(100vw-0.75rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]"
           ref={assistantPanelRef}
         >
           <header
@@ -3691,7 +3691,7 @@ export function VirtualAssistant({
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 sm:gap-2">
               {availableAssistantModes.map((mode) => {
                 const isActiveMode = assistantMode === mode.id;
 
@@ -3810,14 +3810,14 @@ export function VirtualAssistant({
             </div>
           ) : null}
 
-          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-3 sm:space-y-3 sm:p-4">
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2.5 sm:space-y-3 sm:p-4">
             {messages.map((message, index) => (
               <div
                 className={[
                   "whitespace-pre-line rounded-md px-3 py-2 text-sm leading-6",
                   message.author === "assistant"
-                    ? "mr-4 bg-[var(--surface-soft)] text-[var(--muted-foreground)] sm:mr-8"
-                    : "ml-4 bg-[var(--primary-active)] text-[var(--foreground)] sm:ml-8",
+                    ? "mr-1 bg-[var(--surface-soft)] text-[var(--muted-foreground)] sm:mr-8"
+                    : "ml-1 bg-[var(--primary-active)] text-[var(--foreground)] sm:ml-8",
                 ].join(" ")}
                 key={`${message.author}-${index}`}
               >
@@ -3851,7 +3851,7 @@ export function VirtualAssistant({
                 </button>
               </div>
 
-              <div className="mb-3 grid grid-cols-3 gap-1.5 sm:grid-cols-2 sm:gap-2">
+              <div className="mb-3 grid grid-cols-2 gap-1.5 sm:gap-2">
                 {visibleQuickActions.map((item) => (
                   <button
                     className="flex min-h-9 min-w-0 items-center justify-center gap-1 rounded-md border border-[var(--primary)] bg-[var(--primary-active)] px-1.5 text-center text-[11px] text-[var(--foreground)] transition hover:bg-[var(--secondary)] sm:min-h-10 sm:justify-start sm:gap-2 sm:px-2 sm:text-left sm:text-xs"

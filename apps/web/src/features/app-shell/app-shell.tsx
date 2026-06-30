@@ -166,7 +166,7 @@ export function AppShell({
   }, [prefetchRoutes, router]);
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen w-full overflow-x-clip">
       <header className="sticky top-0 z-30 px-3 pt-3 lg:hidden">
         <div className="carbon-mobile-glass relative flex h-16 items-center justify-between rounded-lg border border-[var(--border)] px-3 shadow-xl shadow-[color:var(--shadow-color)]">
           <CompanyLogoBadge
@@ -273,7 +273,7 @@ export function AppShell({
         </div>
       ) : null}
 
-      <div className="flex w-full max-w-none flex-col gap-4 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4 lg:flex-row lg:px-6 xl:px-8 2xl:px-10">
+      <div className="flex w-full max-w-[100vw] flex-col gap-4 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4 lg:flex-row lg:px-6 xl:px-8 2xl:px-10">
         <aside className="hidden min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.86)] p-3 shadow-2xl shadow-[color:var(--shadow-color)] lg:sticky lg:top-4 lg:block lg:h-[calc(100vh-2rem)] lg:w-72 lg:shrink-0 lg:overflow-y-auto">
           <div className="flex min-w-0 items-start gap-3 px-2 py-3">
             <div className="min-w-0 flex-1">
@@ -339,7 +339,7 @@ export function AppShell({
         </aside>
 
         <section
-          className="flex min-w-0 scroll-mt-4 flex-1 flex-col gap-4 pb-24 sm:gap-5 lg:pb-8"
+          className="flex w-full min-w-0 scroll-mt-4 flex-1 flex-col gap-4 pb-24 sm:gap-5 lg:pb-8"
           id={contentAnchor}
         >
           {children}

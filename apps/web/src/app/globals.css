@@ -372,14 +372,20 @@ html[data-theme="brazil-2026-blue"] {
 }
 
 html {
+  width: 100%;
+  max-width: 100%;
   min-height: 100%;
+  overflow-x: clip;
   background: var(--background);
   scroll-behavior: smooth;
 }
 
 body {
+  width: 100%;
+  max-width: 100%;
   min-height: 100vh;
   margin: 0;
+  overflow-x: clip;
   background: var(--body-gradient);
   color: var(--foreground);
   font-family:
@@ -391,6 +397,13 @@ body {
     "Segoe UI",
     sans-serif;
   letter-spacing: 0;
+}
+
+@supports not (overflow: clip) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
 }
 
 .carbon-mobile-glass {
@@ -437,6 +450,12 @@ svg {
   max-width: 100%;
 }
 
+img,
+video,
+canvas {
+  height: auto;
+}
+
 a {
   overflow-wrap: anywhere;
 }
@@ -458,7 +477,17 @@ th {
 }
 
 [class*="overflow-x-auto"] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
   scrollbar-gutter: stable;
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 .brand-logo-light {

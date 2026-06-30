@@ -381,7 +381,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
 
   return (
     <>
-      <header className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
+      <header className="min-w-0 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <p className="text-sm text-[var(--primary)]">Relatórios</p>
@@ -394,7 +394,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
             </p>
           </div>
 
-          <div className="grid gap-3 lg:min-w-[40rem]">
+          <div className="grid w-full min-w-0 gap-3 xl:max-w-[40rem]">
             <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
               <label className="grid gap-1 text-xs text-[var(--muted-foreground)]">
                 Início
@@ -415,7 +415,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
                 />
               </label>
               <Button
-                className="self-end"
+                className="self-end sm:w-auto"
                 disabled={isLoading}
                 onClick={() => void loadReports({ from, to })}
                 type="button"
@@ -499,7 +499,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
                     aria-hidden="true"
                   />
                 </div>
-                <p className="mt-4 text-2xl font-semibold text-white">
+                <p className="mt-4 break-words text-xl font-semibold text-white sm:text-2xl">
                   {card.value}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]">
@@ -583,7 +583,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
                     className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4"
                     key={`${product.productId ?? product.productName}-${index}`}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-white">
                           {index + 1}. {product.productName}
@@ -593,7 +593,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
                           unidade(s) vendida(s)
                         </p>
                       </div>
-                      <p className="shrink-0 text-sm font-semibold text-[var(--primary)]">
+                      <p className="break-words text-sm font-semibold text-[var(--primary)] sm:shrink-0 sm:text-right">
                         {currencyFormatter.format(product.revenue)}
                       </p>
                     </div>
@@ -645,7 +645,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
                       className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4"
                       key={`${category.type}-${category.category}`}
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-white">
                             {category.category}
@@ -668,7 +668,7 @@ export function ReportsManager({ companyId }: ReportsManagerProps) {
                         </div>
                         <p
                           className={[
-                            "shrink-0 text-sm font-semibold",
+                            "break-words text-sm font-semibold sm:shrink-0 sm:text-right",
                             isIncome
                               ? "text-[var(--primary)]"
                               : "text-[var(--destructive-text)]",

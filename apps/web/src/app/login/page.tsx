@@ -8,12 +8,12 @@ import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
-    <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
+    <main className="relative flex min-h-screen items-start justify-center px-4 pb-8 pt-20 sm:items-center sm:py-8">
       <div className="fixed right-4 top-4 z-20 sm:right-6 sm:top-6">
         <ThemeSelector variant="icon" />
       </div>
 
-      <section className="grid w-full max-w-5xl gap-8 lg:grid-cols-[0.9fr_1fr] lg:items-center">
+      <section className="grid w-full max-w-5xl gap-6 lg:grid-cols-[0.9fr_1fr] lg:items-center lg:gap-8">
         <div>
           <div className="flex items-center gap-3">
             <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-transparent">
@@ -44,7 +44,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h1 className="mt-8 text-3xl font-semibold text-white sm:text-4xl">
+          <h1 className="mt-6 text-2xl font-semibold leading-tight text-white sm:mt-8 sm:text-4xl">
             Controle produção, custos, estoque e vendas em um único fluxo.
           </h1>
           <p className="mt-4 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">

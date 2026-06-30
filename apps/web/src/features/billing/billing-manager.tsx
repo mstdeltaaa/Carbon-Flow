@@ -811,34 +811,34 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             </p>
           </div>
 
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:min-w-[38rem] xl:min-w-[50rem] xl:grid-cols-4">
-            <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+          <div className="grid w-full min-w-0 gap-3 sm:grid-cols-2 lg:flex-1 xl:max-w-[50rem] xl:grid-cols-4">
+            <article className="min-w-0 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
                 Plano atual
               </p>
-              <p className="mt-2 text-xl font-semibold text-white">
+              <p className="mt-2 break-words text-xl font-semibold text-white">
                 {currentPlanName}
               </p>
             </article>
-            <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+            <article className="min-w-0 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">Status</p>
-              <p className="mt-2 text-xl font-semibold text-white">
+              <p className="mt-2 break-words text-xl font-semibold text-white">
                 {currentStatus}
               </p>
             </article>
-            <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+            <article className="min-w-0 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
                 Pagamento
               </p>
-              <p className="mt-2 text-xl font-semibold text-white">
+              <p className="mt-2 break-words text-xl font-semibold text-white">
                 {billingModeLabel}
               </p>
             </article>
-            <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
+            <article className="min-w-0 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4">
               <p className="text-xs text-[var(--muted-foreground)]">
                 Acesso Pro
               </p>
-              <p className="mt-2 text-xl font-semibold text-white">
+              <p className="mt-2 break-words text-xl font-semibold text-white">
                 {hasActiveProAccess
                   ? (proRemainingLabel ?? "Ativo")
                   : "Sem Pro"}
@@ -979,7 +979,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                   <p className="font-medium text-white">{statusNoticeTitle}</p>
                   <p className="mt-2 leading-6">{statusNoticeBody}</p>
                 </div>
-                <div className="grid gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2 lg:min-w-[22rem]">
+                <div className="grid w-full min-w-0 gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2 lg:w-[22rem] lg:max-w-full">
                   <span className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.28)] px-3 py-2">
                     {renewalLabel}
                   </span>
@@ -1007,7 +1007,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                   </p>
                 </div>
                 {proAccessSummary ? (
-                  <span className="rounded-md border border-[rgb(159_243_196/0.24)] bg-[rgb(159_243_196/0.08)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                  <span className="w-full rounded-md border border-[rgb(159_243_196/0.24)] bg-[rgb(159_243_196/0.08)] px-3 py-2 text-xs leading-5 text-[var(--muted-foreground)] sm:w-auto">
                     {proAccessSummary}
                   </span>
                 ) : null}
@@ -1021,7 +1021,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                       : "border-[var(--border)] bg-[rgb(8_10_11/0.44)]"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 text-sm font-medium text-white">
                         <QrCode
@@ -1030,7 +1030,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                         />
                         Pix mensal avulso
                       </p>
-                      <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
+                      <p className="mt-2 break-words text-2xl font-semibold text-[var(--primary)]">
                         R$ 45 por mês
                       </p>
                     </div>
@@ -1100,7 +1100,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                         : "border-[var(--border)] bg-[rgb(8_10_11/0.44)]"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 text-sm font-medium text-white">
                         <CreditCard
@@ -1109,7 +1109,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                         />
                         Assinatura recorrente
                       </p>
-                      <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
+                      <p className="mt-2 break-words text-2xl font-semibold text-[var(--primary)]">
                         R$ 45/mês
                       </p>
                     </div>
@@ -1282,15 +1282,15 @@ export function BillingManager({ companyId }: BillingManagerProps) {
 
                 return (
                   <article
-                    className="flex min-h-[26rem] flex-col rounded-lg border border-transparent bg-[rgb(8_10_11/0.44)] p-5 transition hover:border-[var(--primary)] hover:shadow-2xl hover:shadow-[color:var(--shadow-color)] focus-within:border-[var(--primary)] focus-within:shadow-2xl focus-within:shadow-[color:var(--shadow-color)] sm:p-6"
+                    className="flex min-w-0 flex-col rounded-lg border border-transparent bg-[rgb(8_10_11/0.44)] p-5 transition hover:border-[var(--primary)] hover:shadow-2xl hover:shadow-[color:var(--shadow-color)] focus-within:border-[var(--primary)] focus-within:shadow-2xl focus-within:shadow-[color:var(--shadow-color)] sm:min-h-[26rem] sm:p-6"
                     key={plan.id}
                   >
                     <div className="flex items-start justify-between gap-4">
-                      <div>
+                      <div className="min-w-0">
                         <h2 className="text-xl font-semibold text-white">
                           {plan.label}
                         </h2>
-                        <p className="mt-2 text-2xl font-semibold text-[var(--primary)]">
+                        <p className="mt-2 break-words text-2xl font-semibold text-[var(--primary)]">
                           {plan.price}
                         </p>
                       </div>

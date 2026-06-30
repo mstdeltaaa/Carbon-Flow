@@ -111,7 +111,7 @@ export function LoginForm() {
 
   return (
     <form
-      className="grid w-full max-w-md gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.86)] p-5"
+      className="mx-auto grid w-full max-w-md gap-4 rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.86)] p-4 sm:p-5 lg:mx-0"
       onSubmit={handleSubmit}
     >
       <div className="grid grid-cols-2 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.52)] p-1">

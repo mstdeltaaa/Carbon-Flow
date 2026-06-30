@@ -30,13 +30,13 @@ export default async function OnboardingPage({
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8">
+    <main className="flex min-h-screen items-start justify-center px-4 py-8 sm:items-center">
       <section className="grid w-full max-w-4xl gap-6 lg:grid-cols-[0.9fr_1fr] lg:items-center">
         <div>
           <p className="text-sm text-[var(--primary)]">
             {isCreatingNewCompany ? "Nova empresa" : "Primeiro acesso"}
           </p>
-          <h1 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
+          <h1 className="mt-3 text-2xl font-semibold leading-tight text-white sm:text-4xl">
             {isCreatingNewCompany
               ? "Crie outra empresa para este mesmo login."
               : "Crie a empresa que vai organizar seu fluxo."}
