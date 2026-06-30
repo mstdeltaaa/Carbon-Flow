@@ -49,7 +49,7 @@ function roundQuantity(value: number) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar o estoque."
+    error.message ?? "Não foi possível processar o estoque."
   );
 }
 
@@ -167,7 +167,7 @@ export class StockService {
     const nextStock = roundQuantity(currentStock + quantityDelta);
 
     if (nextStock < 0) {
-      throw new BadRequestException("O estoque nao pode ficar negativo.");
+      throw new BadRequestException("O estoque não pode ficar negativo.");
     }
 
     const movementUnitCost = dto.unitCost ?? Number(ingredient.unit_cost);
@@ -194,7 +194,7 @@ export class StockService {
     }
 
     if (!updatedIngredient) {
-      throw new NotFoundException("Insumo nao encontrado.");
+      throw new NotFoundException("Insumo não encontrado.");
     }
 
     const { data: movement, error: movementError } = await supabase
@@ -253,7 +253,7 @@ export class StockService {
     }
 
     if (!data) {
-      throw new NotFoundException("Insumo nao encontrado.");
+      throw new NotFoundException("Insumo não encontrado.");
     }
 
     return data as IngredientRow;

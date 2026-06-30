@@ -79,7 +79,7 @@ function roundMoney(value: number) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar o orçamento."
+    error.message ?? "Não foi possível processar o orçamento."
   );
 }
 
@@ -284,7 +284,7 @@ export class BudgetsService {
 
     if (existing.status === "converted") {
       throw new BadRequestException(
-        "Orcamentos convertidos nao podem ser editados."
+        "Orçamentos convertidos não podem ser editados."
       );
     }
 
@@ -296,7 +296,7 @@ export class BudgetsService {
     if (dto.status !== undefined) {
       if (dto.status === "converted") {
         throw new BadRequestException(
-          "Use a conversao para venda para marcar um orcamento como convertido."
+          "Use a conversão para venda para marcar um orçamento como convertido."
         );
       }
 
@@ -345,7 +345,7 @@ export class BudgetsService {
     }
 
     if (!budget) {
-      throw new NotFoundException("Orçamento nao encontrado.");
+      throw new NotFoundException("Orçamento não encontrado.");
     }
 
     if (calculatedItems) {
@@ -411,7 +411,7 @@ export class BudgetsService {
 
     if (existing.status === "converted") {
       throw new BadRequestException(
-        "Orcamentos convertidos nao podem ser excluidos."
+        "Orçamentos convertidos não podem ser excluídos."
       );
     }
 
@@ -428,7 +428,7 @@ export class BudgetsService {
     }
 
     if (!data) {
-      throw new NotFoundException("Orçamento nao encontrado.");
+      throw new NotFoundException("Orçamento não encontrado.");
     }
 
     await this.auditService.record({
@@ -486,7 +486,7 @@ export class BudgetsService {
     }
 
     if (!data) {
-      throw new NotFoundException("Orçamento nao encontrado.");
+      throw new NotFoundException("Orçamento não encontrado.");
     }
 
     return data as BudgetRow;
@@ -514,7 +514,7 @@ export class BudgetsService {
     }
 
     if (!data) {
-      throw new BadRequestException("Cliente do orçamento nao encontrado.");
+      throw new BadRequestException("Cliente do orçamento não encontrado.");
     }
   }
 
@@ -545,7 +545,7 @@ export class BudgetsService {
 
     if (products.length !== productIds.length) {
       throw new BadRequestException(
-        "Um ou mais produtos do orçamento nao foram encontrados."
+        "Um ou mais produtos do orçamento não foram encontrados."
       );
     }
 
@@ -553,7 +553,7 @@ export class BudgetsService {
       const product = products.find((current) => current.id === item.productId);
 
       if (!product) {
-        throw new BadRequestException("Produto do orçamento nao encontrado.");
+        throw new BadRequestException("Produto do orçamento não encontrado.");
       }
 
       const unitPrice = item.unitPrice ?? Number(product.sale_price);
@@ -583,7 +583,7 @@ export class BudgetsService {
 
     if (roundedDiscount > subtotalAmount) {
       throw new BadRequestException(
-        "O desconto nao pode ser maior que o subtotal."
+        "O desconto não pode ser maior que o subtotal."
       );
     }
 

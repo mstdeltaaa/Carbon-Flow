@@ -26,7 +26,7 @@ export class AuditController {
     @CurrentCompany() company: CurrentCompanyPayload
   ) {
     if (company.role !== "admin") {
-      throw new ForbiddenException("Apenas administradores podem ver o historico.");
+      throw new ForbiddenException("Apenas administradores podem ver o histórico.");
     }
 
     return this.auditService.findAll(accessToken, company.id);

@@ -202,7 +202,7 @@ function getCompanyContactLines(company: CompanyDetails | null) {
   }
 
   if (company?.email) {
-    lines.push({ label: "Email", value: company.email });
+    lines.push({ label: "E-mail", value: company.email });
   }
 
   if (company?.address) {
@@ -228,7 +228,7 @@ function getCustomerContactLines(customer: SaleCustomer | null) {
   }
 
   if (customer?.email) {
-    lines.push({ label: "Email", value: customer.email });
+    lines.push({ label: "E-mail", value: customer.email });
   }
 
   if (customer?.address) {

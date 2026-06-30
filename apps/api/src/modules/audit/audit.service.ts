@@ -45,7 +45,7 @@ export class AuditService {
 
     if (error) {
       throw new BadRequestException(
-        error.message ?? "Nao foi possivel carregar o historico."
+        error.message ?? "Não foi possível carregar o histórico."
       );
     }
 
@@ -67,7 +67,7 @@ export class AuditService {
 
       if (userError) {
         throw new BadRequestException(
-          userError.message ?? "Nao foi possivel carregar os usuarios."
+          userError.message ?? "Não foi possível carregar os usuários."
         );
       }
 
@@ -110,7 +110,7 @@ export class AuditService {
       });
 
       if (error) {
-        console.warn("Nao foi possivel gravar auditoria.", error.message);
+        console.warn("Não foi possível gravar auditoria.", error.message);
       }
     } catch (error) {
       console.warn(

@@ -182,7 +182,7 @@ function buildSummary(
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar o cliente."
+    error.message ?? "Não foi possível processar o cliente."
   );
 }
 
@@ -295,7 +295,7 @@ export class CustomersService {
     }
 
     if (!data) {
-      throw new NotFoundException("Cliente nao encontrado.");
+      throw new NotFoundException("Cliente não encontrado.");
     }
 
     const summaries = await this.getCustomerSummaries(accessToken, company, [
@@ -359,7 +359,7 @@ export class CustomersService {
     }
 
     if (!data) {
-      throw new NotFoundException("Cliente nao encontrado.");
+      throw new NotFoundException("Cliente não encontrado.");
     }
 
     return { id: customerId };
@@ -385,7 +385,7 @@ export class CustomersService {
     }
 
     if (!data) {
-      throw new NotFoundException("Cliente nao encontrado.");
+      throw new NotFoundException("Cliente não encontrado.");
     }
 
     return data as CustomerRow;

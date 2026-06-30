@@ -16,7 +16,7 @@ export class SupabaseClientFactory {
       this.config.get<string>("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new UnauthorizedException("Supabase nao configurado.");
+      throw new UnauthorizedException("Supabase não configurado.");
     }
 
     return createClient(supabaseUrl, supabaseAnonKey, {
@@ -42,7 +42,7 @@ export class SupabaseClientFactory {
       this.config.get<string>("SUPABASE_SECRET_KEY");
 
     if (!supabaseUrl || !supabaseSecretKey) {
-      throw new UnauthorizedException("Supabase administrativo nao configurado.");
+      throw new UnauthorizedException("Supabase administrativo não configurado.");
     }
 
     return createClient(supabaseUrl, supabaseSecretKey, {

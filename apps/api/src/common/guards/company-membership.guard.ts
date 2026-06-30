@@ -48,7 +48,7 @@ export class CompanyMembershipGuard implements CanActivate {
       this.config.get<string>("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new UnauthorizedException("Supabase nao configurado.");
+      throw new UnauthorizedException("Supabase não configurado.");
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -73,7 +73,7 @@ export class CompanyMembershipGuard implements CanActivate {
       .maybeSingle();
 
     if (error || !data) {
-      throw new ForbiddenException("Usuario sem acesso a esta empresa.");
+      throw new ForbiddenException("Usuário sem acesso a esta empresa.");
     }
 
     request.company = {

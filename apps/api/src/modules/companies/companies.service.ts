@@ -103,14 +103,14 @@ function normalizeEmail(value: string | null | undefined) {
 function requireAdmin(role: string) {
   if (role !== "admin") {
     throw new ForbiddenException(
-      "Apenas administradores podem gerenciar usuarios."
+      "Apenas administradores podem gerenciar usuários."
     );
   }
 }
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar a empresa."
+    error.message ?? "Não foi possível processar a empresa."
   );
 }
 
@@ -214,7 +214,7 @@ export class CompaniesService {
     }
 
     if (!data) {
-      throw new NotFoundException("Empresa nao encontrada.");
+      throw new NotFoundException("Empresa não encontrada.");
     }
 
     return {
@@ -241,7 +241,7 @@ export class CompaniesService {
     }
 
     if (!companyResult.data) {
-      throw new NotFoundException("Empresa nao encontrada.");
+      throw new NotFoundException("Empresa não encontrada.");
     }
 
     if (membersResult.error) {
@@ -363,7 +363,7 @@ export class CompaniesService {
     }
 
     if (!data) {
-      throw new NotFoundException("Empresa nao encontrada.");
+      throw new NotFoundException("Empresa não encontrada.");
     }
 
     return {
@@ -415,7 +415,7 @@ export class CompaniesService {
       existingMember = await this.getMemberByUserId(companyId, user.id);
 
       if (existingMember?.status === "active") {
-        throw new ConflictException("Este usuario ja esta ativo na empresa.");
+        throw new ConflictException("Este usuário já está ativo na empresa.");
       }
     }
 
@@ -431,12 +431,12 @@ export class CompaniesService {
 
       if (error) {
         throw new BadRequestException(
-          error.message ?? "Nao foi possivel enviar o convite."
+          error.message ?? "Não foi possível enviar o convite."
         );
       }
 
       if (!data.user?.id || !data.user.email) {
-        throw new BadRequestException("Convite criado sem usuario valido.");
+        throw new BadRequestException("Convite criado sem usuário válido.");
       }
 
       user = {
@@ -465,7 +465,7 @@ export class CompaniesService {
       }
 
       if (!data) {
-        throw new NotFoundException("Usuario da empresa nao encontrado.");
+        throw new NotFoundException("Usuário da empresa não encontrado.");
       }
 
       return mapMember({
@@ -508,12 +508,12 @@ export class CompaniesService {
     const user = await this.findUserById(member.user_id);
 
     if (!user?.email) {
-      throw new BadRequestException("Usuario sem email valido.");
+      throw new BadRequestException("Usuário sem e-mail válido.");
     }
 
     if (member.status === "disabled") {
       throw new BadRequestException(
-        "Ative o usuario antes de reenviar o acesso."
+        "Ative o usuário antes de reenviar o acesso."
       );
     }
 
@@ -524,7 +524,7 @@ export class CompaniesService {
 
     if (error) {
       throw new BadRequestException(
-        error.message ?? "Nao foi possivel reenviar o acesso."
+        error.message ?? "Não foi possível reenviar o acesso."
       );
     }
 
@@ -597,7 +597,7 @@ export class CompaniesService {
     }
 
     if (!data) {
-      throw new NotFoundException("Usuario da empresa nao encontrado.");
+      throw new NotFoundException("Usuário da empresa não encontrado.");
     }
 
     const user = await this.findUserById((data as CompanyUserRow).user_id);
@@ -668,7 +668,7 @@ export class CompaniesService {
     }
 
     if (!data) {
-      throw new NotFoundException("Usuario da empresa nao encontrado.");
+      throw new NotFoundException("Usuário da empresa não encontrado.");
     }
 
     return data as CompanyUserRow;

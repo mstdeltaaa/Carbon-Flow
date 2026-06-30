@@ -71,7 +71,7 @@ function assertProductionEnvironment(config: ConfigService) {
 
   if (missing.length) {
     throw new Error(
-      `Variaveis obrigatorias ausentes em producao: ${missing.join(", ")}.`,
+      `Variáveis obrigatórias ausentes em produção: ${missing.join(", ")}.`,
     );
   }
 }

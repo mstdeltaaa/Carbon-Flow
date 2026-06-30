@@ -596,7 +596,7 @@ export function CustomersManager({ companyId }: CustomersManagerProps) {
             </label>
 
             <label className="grid gap-2 text-sm text-white">
-              Observacoes
+              Observações
               <textarea
                 className="min-h-28 rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.72)] px-3 py-3 text-white outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--primary)]"
                 onChange={(event) => updateField("notes", event.target.value)}

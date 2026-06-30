@@ -154,7 +154,7 @@ function roundQuantity(value: number) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar a venda."
+    error.message ?? "Não foi possível processar a venda."
   );
 }
 
@@ -395,7 +395,7 @@ export class SalesService {
 
         if (!updatedIngredient) {
           throw new BadRequestException(
-            `Nao foi possivel atualizar o estoque de ${plan.ingredientName}.`
+            `Não foi possível atualizar o estoque de ${plan.ingredientName}.`
           );
         }
 
@@ -457,7 +457,7 @@ export class SalesService {
         throw error;
       }
 
-      throw new BadRequestException("Nao foi possivel criar a venda.");
+      throw new BadRequestException("Não foi possível criar a venda.");
     }
   }
 
@@ -471,21 +471,21 @@ export class SalesService {
     const existingSale = await this.findByBudgetId(accessToken, companyId, budgetId);
 
     if (existingSale) {
-      throw new BadRequestException("Este orcamento ja foi convertido em venda.");
+      throw new BadRequestException("Este orçamento já foi convertido em venda.");
     }
 
     const budget = await this.getBudgetRow(accessToken, companyId, budgetId);
 
     if (budget.status !== "approved") {
       throw new BadRequestException(
-        "Apenas orcamentos aprovados podem virar venda."
+        "Apenas orçamentos aprovados podem virar venda."
       );
     }
 
     const budgetItems = await this.getBudgetItems(accessToken, companyId, budgetId);
 
     if (budgetItems.length === 0) {
-      throw new BadRequestException("O orcamento nao possui itens.");
+      throw new BadRequestException("O orçamento não possui itens.");
     }
 
     await this.subscriptionsService.assertCanCreate(
@@ -572,7 +572,7 @@ export class SalesService {
 
         if (!updatedIngredient) {
           throw new BadRequestException(
-            `Nao foi possivel atualizar o estoque de ${plan.ingredientName}.`
+            `Não foi possível atualizar o estoque de ${plan.ingredientName}.`
           );
         }
 
@@ -665,7 +665,7 @@ export class SalesService {
         throw error;
       }
 
-      throw new BadRequestException("Nao foi possivel converter o orcamento.");
+      throw new BadRequestException("Não foi possível converter o orçamento.");
     }
   }
 
@@ -679,7 +679,7 @@ export class SalesService {
     const sale = await this.getSaleRow(accessToken, companyId, saleId);
 
     if (sale.status !== "completed") {
-      throw new BadRequestException("Apenas vendas concluidas podem ser canceladas.");
+      throw new BadRequestException("Apenas vendas concluídas podem ser canceladas.");
     }
 
     const existingReversal = await this.findSaleReversal(
@@ -689,7 +689,7 @@ export class SalesService {
     );
 
     if (existingReversal) {
-      throw new BadRequestException("Esta venda ja possui estorno registrado.");
+      throw new BadRequestException("Esta venda já possui estorno registrado.");
     }
 
     const saleMovements = await this.getSaleStockMovements(
@@ -700,7 +700,7 @@ export class SalesService {
 
     if (saleMovements.length === 0) {
       throw new BadRequestException(
-        "Nao foram encontradas baixas de estoque para esta venda."
+        "Não foram encontradas baixas de estoque para esta venda."
       );
     }
 
@@ -733,7 +733,7 @@ export class SalesService {
         }
 
         if (!updatedIngredient) {
-          throw new BadRequestException("Nao foi possivel estornar o estoque.");
+          throw new BadRequestException("Não foi possível estornar o estoque.");
         }
 
         restoredStocks.push({
@@ -780,7 +780,7 @@ export class SalesService {
       }
 
       if (!updatedSale) {
-        throw new NotFoundException("Venda nao encontrada.");
+        throw new NotFoundException("Venda não encontrada.");
       }
 
       saleWasUpdated = true;
@@ -837,7 +837,7 @@ export class SalesService {
         throw error;
       }
 
-      throw new BadRequestException("Nao foi possivel cancelar a venda.");
+      throw new BadRequestException("Não foi possível cancelar a venda.");
     }
   }
 
@@ -863,7 +863,7 @@ export class SalesService {
     }
 
     if (!data) {
-      throw new BadRequestException("Cliente da venda nao encontrado.");
+      throw new BadRequestException("Cliente da venda não encontrado.");
     }
   }
 
@@ -894,7 +894,7 @@ export class SalesService {
 
     if (products.length !== productIds.length) {
       throw new BadRequestException(
-        "Um ou mais produtos da venda nao foram encontrados."
+        "Um ou mais produtos da venda não foram encontrados."
       );
     }
 
@@ -902,7 +902,7 @@ export class SalesService {
       const product = products.find((current) => current.id === item.productId);
 
       if (!product) {
-        throw new BadRequestException("Produto da venda nao encontrado.");
+        throw new BadRequestException("Produto da venda não encontrado.");
       }
 
       const unitPrice = item.unitPrice ?? Number(product.sale_price);
@@ -930,7 +930,7 @@ export class SalesService {
 
     if (roundedDiscount > subtotalAmount) {
       throw new BadRequestException(
-        "O desconto nao pode ser maior que o subtotal."
+        "O desconto não pode ser maior que o subtotal."
       );
     }
 
@@ -982,7 +982,7 @@ export class SalesService {
     }
 
     if (!data) {
-      throw new NotFoundException("Venda nao encontrada.");
+      throw new NotFoundException("Venda não encontrada.");
     }
 
     return data as SaleRow;
@@ -1054,7 +1054,7 @@ export class SalesService {
 
     if (ingredients.length !== ingredientIds.length) {
       throw new BadRequestException(
-        "Um ou mais insumos do estorno nao foram encontrados."
+        "Um ou mais insumos do estorno não foram encontrados."
       );
     }
 
@@ -1064,7 +1064,7 @@ export class SalesService {
       );
 
       if (!ingredient) {
-        throw new BadRequestException("Insumo do estorno nao encontrado.");
+        throw new BadRequestException("Insumo do estorno não encontrado.");
       }
 
       const currentStock = Number(ingredient.stock_quantity);
@@ -1101,7 +1101,7 @@ export class SalesService {
     }
 
     if (!sale) {
-      throw new NotFoundException("Venda nao encontrada.");
+      throw new NotFoundException("Venda não encontrada.");
     }
 
     const { data: items, error: itemsError } = await supabase
@@ -1139,7 +1139,7 @@ export class SalesService {
     }
 
     if (!data) {
-      throw new NotFoundException("Orcamento nao encontrado.");
+      throw new NotFoundException("Orçamento não encontrado.");
     }
 
     return data as BudgetRow;
@@ -1208,7 +1208,7 @@ export class SalesService {
 
       if (productComposition.length === 0) {
         throw new BadRequestException(
-          `Produto sem composicao: ${stockItem.product_name}.`
+          `Produto sem composição: ${stockItem.product_name}.`
         );
       }
 
@@ -1217,7 +1217,7 @@ export class SalesService {
 
         if (!ingredient) {
           throw new BadRequestException(
-            `Insumo nao encontrado na composicao de ${stockItem.product_name}.`
+            `Insumo não encontrado na composição de ${stockItem.product_name}.`
           );
         }
 

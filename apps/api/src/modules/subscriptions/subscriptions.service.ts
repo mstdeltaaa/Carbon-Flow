@@ -338,7 +338,7 @@ function isExpiredPeriodBasedPro(row: SubscriptionRow | null) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar a assinatura.",
+    error.message ?? "Não foi possível processar a assinatura.",
   );
 }
 
@@ -397,12 +397,12 @@ export class SubscriptionsService {
     }
 
     if (subscription.plan === "pro" && subscription.status === "active") {
-      throw new BadRequestException("A empresa ja esta no plano Pro.");
+      throw new BadRequestException("A empresa já está no plano Pro.");
     }
 
     if (subscription.currentPeriodEnd) {
       throw new BadRequestException(
-        "O teste gratis do Pro ja foi usado por esta empresa.",
+        "O teste grátis do Pro já foi usado por esta empresa.",
       );
     }
 
@@ -439,12 +439,12 @@ export class SubscriptionsService {
       subscription.status === "active" &&
       subscription.billingMode !== "pix"
     ) {
-      throw new BadRequestException("A empresa ja esta no plano Pro.");
+      throw new BadRequestException("A empresa já está no plano Pro.");
     }
 
     if (!userEmail) {
       throw new BadRequestException(
-        "Nao foi possivel identificar o email do usuario para o checkout.",
+        "Não foi possível identificar o e-mail do usuário para o checkout.",
       );
     }
 
@@ -457,7 +457,7 @@ export class SubscriptionsService {
 
     if (!preapproval.id || !checkoutUrl) {
       throw new BadRequestException(
-        "O Mercado Pago nao retornou um link valido para assinatura.",
+        "O Mercado Pago não retornou um link válido para assinatura.",
       );
     }
 
@@ -486,13 +486,13 @@ export class SubscriptionsService {
 
     if (subscription.billingMode === "recurring") {
       throw new BadRequestException(
-        "A empresa ja possui assinatura recorrente ativa. Cancele a renovacao antes de pagar por Pix.",
+        "A empresa já possui assinatura recorrente ativa. Cancele a renovação antes de pagar por Pix.",
       );
     }
 
     if (!userEmail) {
       throw new BadRequestException(
-        "Nao foi possivel identificar o email do usuario para gerar o Pix.",
+        "Não foi possível identificar o e-mail do usuário para gerar o Pix.",
       );
     }
 
@@ -504,7 +504,7 @@ export class SubscriptionsService {
 
     if (!payment.id || !transactionData?.qr_code) {
       throw new BadRequestException(
-        "O Mercado Pago nao retornou um Pix valido para pagamento.",
+        "O Mercado Pago não retornou um Pix válido para pagamento.",
       );
     }
 
@@ -722,7 +722,7 @@ export class SubscriptionsService {
 
     if (!("companyId" in result) || result.companyId !== companyId) {
       throw new BadRequestException(
-        "Pagamento Pix nao vinculado a esta empresa.",
+        "Pagamento Pix não vinculado a esta empresa.",
       );
     }
 
@@ -733,7 +733,7 @@ export class SubscriptionsService {
     const subscription = await this.getSubscriptionRowByCompanyId(companyId);
 
     if (!subscription || subscription.plan !== "pro") {
-      throw new BadRequestException("A empresa nao esta no plano Pro.");
+      throw new BadRequestException("A empresa não está no plano Pro.");
     }
 
     if (subscription.status === "cancelled") {
@@ -742,13 +742,13 @@ export class SubscriptionsService {
 
     if (getBillingMode(subscription) !== "recurring") {
       throw new BadRequestException(
-        "Este plano Pro nao possui assinatura recorrente para cancelar.",
+        "Este plano Pro não possui assinatura recorrente para cancelar.",
       );
     }
 
     if (!subscription.provider_subscription_id) {
       throw new BadRequestException(
-        "Nao encontramos a assinatura recorrente do Mercado Pago.",
+        "Não encontramos a assinatura recorrente do Mercado Pago.",
       );
     }
 
@@ -893,7 +893,7 @@ export class SubscriptionsService {
     const notificationUrl = this.getMercadoPagoWebhookUrl();
     const payload: Record<string, unknown> = {
       date_of_expiration: getPixExpirationIso(),
-      description: "Carbon Flow Pro - 1 mes",
+      description: "Carbon Flow Pro - 1 mês",
       external_reference: `${proPixExternalReferencePrefix}${companyId}`,
       payer: {
         email: userEmail,
@@ -982,7 +982,7 @@ export class SubscriptionsService {
       const message =
         typeof payload?.message === "string"
           ? payload.message
-          : "Nao foi possivel comunicar com o Mercado Pago.";
+          : "Não foi possível comunicar com o Mercado Pago.";
 
       throw new BadRequestException(message);
     }

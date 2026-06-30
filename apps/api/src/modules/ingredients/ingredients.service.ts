@@ -43,7 +43,7 @@ function mapIngredient(row: IngredientRow) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar o insumo."
+    error.message ?? "Não foi possível processar o insumo."
   );
 }
 
@@ -159,7 +159,7 @@ export class IngredientsService {
     }
 
     if (!data) {
-      throw new NotFoundException("Insumo nao encontrado.");
+      throw new NotFoundException("Insumo não encontrado.");
     }
 
     return mapIngredient(data as IngredientRow);

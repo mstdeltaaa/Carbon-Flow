@@ -186,7 +186,7 @@ function getCompanyContactLines(company: CompanyDetails | null) {
   }
 
   if (company?.email) {
-    lines.push({ label: "Email", value: company.email });
+    lines.push({ label: "E-mail", value: company.email });
   }
 
   if (company?.address) {

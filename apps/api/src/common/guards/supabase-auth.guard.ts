@@ -23,7 +23,7 @@ export class SupabaseAuthGuard implements CanActivate {
       : authorizationHeader;
 
     if (!authorization?.startsWith("Bearer ")) {
-      throw new UnauthorizedException("Token de autenticacao ausente.");
+      throw new UnauthorizedException("Token de autenticação ausente.");
     }
 
     const accessToken = authorization.replace("Bearer ", "").trim();
@@ -36,7 +36,7 @@ export class SupabaseAuthGuard implements CanActivate {
       this.config.get<string>("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      throw new UnauthorizedException("Supabase nao configurado.");
+      throw new UnauthorizedException("Supabase não configurado.");
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -53,7 +53,7 @@ export class SupabaseAuthGuard implements CanActivate {
     } = await supabase.auth.getUser(accessToken);
 
     if (error || !user) {
-      throw new UnauthorizedException("Token de autenticacao invalido.");
+      throw new UnauthorizedException("Token de autenticação inválido.");
     }
 
     request.accessToken = accessToken;

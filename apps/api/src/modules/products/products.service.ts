@@ -64,7 +64,7 @@ function roundMoney(value: number) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar o produto."
+    error.message ?? "Não foi possível processar o produto."
   );
 }
 
@@ -318,7 +318,7 @@ export class ProductsService {
     }
 
     if (!product) {
-      throw new NotFoundException("Produto nao encontrado.");
+      throw new NotFoundException("Produto não encontrado.");
     }
 
     if (calculatedItems) {
@@ -375,7 +375,7 @@ export class ProductsService {
     }
 
     if (!product) {
-      throw new NotFoundException("Produto nao encontrado.");
+      throw new NotFoundException("Produto não encontrado.");
     }
 
     const { data: items, error: itemsError } = await supabase
@@ -401,7 +401,7 @@ export class ProductsService {
     const ingredientIds = [...new Set(items.map((item) => item.ingredientId))];
 
     if (ingredientIds.length !== items.length) {
-      throw new BadRequestException("Nao repita o mesmo insumo na composicao.");
+      throw new BadRequestException("Não repita o mesmo insumo na composição.");
     }
 
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -420,7 +420,7 @@ export class ProductsService {
 
     if (ingredients.length !== ingredientIds.length) {
       throw new BadRequestException(
-        "Um ou mais insumos da composicao nao foram encontrados."
+        "Um ou mais insumos da composição não foram encontrados."
       );
     }
 
@@ -430,7 +430,7 @@ export class ProductsService {
       );
 
       if (!ingredient) {
-        throw new BadRequestException("Insumo da composicao nao encontrado.");
+        throw new BadRequestException("Insumo da composição não encontrado.");
       }
 
       return {

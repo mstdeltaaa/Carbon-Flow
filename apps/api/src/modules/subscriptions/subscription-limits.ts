@@ -19,12 +19,12 @@ export type PlanLimits = Record<PlanLimitKey, number | null>;
 export type PlanUsage = Record<PlanLimitKey, number>;
 
 export const planLimitLabels: Record<PlanLimitKey, string> = {
-  budgets_per_month: "orcamentos por mes",
+  budgets_per_month: "orçamentos por mês",
   customers: "clientes",
   ingredients: "insumos",
   products: "produtos",
-  sales_per_month: "vendas por mes",
-  users: "usuarios"
+  sales_per_month: "vendas por mês",
+  users: "usuários"
 };
 
 export const defaultPlanLimits: Record<SubscriptionPlan, PlanLimits> = {
