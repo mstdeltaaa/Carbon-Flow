@@ -2503,6 +2503,7 @@ export function VirtualAssistant({
   const assistantFrameRef = useRef<HTMLDivElement | null>(null);
   const assistantPanelRef = useRef<HTMLElement | null>(null);
   const assistantDragStateRef = useRef<{
+    hasDragged: boolean;
     originX: number;
     originY: number;
     startX: number;
@@ -3345,6 +3346,8 @@ export function VirtualAssistant({
     const rect = frame?.getBoundingClientRect();
     const dragHandle = event.currentTarget;
     const shouldMovePanel = isOpen;
+    const dragActivationDistance =
+      event.pointerType === "touch" && !shouldMovePanel ? 14 : 6;
 
     if (!rect) {
       return;
@@ -3357,6 +3360,7 @@ export function VirtualAssistant({
     }
 
     assistantDragStateRef.current = {
+      hasDragged: false,
       originX: rect.left,
       originY: rect.top,
       startX: event.clientX,
@@ -3365,7 +3369,6 @@ export function VirtualAssistant({
     if (options.suppressNextClickOnDrag) {
       ignoreAssistantClickRef.current = false;
     }
-    setIsDraggingAssistant(true);
 
     function handlePointerMove(moveEvent: PointerEvent) {
       const dragState = assistantDragStateRef.current;
@@ -3376,11 +3379,22 @@ export function VirtualAssistant({
 
       const deltaX = moveEvent.clientX - dragState.startX;
       const deltaY = moveEvent.clientY - dragState.startY;
+      const dragDistance = Math.hypot(deltaX, deltaY);
 
-      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+      if (!dragState.hasDragged && dragDistance < dragActivationDistance) {
+        return;
+      }
+
+      if (!dragState.hasDragged) {
+        dragState.hasDragged = true;
+        setIsDraggingAssistant(true);
         if (options.suppressNextClickOnDrag) {
           ignoreAssistantClickRef.current = true;
         }
+      }
+
+      if (moveEvent.cancelable) {
+        moveEvent.preventDefault();
       }
 
       const nextPosition = {
