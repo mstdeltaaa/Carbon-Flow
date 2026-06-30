@@ -753,6 +753,9 @@ const budgetStatusLabels: Record<BudgetStatus, string> = {
 const assistantConversationLimit = 20;
 const assistantConversationVersion = 1;
 const assistantPreferencesVersion = 1;
+const assistantPositionReloadResetStorageKey =
+  "carbon-flow-assistant-position-reload-reset-at";
+let consumedAssistantPositionReloadResetId: string | null = null;
 
 function getConversationStorageKey(companyId: string, userEmail: string) {
   return [
@@ -950,7 +953,24 @@ function getClampedAssistantPosition(
   );
 }
 
-function wasPageReloaded() {
+function getPageLoadId() {
+  const timeOrigin = window.performance?.timeOrigin;
+
+  if (typeof timeOrigin === "number" && Number.isFinite(timeOrigin)) {
+    return String(Math.round(timeOrigin));
+  }
+
+  const legacyPerformance = window.performance as Performance & {
+    timing?: { navigationStart?: number };
+  };
+  const navigationStart = legacyPerformance.timing?.navigationStart;
+
+  return typeof navigationStart === "number" && Number.isFinite(navigationStart)
+    ? String(navigationStart)
+    : "current";
+}
+
+function shouldResetAssistantPositionAfterReload() {
   if (typeof window === "undefined") {
     return false;
   }
@@ -959,15 +979,42 @@ function wasPageReloaded() {
     ?.getEntriesByType("navigation")
     .at(0) as PerformanceNavigationTiming | undefined;
 
-  if (navigationEntry) {
-    return navigationEntry.type === "reload";
-  }
-
   const legacyPerformance = window.performance as Performance & {
     navigation?: { type?: number };
   };
+  const wasReload = navigationEntry
+    ? navigationEntry.type === "reload"
+    : legacyPerformance.navigation?.type === 1;
 
-  return legacyPerformance.navigation?.type === 1;
+  if (!wasReload) {
+    return false;
+  }
+
+  const pageLoadId = getPageLoadId();
+
+  if (consumedAssistantPositionReloadResetId === pageLoadId) {
+    return false;
+  }
+
+  try {
+    if (
+      window.sessionStorage.getItem(assistantPositionReloadResetStorageKey) ===
+      pageLoadId
+    ) {
+      consumedAssistantPositionReloadResetId = pageLoadId;
+      return false;
+    }
+
+    window.sessionStorage.setItem(
+      assistantPositionReloadResetStorageKey,
+      pageLoadId,
+    );
+  } catch {
+    // The module-level marker still avoids repeated resets during this app run.
+  }
+
+  consumedAssistantPositionReloadResetId = pageLoadId;
+  return true;
 }
 
 function canUseQuickAction(
@@ -2549,7 +2596,7 @@ export function VirtualAssistant({
     const storedPreferences = readStoredAssistantPreferences(
       preferencesStorageKey,
     );
-    const shouldResetPosition = wasPageReloaded();
+    const shouldResetPosition = shouldResetAssistantPositionAfterReload();
 
     setAssistantMode(storedPreferences?.mode ?? "general");
     setDismissedAlertIds(storedPreferences?.dismissedAlertIds ?? []);
