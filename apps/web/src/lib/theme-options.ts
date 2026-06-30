@@ -9,6 +9,7 @@ export type ThemeOption = {
 };
 
 export const themeStorageKey = "carbon-flow-theme";
+export const themeChangeEvent = "carbon-flow-theme-change";
 export const brazil2026ThemeId = "brazil-2026";
 export const brazil2026BlueThemeId = "brazil-2026-blue";
 export const brazil2026ThemeIds = [brazil2026ThemeId, brazil2026BlueThemeId];

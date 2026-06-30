@@ -52,6 +52,7 @@ import {
 } from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { themeChangeEvent } from "@/lib/theme-options";
 
 type Message = {
   author: "assistant" | "user";
@@ -696,6 +697,13 @@ const assistantAvatarByTheme: Record<string, string> = {
   "green-dark": "/brand/AvatarVerdeePreto/VerdeePreto.png",
   "green-light": "/brand/AvatarVerdeeBranco/VerdeeBranco.png",
 };
+
+const assistantAvatarSources = [
+  ...new Set([
+    fallbackAssistantAvatar,
+    ...Object.values(assistantAvatarByTheme),
+  ]),
+];
 
 function getCurrentTheme() {
   if (typeof document === "undefined") {
@@ -2653,19 +2661,36 @@ export function VirtualAssistant({
     allProactiveAlerts.length - visibleProactiveAlerts.length;
 
   useEffect(() => {
-    function syncTheme() {
-      setTheme(getCurrentTheme());
+    function syncTheme(event?: Event) {
+      const eventTheme =
+        event instanceof CustomEvent && typeof event.detail === "string"
+          ? event.detail
+          : null;
+
+      setTheme(eventTheme ?? getCurrentTheme());
     }
 
     syncTheme();
 
-    window.addEventListener("carbon-flow-theme-change", syncTheme);
+    window.addEventListener(themeChangeEvent, syncTheme);
     window.addEventListener("storage", syncTheme);
 
     return () => {
-      window.removeEventListener("carbon-flow-theme-change", syncTheme);
+      window.removeEventListener(themeChangeEvent, syncTheme);
       window.removeEventListener("storage", syncTheme);
     };
+  }, []);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      assistantAvatarSources.forEach((src) => {
+        const image = new window.Image();
+        image.decoding = "async";
+        image.src = src;
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   useEffect(() => {

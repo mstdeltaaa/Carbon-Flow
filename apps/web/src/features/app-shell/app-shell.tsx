@@ -20,8 +20,9 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { signOutAction } from "@/app/actions";
 import { Button } from "@/components/ui/button";
@@ -132,13 +133,35 @@ export function AppShell({
   role,
   userEmail,
 }: AppShellProps) {
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const visibleNavItems = navItems.filter((item) =>
-    canAccessSection(role, item.id as AppSection, permissions),
+  const visibleNavItems = useMemo(
+    () =>
+      navItems.filter((item) =>
+        canAccessSection(role, item.id as AppSection, permissions),
+      ),
+    [permissions, role],
+  );
+  const prefetchRoutes = useMemo(
+    () => [
+      ...new Set([
+        ...visibleNavItems.map((item) => item.href),
+        "/onboarding?mode=create",
+      ]),
+    ],
+    [visibleNavItems],
   );
   const activeCompanyLogoUrl =
     memberships.find((membership) => membership.companyId === activeCompanyId)
       ?.company.logoUrl ?? null;
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      prefetchRoutes.forEach((href) => router.prefetch(href));
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [prefetchRoutes, router]);
 
   return (
     <main className="min-h-screen">

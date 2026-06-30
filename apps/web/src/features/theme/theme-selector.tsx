@@ -14,6 +14,7 @@ import {
   getVisibleThemes,
   isThemeAvailable,
   specialThemeAccessById,
+  themeChangeEvent,
   themeStorageKey,
 } from "@/lib/theme-options";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -46,7 +47,7 @@ function applyTheme(themeId: string) {
   }
 
   window.dispatchEvent(
-    new CustomEvent("carbon-flow-theme-change", { detail: themeId }),
+    new CustomEvent<string>(themeChangeEvent, { detail: themeId }),
   );
 }
 
@@ -210,15 +211,15 @@ export function ThemeSelector({
 
     const fallbackTheme = getPreferredTheme();
 
-    setTheme(fallbackTheme);
-    applyTheme(fallbackTheme);
     window.localStorage.setItem(themeStorageKey, fallbackTheme);
+    applyTheme(fallbackTheme);
+    setTheme(fallbackTheme);
   }, [theme, unlockedSpecialThemes]);
 
   function handleThemeChange(nextTheme: string) {
-    setTheme(nextTheme);
-    applyTheme(nextTheme);
     window.localStorage.setItem(themeStorageKey, nextTheme);
+    applyTheme(nextTheme);
+    setTheme(nextTheme);
   }
 
   if (variant === "icon") {
