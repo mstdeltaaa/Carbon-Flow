@@ -241,12 +241,6 @@ export class SubscriptionsService {
       throw new BadRequestException("A empresa ja esta no plano Pro.");
     }
 
-    if (subscription.plan === "pro" && subscription.status === "trialing") {
-      throw new BadRequestException(
-        "O teste gratis do Pro ainda esta ativo. Aguarde o fim do teste para assinar.",
-      );
-    }
-
     if (!userEmail) {
       throw new BadRequestException(
         "Nao foi possivel identificar o email do usuario para o checkout.",

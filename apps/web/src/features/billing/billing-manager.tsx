@@ -492,6 +492,8 @@ export function BillingManager({ companyId }: BillingManagerProps) {
           <section className="grid min-w-0 gap-4 xl:grid-cols-3">
             {plans.map((plan) => {
               const isCurrent = currentPlan === plan.id;
+              const isProTrialCard =
+                plan.id === "pro" && subscription.status === "trialing";
               const isFeatured = plan.id === "pro";
               const isStartingPlan = planAction === plan.id;
               const canStartTrial =
@@ -539,12 +541,10 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                   </ul>
 
                   <div className="mt-auto pt-6">
-                    {isCurrent ? (
+                    {isCurrent && !isProTrialCard ? (
                       <Button className="w-full" disabled type="button">
                         <Check className="h-4 w-4" aria-hidden="true" />
-                        {subscription.status === "trialing" && plan.id === "pro"
-                          ? "Teste ativo"
-                          : "Plano atual"}
+                        Plano atual
                       </Button>
                     ) : plan.id === "enterprise" ? (
                       <Button
@@ -576,9 +576,11 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                           ? "Iniciando..."
                           : canStartTrial
                             ? "Iniciar teste grátis"
-                            : plan.id === "pro"
-                              ? "Assinar Pro"
-                              : "Solicitar upgrade"}
+                            : isProTrialCard
+                              ? "Assinar Pro agora"
+                              : plan.id === "pro"
+                                ? "Assinar Pro"
+                                : "Solicitar upgrade"}
                       </Button>
                     )}
                   </div>
