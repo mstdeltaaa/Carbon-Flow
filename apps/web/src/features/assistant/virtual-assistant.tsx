@@ -20,18 +20,25 @@ import {
   UsersRound,
   WalletCards,
   Warehouse,
-  X
+  X,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   emitAssistantAction,
   storeAssistantAction,
-  type AssistantActionId
+  type AssistantActionId,
 } from "@/features/assistant/assistant-actions";
 import {
   canAccessSection,
@@ -40,7 +47,7 @@ import {
   normalizeRole,
   type AppSection,
   type CompanyPermissionMap,
-  type CompanyRole
+  type CompanyRole,
 } from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -222,9 +229,16 @@ type ProactiveAlert = {
   title: string;
 };
 
+type AssistantPosition = {
+  x: number;
+  y: number;
+};
+
 type AssistantPreferences = {
   dismissedAlertIds: string[];
   mode: AssistantMode;
+  position: AssistantPosition | null;
+  seenAlertIds: string[];
 };
 
 const pageTips: Record<string, string> = {
@@ -251,7 +265,7 @@ const pageTips: Record<string, string> = {
   settings:
     "Em Configurações você gerencia empresa, usuários, permissões e convites.",
   stock:
-    "Em Estoque você acompanha entradas, saídas, ajustes e movimentações geradas pelas vendas."
+    "Em Estoque você acompanha entradas, saídas, ajustes e movimentações geradas pelas vendas.",
 };
 
 const quickPromptById = {
@@ -259,189 +273,189 @@ const quickPromptById = {
     icon: Trophy,
     label: "Mais vendidos",
     prompt: "Quais produtos mais venderam?",
-    sections: ["dashboard"]
+    sections: ["dashboard"],
   },
   budgetToSale: {
     icon: FileText,
     label: "Converter venda",
     prompt: "Como transformo orçamento em venda?",
     requiresBudgetConversion: true,
-    sections: ["budgets", "sales"]
+    sections: ["budgets", "sales"],
   },
   customerHistory: {
     icon: UsersRound,
     label: "Histórico cliente",
     prompt: "Como acompanho o histórico de um cliente?",
-    sections: ["customers"]
+    sections: ["customers"],
   },
   customerOpportunities: {
     icon: UserRound,
     label: "Oportunidades",
     prompt: "Tem clientes sem venda ou sem contato?",
-    sections: ["customers"]
+    sections: ["customers"],
   },
   dashboardSummary: {
     icon: BarChart3,
     label: "Resumo do mês",
     prompt: "Resumo do mês",
-    sections: ["dashboard"]
+    sections: ["dashboard"],
   },
   firstSteps: {
     icon: HelpCircle,
     label: "Primeiros passos",
-    prompt: "Por onde eu começo?"
+    prompt: "Por onde eu começo?",
   },
   ingredientCost: {
     icon: Boxes,
     label: "Custo insumo",
     prompt: "Como cadastro custo de insumo?",
-    sections: ["ingredients"]
+    sections: ["ingredients"],
   },
   lowStock: {
     icon: AlertTriangle,
     label: "Estoque baixo",
     prompt: "Tem estoque baixo?",
-    sections: ["dashboard"]
+    sections: ["dashboard"],
   },
   minimumStock: {
     icon: AlertTriangle,
     label: "Estoque mínimo",
     prompt: "Como defino estoque mínimo?",
-    sections: ["ingredients"]
+    sections: ["ingredients"],
   },
   pendingBudgets: {
     icon: FileText,
     label: "Pendentes",
     prompt: "Quais orçamentos estão pendentes?",
-    sections: ["budgets"]
+    sections: ["budgets"],
   },
   permissions: {
     icon: Settings,
     label: "Permissões",
     prompt: "Como funcionam permissões de usuários?",
-    sections: ["settings"]
+    sections: ["settings"],
   },
   pricing: {
     icon: PackageCheck,
     label: "Preço sugerido",
     prompt: "Como calculo preço e margem?",
-    sections: ["products"]
+    sections: ["products"],
   },
   recentSales: {
     icon: ShoppingCart,
     label: "Vendas recentes",
     prompt: "Quais foram as vendas recentes?",
-    sections: ["sales"]
+    sections: ["sales"],
   },
   salesFlow: {
     icon: ShoppingCart,
     label: "Baixa estoque",
     prompt: "Como a venda baixa o estoque?",
-    sections: ["sales", "stock"]
+    sections: ["sales", "stock"],
   },
   subscription: {
     icon: CreditCard,
     label: "Planos",
     prompt: "Como funcionam os planos?",
-    sections: ["billing"]
+    sections: ["billing"],
   },
   topCustomers: {
     icon: UsersRound,
     label: "Top clientes",
     prompt: "Quais clientes mais compraram?",
-    sections: ["customers"]
-  }
+    sections: ["customers"],
+  },
 } satisfies Record<string, QuickPrompt>;
 
 const defaultQuickPrompts: QuickPrompt[] = [
   quickPromptById.dashboardSummary,
   quickPromptById.lowStock,
   quickPromptById.bestSellers,
-  quickPromptById.firstSteps
+  quickPromptById.firstSteps,
 ];
 
 const quickPromptsByPage: Record<string, QuickPrompt[]> = {
   account: [
     quickPromptById.permissions,
     quickPromptById.subscription,
-    quickPromptById.firstSteps
+    quickPromptById.firstSteps,
   ],
   billing: [
     quickPromptById.subscription,
     quickPromptById.permissions,
-    quickPromptById.firstSteps
+    quickPromptById.firstSteps,
   ],
   budgets: [
     quickPromptById.pendingBudgets,
     quickPromptById.budgetToSale,
-    quickPromptById.pricing
+    quickPromptById.pricing,
   ],
   customers: [
     quickPromptById.topCustomers,
     quickPromptById.pendingBudgets,
     quickPromptById.customerOpportunities,
-    quickPromptById.customerHistory
+    quickPromptById.customerHistory,
   ],
   dashboard: [
     quickPromptById.dashboardSummary,
     quickPromptById.topCustomers,
     quickPromptById.pendingBudgets,
-    quickPromptById.lowStock
+    quickPromptById.lowStock,
   ],
   history: [
     quickPromptById.salesFlow,
     quickPromptById.permissions,
-    quickPromptById.firstSteps
+    quickPromptById.firstSteps,
   ],
   ingredients: [
     quickPromptById.ingredientCost,
     quickPromptById.minimumStock,
-    quickPromptById.lowStock
+    quickPromptById.lowStock,
   ],
   products: [
     quickPromptById.pricing,
     quickPromptById.ingredientCost,
-    quickPromptById.budgetToSale
+    quickPromptById.budgetToSale,
   ],
   sales: [
     quickPromptById.recentSales,
     quickPromptById.topCustomers,
     quickPromptById.salesFlow,
-    quickPromptById.dashboardSummary
+    quickPromptById.dashboardSummary,
   ],
   settings: [
     quickPromptById.permissions,
     quickPromptById.subscription,
-    quickPromptById.firstSteps
+    quickPromptById.firstSteps,
   ],
   stock: [
     quickPromptById.lowStock,
     quickPromptById.minimumStock,
-    quickPromptById.salesFlow
-  ]
+    quickPromptById.salesFlow,
+  ],
 };
 
 const assistantModeOptions = [
   {
     icon: HelpCircle,
     id: "general",
-    label: "Geral"
+    label: "Geral",
   },
   {
     icon: PackageCheck,
     id: "pricing",
-    label: "Preço"
+    label: "Preço",
   },
   {
     icon: Warehouse,
     id: "stock",
-    label: "Estoque"
+    label: "Estoque",
   },
   {
     icon: ShoppingCart,
     id: "sales",
-    label: "Vendas"
-  }
+    label: "Vendas",
+  },
 ] satisfies Array<{
   icon: typeof Boxes;
   id: AssistantMode;
@@ -453,19 +467,19 @@ const quickPromptsByMode: Record<AssistantMode, QuickPrompt[]> = {
   pricing: [
     quickPromptById.pricing,
     quickPromptById.ingredientCost,
-    quickPromptById.bestSellers
+    quickPromptById.bestSellers,
   ],
   sales: [
     quickPromptById.pendingBudgets,
     quickPromptById.recentSales,
     quickPromptById.topCustomers,
-    quickPromptById.customerOpportunities
+    quickPromptById.customerOpportunities,
   ],
   stock: [
     quickPromptById.lowStock,
     quickPromptById.minimumStock,
-    quickPromptById.salesFlow
-  ]
+    quickPromptById.salesFlow,
+  ],
 };
 
 const quickActionById = {
@@ -474,21 +488,21 @@ const quickActionById = {
     icon: UserRound,
     label: "Minha conta",
     reply: "Vou abrir sua conta.",
-    section: "account"
+    section: "account",
   },
   billing: {
     href: "/billing#app-content",
     icon: CreditCard,
     label: "Ver planos",
     reply: "Vou abrir a área de planos.",
-    section: "billing"
+    section: "billing",
   },
   budgets: {
     href: "/budgets#app-content",
     icon: FileText,
     label: "Ver orçamentos",
     reply: "Vou abrir a área de orçamentos.",
-    section: "budgets"
+    section: "budgets",
   },
   createBudget: {
     actionId: "create-budget",
@@ -496,7 +510,7 @@ const quickActionById = {
     icon: FileText,
     label: "Novo orçamento",
     reply: "Vou te levar para o formulário de orçamento.",
-    section: "budgets"
+    section: "budgets",
   },
   createCustomer: {
     actionId: "create-customer",
@@ -504,7 +518,7 @@ const quickActionById = {
     icon: UserRound,
     label: "Novo cliente",
     reply: "Vou te levar para o cadastro de cliente.",
-    section: "customers"
+    section: "customers",
   },
   createIngredient: {
     actionId: "create-ingredient",
@@ -512,7 +526,7 @@ const quickActionById = {
     icon: Plus,
     label: "Cadastrar insumo",
     reply: "Vou te levar para o cadastro de insumos.",
-    section: "ingredients"
+    section: "ingredients",
   },
   createProduct: {
     actionId: "create-product",
@@ -521,35 +535,35 @@ const quickActionById = {
     label: "Criar produto",
     reply: "Vou abrir a criação de produto.",
     requiresProductManagement: true,
-    section: "products"
+    section: "products",
   },
   customers: {
     href: "/customers#app-content",
     icon: UsersRound,
     label: "Ver clientes",
     reply: "Vou abrir a área de clientes.",
-    section: "customers"
+    section: "customers",
   },
   dashboard: {
     href: "/dashboard#app-content",
     icon: BarChart3,
     label: "Dashboard",
     reply: "Vou abrir o dashboard.",
-    section: "dashboard"
+    section: "dashboard",
   },
   history: {
     href: "/history#app-content",
     icon: History,
     label: "Histórico",
     reply: "Vou abrir o histórico.",
-    section: "history"
+    section: "history",
   },
   finance: {
     href: "/finance#app-content",
     icon: WalletCards,
     label: "Financeiro",
     reply: "Vou abrir o financeiro.",
-    section: "finance"
+    section: "finance",
   },
   openStockList: {
     actionId: "open-stock-list",
@@ -557,7 +571,7 @@ const quickActionById = {
     icon: Warehouse,
     label: "Ver estoque",
     reply: "Vou abrir a visão de estoque.",
-    section: "stock"
+    section: "stock",
   },
   openStockMovement: {
     actionId: "open-stock-movement",
@@ -565,103 +579,103 @@ const quickActionById = {
     icon: ShoppingCart,
     label: "Lançar estoque",
     reply: "Vou abrir o lançamento de movimentação.",
-    section: "stock"
+    section: "stock",
   },
   sales: {
     href: "/sales#app-content",
     icon: ShoppingCart,
     label: "Ver vendas",
     reply: "Vou abrir a tela de vendas.",
-    section: "sales"
+    section: "sales",
   },
   settings: {
     href: "/settings#app-content",
     icon: Settings,
     label: "Configurações",
     reply: "Vou abrir as configurações.",
-    section: "settings"
-  }
+    section: "settings",
+  },
 } satisfies Record<string, QuickAction>;
 
 const defaultQuickActions: QuickAction[] = [
   quickActionById.createIngredient,
   quickActionById.createProduct,
-  quickActionById.createBudget
+  quickActionById.createBudget,
 ];
 
 const quickActionsByPage: Record<string, QuickAction[]> = {
   account: [
     quickActionById.settings,
     quickActionById.billing,
-    quickActionById.dashboard
+    quickActionById.dashboard,
   ],
   billing: [
     quickActionById.settings,
     quickActionById.dashboard,
-    quickActionById.account
+    quickActionById.account,
   ],
   budgets: [
     quickActionById.createBudget,
     quickActionById.customers,
-    quickActionById.sales
+    quickActionById.sales,
   ],
   customers: [
     quickActionById.createCustomer,
     quickActionById.createBudget,
-    quickActionById.sales
+    quickActionById.sales,
   ],
   dashboard: [
     quickActionById.createBudget,
     quickActionById.openStockList,
-    quickActionById.sales
+    quickActionById.sales,
   ],
   history: [
     quickActionById.sales,
     quickActionById.openStockList,
-    quickActionById.settings
+    quickActionById.settings,
   ],
   finance: [
     quickActionById.finance,
     quickActionById.sales,
-    quickActionById.dashboard
+    quickActionById.dashboard,
   ],
   ingredients: [
     quickActionById.createIngredient,
     quickActionById.openStockMovement,
-    quickActionById.openStockList
+    quickActionById.openStockList,
   ],
   products: [
     quickActionById.createProduct,
     quickActionById.createIngredient,
-    quickActionById.createBudget
+    quickActionById.createBudget,
   ],
   sales: [
     quickActionById.createBudget,
     quickActionById.openStockList,
-    quickActionById.dashboard
+    quickActionById.dashboard,
   ],
   settings: [
     quickActionById.billing,
     quickActionById.account,
-    quickActionById.dashboard
+    quickActionById.dashboard,
   ],
   stock: [
     quickActionById.openStockMovement,
     quickActionById.openStockList,
-    quickActionById.createIngredient
-  ]
+    quickActionById.createIngredient,
+  ],
 };
 
 const navigationLinks = [
   {
     href: "/ingredients#app-content",
     label: "Insumos",
-    section: "ingredients"
+    section: "ingredients",
   },
   { href: "/products#app-content", label: "Produtos", section: "products" },
   { href: "/budgets#app-content", label: "Orçamentos", section: "budgets" },
   { href: "/sales#app-content", label: "Vendas", section: "sales" },
-  { href: "/finance#app-content", label: "Financeiro", section: "finance" }
+  { href: "/finance#app-content", label: "Financeiro", section: "finance" },
 ] satisfies Array<{
   href: string;
   label: string;
@@ -679,7 +693,7 @@ const assistantAvatarByTheme: Record<string, string> = {
   "carbon-dark": fallbackAssistantAvatar,
   "carbon-light": "/brand/AvatarPretoeBranco/PretoeBranco.png",
   "green-dark": "/brand/AvatarVerdeePreto/VerdeePreto.png",
-  "green-light": "/brand/AvatarVerdeeBranco/VerdeeBranco.png"
+  "green-light": "/brand/AvatarVerdeeBranco/VerdeeBranco.png",
 };
 
 function getCurrentTheme() {
@@ -693,7 +707,7 @@ function getCurrentTheme() {
 function AssistantAvatar({
   className,
   sizes = "56px",
-  src
+  src,
 }: {
   className: string;
   sizes?: string;
@@ -716,11 +730,11 @@ function AssistantAvatar({
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
-  style: "currency"
+  style: "currency",
 });
 
 const decimalFormatter = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 4
+  maximumFractionDigits: 4,
 });
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR");
@@ -732,7 +746,7 @@ const budgetStatusLabels: Record<BudgetStatus, string> = {
   draft: "Rascunho",
   expired: "Expirado",
   rejected: "Recusado",
-  sent: "Enviado"
+  sent: "Enviado",
 };
 
 const assistantConversationLimit = 20;
@@ -743,7 +757,7 @@ function getConversationStorageKey(companyId: string, userEmail: string) {
   return [
     "carbon-flow-assistant-conversation",
     companyId,
-    userEmail.trim().toLowerCase()
+    userEmail.trim().toLowerCase(),
   ].join(":");
 }
 
@@ -751,7 +765,7 @@ function getPreferencesStorageKey(companyId: string, userEmail: string) {
   return [
     "carbon-flow-assistant-preferences",
     companyId,
-    userEmail.trim().toLowerCase()
+    userEmail.trim().toLowerCase(),
   ].join(":");
 }
 
@@ -776,6 +790,19 @@ function isAssistantMode(value: unknown): value is AssistantMode {
     value === "pricing" ||
     value === "sales" ||
     value === "stock"
+  );
+}
+
+function isAssistantPosition(value: unknown): value is AssistantPosition {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "x" in value &&
+    "y" in value &&
+    typeof value.x === "number" &&
+    typeof value.y === "number" &&
+    Number.isFinite(value.x) &&
+    Number.isFinite(value.y)
   );
 }
 
@@ -814,8 +841,8 @@ function writeStoredConversation(storageKey: string, messages: Message[]) {
       storageKey,
       JSON.stringify({
         messages: limitConversation(messages),
-        version: assistantConversationVersion
-      })
+        version: assistantConversationVersion,
+      }),
     );
   } catch {
     // The assistant keeps working even if the browser blocks storage.
@@ -848,13 +875,25 @@ function readStoredAssistantPreferences(storageKey: string) {
     const dismissedAlertIds =
       "dismissedAlertIds" in parsed && Array.isArray(parsed.dismissedAlertIds)
         ? parsed.dismissedAlertIds.filter(
-            (item): item is string => typeof item === "string"
+            (item): item is string => typeof item === "string",
           )
         : [];
+    const seenAlertIds =
+      "seenAlertIds" in parsed && Array.isArray(parsed.seenAlertIds)
+        ? parsed.seenAlertIds.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
+    const position =
+      "position" in parsed && isAssistantPosition(parsed.position)
+        ? parsed.position
+        : null;
 
     return {
       dismissedAlertIds,
-      mode
+      mode,
+      position,
+      seenAlertIds,
     } satisfies AssistantPreferences;
   } catch {
     return null;
@@ -863,7 +902,7 @@ function readStoredAssistantPreferences(storageKey: string) {
 
 function writeStoredAssistantPreferences(
   storageKey: string,
-  preferences: AssistantPreferences
+  preferences: AssistantPreferences,
 ) {
   try {
     window.localStorage.setItem(
@@ -871,18 +910,47 @@ function writeStoredAssistantPreferences(
       JSON.stringify({
         ...preferences,
         dismissedAlertIds: preferences.dismissedAlertIds.slice(-20),
-        version: assistantPreferencesVersion
-      })
+        seenAlertIds: preferences.seenAlertIds.slice(-50),
+        version: assistantPreferencesVersion,
+      }),
     );
   } catch {
     // Preferences are nice to have, but the assistant can work without them.
   }
 }
 
+function clampAssistantPosition(
+  position: AssistantPosition,
+  width: number,
+  height: number,
+) {
+  const margin = 8;
+  const maxX = Math.max(margin, window.innerWidth - width - margin);
+  const maxY = Math.max(margin, window.innerHeight - height - margin);
+
+  return {
+    x: Math.min(Math.max(position.x, margin), maxX),
+    y: Math.min(Math.max(position.y, margin), maxY),
+  };
+}
+
+function getClampedAssistantPosition(
+  position: AssistantPosition,
+  element: HTMLElement | null,
+) {
+  const rect = element?.getBoundingClientRect();
+
+  return clampAssistantPosition(
+    position,
+    rect?.width ?? 96,
+    rect?.height ?? 96,
+  );
+}
+
 function canUseQuickAction(
   action: QuickAction,
   role: string | null,
-  permissions: CompanyPermissionMap | null
+  permissions: CompanyPermissionMap | null,
 ) {
   if (!canAccessSection(role, action.section, permissions)) {
     return false;
@@ -901,11 +969,11 @@ function canUseQuickAction(
 function canUseQuickPrompt(
   prompt: QuickPrompt,
   role: string | null,
-  permissions: CompanyPermissionMap | null
+  permissions: CompanyPermissionMap | null,
 ) {
   if (
     prompt.sections?.some(
-      (section) => !canAccessSection(role, section, permissions)
+      (section) => !canAccessSection(role, section, permissions),
     ) ??
     false
   ) {
@@ -932,7 +1000,7 @@ function canUseQuickPrompt(
 function canUseAssistantMode(
   mode: AssistantMode,
   role: string | null,
-  permissions: CompanyPermissionMap | null
+  permissions: CompanyPermissionMap | null,
 ) {
   if (mode === "general") {
     return true;
@@ -958,10 +1026,10 @@ function canUseAssistantMode(
 
 function getAvailableAssistantModes(
   role: string | null,
-  permissions: CompanyPermissionMap | null
+  permissions: CompanyPermissionMap | null,
 ) {
   return assistantModeOptions.filter((mode) =>
-    canUseAssistantMode(mode.id, role, permissions)
+    canUseAssistantMode(mode.id, role, permissions),
   );
 }
 
@@ -997,7 +1065,7 @@ function getRequestedAssistantMode(prompt: string): AssistantMode | null {
       "foco",
       "modo",
       "prioriza",
-      "priorizar"
+      "priorizar",
     ])
   ) {
     return null;
@@ -1013,7 +1081,7 @@ function getRequestedAssistantMode(prompt: string): AssistantMode | null {
       "insumo",
       "reposicao",
       "repor",
-      "movimentacao"
+      "movimentacao",
     ])
   ) {
     return "stock";
@@ -1025,7 +1093,7 @@ function getRequestedAssistantMode(prompt: string): AssistantMode | null {
       "comercial",
       "orcamento",
       "proposta",
-      "venda"
+      "venda",
     ])
   ) {
     return "sales";
@@ -1053,7 +1121,7 @@ function startsAsQuestion(prompt: string) {
     "quanto ",
     "quantos ",
     "tem ",
-    "existe "
+    "existe ",
   ].some((prefix) => prompt.startsWith(prefix));
 }
 
@@ -1078,7 +1146,7 @@ function getDirectQuickAction(prompt: string) {
     "montar",
     "monte",
     "novo",
-    "nova"
+    "nova",
   ]);
   const wantsNavigation = hasAnyTerm(normalized, [
     "abrir",
@@ -1092,7 +1160,7 @@ function getDirectQuickAction(prompt: string) {
     "mostra",
     "mostrar",
     "va para",
-    "ver"
+    "ver",
   ]);
 
   if (!wantsCreation && !wantsNavigation) {
@@ -1124,7 +1192,7 @@ function getDirectQuickAction(prompt: string) {
       "lancar",
       "movimentacao",
       "saida",
-      "ajuste"
+      "ajuste",
     ]) &&
     hasAnyTerm(normalized, ["estoque", "insumo"])
   ) {
@@ -1163,7 +1231,7 @@ function getDirectQuickAction(prompt: string) {
       "financas",
       "receita",
       "receitas",
-      "saldo"
+      "saldo",
     ])
   ) {
     return quickActionById.finance;
@@ -1189,7 +1257,7 @@ function getDirectQuickAction(prompt: string) {
       "configuracao",
       "configuracoes",
       "permissao",
-      "usuario"
+      "usuario",
     ])
   ) {
     return quickActionById.settings;
@@ -1222,14 +1290,14 @@ function uniqueByLabel<T extends { label: string }>(items: T[]) {
 function getVisibleQuickActions(
   activeItem: string,
   role: string | null,
-  permissions: CompanyPermissionMap | null
+  permissions: CompanyPermissionMap | null,
 ) {
   return uniqueByLabel([
     ...(quickActionsByPage[activeItem] ?? defaultQuickActions),
     ...defaultQuickActions,
     quickActionById.dashboard,
     quickActionById.customers,
-    quickActionById.account
+    quickActionById.account,
   ])
     .filter((action) => canUseQuickAction(action, role, permissions))
     .slice(0, 3);
@@ -1239,7 +1307,7 @@ function getVisibleQuickPrompts(
   activeItem: string,
   role: string | null,
   permissions: CompanyPermissionMap | null,
-  mode: AssistantMode
+  mode: AssistantMode,
 ) {
   return uniqueByLabel([
     ...quickPromptsByMode[mode],
@@ -1250,7 +1318,7 @@ function getVisibleQuickPrompts(
     quickPromptById.recentSales,
     quickPromptById.pricing,
     quickPromptById.customerHistory,
-    quickPromptById.firstSteps
+    quickPromptById.firstSteps,
   ])
     .filter((prompt) => canUseQuickPrompt(prompt, role, permissions))
     .slice(0, 4);
@@ -1258,10 +1326,10 @@ function getVisibleQuickPrompts(
 
 function getVisibleNavigationLinks(
   role: string | null,
-  permissions: CompanyPermissionMap | null
+  permissions: CompanyPermissionMap | null,
 ) {
   return navigationLinks.filter((item) =>
-    canAccessSection(role, item.section, permissions)
+    canAccessSection(role, item.section, permissions),
   );
 }
 
@@ -1271,7 +1339,7 @@ function getRoleLabel(role: string | null) {
   const labels: Record<CompanyRole, string> = {
     admin: "Administrador",
     employee: "Funcionário",
-    seller: "Vendedor"
+    seller: "Vendedor",
   };
 
   return normalizedRole ? labels[normalizedRole] : "Perfil sem acesso";
@@ -1284,7 +1352,7 @@ function getRestrictedReply(sectionLabel: string) {
 function getAssistantStatus({
   canReadDashboard,
   dashboardError,
-  isDashboardLoading
+  isDashboardLoading,
 }: {
   canReadDashboard: boolean;
   dashboardError: string | null;
@@ -1293,27 +1361,27 @@ function getAssistantStatus({
   if (!canReadDashboard) {
     return {
       className: "bg-[rgb(245_158_11/0.78)]",
-      label: "Dados restritos ao perfil"
+      label: "Dados restritos ao perfil",
     };
   }
 
   if (isDashboardLoading) {
     return {
       className: "bg-[var(--primary)] animate-pulse",
-      label: "Carregando dados"
+      label: "Carregando dados",
     };
   }
 
   if (dashboardError) {
     return {
       className: "bg-[rgb(248_113_113/0.86)]",
-      label: "Erro nos dados"
+      label: "Erro nos dados",
     };
   }
 
   return {
     className: "bg-[rgb(34_197_94/0.86)]",
-    label: "Dados atualizados"
+    label: "Dados atualizados",
   };
 }
 
@@ -1356,7 +1424,7 @@ function formatDate(value: string | null) {
   }
 
   return dateFormatter.format(
-    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`)
+    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`),
   );
 }
 
@@ -1371,7 +1439,7 @@ function getOpenBudgets(budgets: AssistantBudget[]) {
         expired: 3,
         rejected: 4,
         cancelled: 5,
-        converted: 6
+        converted: 6,
       };
 
       return statusPriority[a.status] - statusPriority[b.status];
@@ -1413,7 +1481,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
       detail,
       id: `low-stock:${context.dashboard.metrics.lowStockCount}:${firstItem?.id ?? "none"}`,
       severity: "warning",
-      title: "Estoque baixo"
+      title: "Estoque baixo",
     });
   }
 
@@ -1424,7 +1492,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
   ) {
     const openBudgets = getOpenBudgets(context.budgets);
     const approvedBudgets = openBudgets.filter(
-      (budget) => budget.status === "approved"
+      (budget) => budget.status === "approved",
     );
     const budgetsDueSoon = openBudgets.filter((budget) => {
       const daysUntil = getDaysUntil(budget.validUntil);
@@ -1440,11 +1508,11 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
     if (approvedBudgets.length > 0) {
       const approvedTotal = approvedBudgets.reduce(
         (total, budget) => total + budget.totalAmount,
-        0
+        0,
       );
       const detail = canConvertBudgets(context.role, context.permissions)
         ? `${approvedBudgets.length} orçamento(s) aprovado(s) somando ${currencyFormatter.format(
-            approvedTotal
+            approvedTotal,
           )} já podem virar venda.`
         : `${approvedBudgets.length} orçamento(s) aprovado(s) dependem de administrador ou funcionário para virar venda.`;
 
@@ -1455,7 +1523,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
         severity: canConvertBudgets(context.role, context.permissions)
           ? "warning"
           : "info",
-        title: "Orçamentos aprovados"
+        title: "Orçamentos aprovados",
       });
     }
 
@@ -1465,7 +1533,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
         detail: `${budgetsDueSoon.length} orçamento(s) vencem nos próximos 3 dias. Vale revisar antes que esfriem.`,
         id: `budgets-due-soon:${budgetsDueSoon.length}:${budgetsDueSoon[0]?.id ?? "none"}`,
         severity: "info",
-        title: "Orçamentos vencendo"
+        title: "Orçamentos vencendo",
       });
     }
   }
@@ -1477,13 +1545,13 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
     context.customers.length > 0
   ) {
     const customersWithoutSales = context.customers.filter(
-      (customer) => customer.summary.salesCount === 0
+      (customer) => customer.summary.salesCount === 0,
     ).length;
     const customersWithoutContact = context.customers.filter(
-      (customer) => !customer.phone && !customer.email
+      (customer) => !customer.phone && !customer.email,
     ).length;
     const customersWithOpenBudgets = context.customers.filter(
-      (customer) => customer.summary.openBudgetsCount > 0
+      (customer) => customer.summary.openBudgetsCount > 0,
     ).length;
 
     if (
@@ -1496,7 +1564,7 @@ function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
         detail: `${customersWithoutSales} sem venda, ${customersWithoutContact} sem contato e ${customersWithOpenBudgets} com orçamento em aberto.`,
         id: `customer-opportunities:${customersWithoutSales}:${customersWithoutContact}:${customersWithOpenBudgets}`,
         severity: "info",
-        title: "Oportunidades em clientes"
+        title: "Oportunidades em clientes",
       });
     }
   }
@@ -1510,7 +1578,7 @@ function getProactiveAlertClasses(severity: ProactiveAlert["severity"]) {
       dot: "bg-[rgb(245_158_11/0.9)]",
       panel:
         "border-[rgb(245_158_11/0.35)] bg-[rgb(245_158_11/0.10)] hover:bg-[rgb(245_158_11/0.14)]",
-      title: "text-[rgb(251_191_36)]"
+      title: "text-[rgb(251_191_36)]",
     };
   }
 
@@ -1518,7 +1586,7 @@ function getProactiveAlertClasses(severity: ProactiveAlert["severity"]) {
     dot: "bg-[var(--primary)]",
     panel:
       "border-[var(--border)] bg-[var(--surface-muted)] hover:bg-[var(--secondary)]",
-    title: "text-[var(--primary)]"
+    title: "text-[var(--primary)]",
   };
 }
 
@@ -1527,7 +1595,7 @@ function getRealDataUnavailableReply({
   dashboardError,
   isDashboardLoading,
   permissions,
-  role
+  role,
 }: ReplyContext) {
   if (!canAccessSection(role, "dashboard", permissions)) {
     return getRestrictedReply("os dados do dashboard");
@@ -1564,7 +1632,7 @@ function formatDashboardReply(context: ReplyContext) {
     pendingBalance: 0,
     pendingExpense: 0,
     pendingIncome: 0,
-    upcomingDue: []
+    upcomingDue: [],
   };
   const bestSeller = dashboard.bestSellers[0];
   const stockDetail =
@@ -1573,7 +1641,7 @@ function formatDashboardReply(context: ReplyContext) {
       : "nenhum insumo em estoque baixo";
   const bestSellerDetail = bestSeller
     ? `O produto mais vendido é ${bestSeller.productName}, com ${formatQuantity(
-        bestSeller.quantity
+        bestSeller.quantity,
       )} vendido(s).`
     : "Ainda não há produto mais vendido neste mês.";
 
@@ -1584,13 +1652,13 @@ function formatDashboardReply(context: ReplyContext) {
     `Lucro estimado: ${currencyFormatter.format(metrics.estimatedProfit)}`,
     `Saldo financeiro: ${currencyFormatter.format(finance.balance)}`,
     `Pendências vencidas: ${metrics.overdueCount} somando ${currencyFormatter.format(
-      metrics.overdueAmount
+      metrics.overdueAmount,
     )}`,
     `Orçamentos em aberto: ${metrics.openBudgetCount} somando ${currencyFormatter.format(
-      metrics.openBudgetAmount
+      metrics.openBudgetAmount,
     )}`,
     `Estoque: ${stockDetail}`,
-    bestSellerDetail
+    bestSellerDetail,
   ].join("\n");
 }
 
@@ -1610,27 +1678,27 @@ function formatFinancialReply(context: ReplyContext) {
     pendingBalance: 0,
     pendingExpense: 0,
     pendingIncome: 0,
-    upcomingDue: []
+    upcomingDue: [],
   };
   const margin =
     metrics.revenue > 0
       ? ` A margem estimada está em ${decimalFormatter.format(
-          Math.round((metrics.estimatedProfit / metrics.revenue) * 1000) / 10
+          Math.round((metrics.estimatedProfit / metrics.revenue) * 1000) / 10,
         )}%.`
       : " Ainda não há margem porque não existem vendas no período.";
 
   return `No mês atual, o faturamento está em ${currencyFormatter.format(
-    metrics.revenue
+    metrics.revenue,
   )}, com ${metrics.salesCount} venda(s) e lucro estimado de ${currencyFormatter.format(
-    metrics.estimatedProfit
+    metrics.estimatedProfit,
   )}.${margin}
 No financeiro, entraram ${currencyFormatter.format(
-    finance.paidIncome
+    finance.paidIncome,
   )}, saíram ${currencyFormatter.format(
-    finance.paidExpense
+    finance.paidExpense,
   )} e o saldo está em ${currencyFormatter.format(finance.balance)}.
 Pendências vencidas: ${metrics.overdueCount}, somando ${currencyFormatter.format(
-    metrics.overdueAmount
+    metrics.overdueAmount,
   )}.`;
 }
 
@@ -1652,8 +1720,8 @@ function formatLowStockReply(context: ReplyContext) {
       (item) =>
         `${item.name}: atual ${formatQuantity(
           item.current,
-          item.unit
-        )}, mínimo ${formatQuantity(item.minimum, item.unit)}`
+          item.unit,
+        )}, mínimo ${formatQuantity(item.minimum, item.unit)}`,
     )
     .join("\n");
   const hiddenCount =
@@ -1663,7 +1731,7 @@ function formatLowStockReply(context: ReplyContext) {
   const actionHint = canAccessSection(
     context.role,
     "stock",
-    context.permissions
+    context.permissions,
   )
     ? "Ação recomendada: abrir Estoque e lançar entrada ou ajuste nos itens críticos."
     : "Ação recomendada: peça para um administrador ou funcionário revisar a reposição.";
@@ -1690,8 +1758,8 @@ function formatBestSellersReply(context: ReplyContext) {
     .map(
       (product, index) =>
         `${index + 1}. ${product.productName}: ${formatQuantity(
-          product.quantity
-        )} vendido(s), ${currencyFormatter.format(product.revenue)}`
+          product.quantity,
+        )} vendido(s), ${currencyFormatter.format(product.revenue)}`,
     )
     .join("\n");
 
@@ -1719,10 +1787,10 @@ function formatPendingBudgetsReply(context: ReplyContext) {
 
   const totalAmount = openBudgets.reduce(
     (total, budget) => total + budget.totalAmount,
-    0
+    0,
   );
   const approvedCount = openBudgets.filter(
-    (budget) => budget.status === "approved"
+    (budget) => budget.status === "approved",
   ).length;
   const items = openBudgets
     .slice(0, 5)
@@ -1732,7 +1800,7 @@ function formatPendingBudgetsReply(context: ReplyContext) {
       return `${budget.numberLabel} - ${customer} - ${
         budgetStatusLabels[budget.status]
       } - ${currencyFormatter.format(budget.totalAmount)} - validade ${formatDate(
-        budget.validUntil
+        budget.validUntil,
       )}`;
     })
     .join("\n");
@@ -1780,7 +1848,7 @@ function formatTopCustomersReply(context: ReplyContext) {
         : "";
 
       return `${index + 1}. ${customer.name}: ${currencyFormatter.format(
-        customer.summary.totalSpent
+        customer.summary.totalSpent,
       )} em ${customer.summary.salesCount} venda(s)${lastSale}`;
     })
     .join("\n");
@@ -1807,10 +1875,10 @@ function formatCustomerOpportunitiesReply(context: ReplyContext) {
   }
 
   const customersWithoutSales = context.customers.filter(
-    (customer) => customer.summary.salesCount === 0
+    (customer) => customer.summary.salesCount === 0,
   );
   const customersWithoutContact = context.customers.filter(
-    (customer) => !customer.phone && !customer.email
+    (customer) => !customer.phone && !customer.email,
   );
   const customersWithOpenBudgets = context.customers
     .filter((customer) => customer.summary.openBudgetsCount > 0)
@@ -1819,7 +1887,7 @@ function formatCustomerOpportunitiesReply(context: ReplyContext) {
     .slice(0, 5)
     .map(
       (customer) =>
-        `${customer.name}: ${customer.summary.openBudgetsCount} orçamento(s) em aberto`
+        `${customer.name}: ${customer.summary.openBudgetsCount} orçamento(s) em aberto`,
     )
     .join("\n");
 
@@ -1836,7 +1904,7 @@ function formatCustomerOpportunitiesReply(context: ReplyContext) {
     `Clientes sem venda: ${customersWithoutSales.length}`,
     `Clientes sem telefone/e-mail: ${customersWithoutContact.length}`,
     `Clientes com orçamento em aberto: ${customersWithOpenBudgets.length}`,
-    openBudgetNames ? `Principais pendências:\n${openBudgetNames}` : null
+    openBudgetNames ? `Principais pendências:\n${openBudgetNames}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -1858,7 +1926,7 @@ function formatRecentSalesReply(context: ReplyContext) {
   const recentSales = [...context.sales]
     .filter((sale) => sale.status === "completed")
     .sort(
-      (a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime()
+      (a, b) => new Date(b.soldAt).getTime() - new Date(a.soldAt).getTime(),
     );
 
   if (recentSales.length === 0) {
@@ -1867,11 +1935,11 @@ function formatRecentSalesReply(context: ReplyContext) {
 
   const totalAmount = recentSales.reduce(
     (total, sale) => total + sale.totalAmount,
-    0
+    0,
   );
   const totalProfit = recentSales.reduce(
     (total, sale) => total + sale.estimatedProfit,
-    0
+    0,
   );
   const items = recentSales
     .slice(0, 5)
@@ -1879,7 +1947,7 @@ function formatRecentSalesReply(context: ReplyContext) {
       const customer = sale.customer?.name ?? "sem cliente";
 
       return `${sale.numberLabel} - ${customer} - ${currencyFormatter.format(
-        sale.totalAmount
+        sale.totalAmount,
       )} - ${formatDate(sale.soldAt)}`;
     })
     .join("\n");
@@ -1943,8 +2011,8 @@ function formatLocalAlertSummary(context: ReplyContext) {
     return [
       "Não encontrei alerta crítico agora.",
       `Resumo rápido: ${currencyFormatter.format(
-        metrics.revenue
-      )} em faturamento, ${metrics.salesCount} venda(s), ${metrics.openBudgetCount} orçamento(s) em aberto e ${metrics.lowStockCount} insumo(s) em estoque baixo.`
+        metrics.revenue,
+      )} em faturamento, ${metrics.salesCount} venda(s), ${metrics.openBudgetCount} orçamento(s) em aberto e ${metrics.lowStockCount} insumo(s) em estoque baixo.`,
     ].join("\n");
   }
 
@@ -1956,7 +2024,7 @@ function getLocalPromptSuggestions(activeItem: string, context: ReplyContext) {
     activeItem,
     context.role,
     context.permissions,
-    context.mode
+    context.mode,
   )
     .slice(0, 3)
     .map((prompt) => prompt.prompt);
@@ -1975,7 +2043,7 @@ function formatLocalSuggestionList(suggestions: string[]) {
 function formatBasicAssistantReply(
   prompt: string,
   context: ReplyContext,
-  activeItem: string
+  activeItem: string,
 ) {
   const normalized = normalizePrompt(prompt);
   const suggestions = getLocalPromptSuggestions(activeItem, context);
@@ -1991,13 +2059,13 @@ function formatBasicAssistantReply(
       "fala",
       "hey",
       "ola",
-      "oi"
+      "oi",
     ])
   ) {
     return [
       "Olá! Eu sou o Carbon, seu assistente virtual do Carbon Flow.",
       "Consigo te ajudar no modo básico com navegação, primeiros passos, estoque, produtos, clientes, orçamentos, vendas e leitura dos dados já carregados no sistema.",
-      suggestionText
+      suggestionText,
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -2011,13 +2079,13 @@ function formatBasicAssistantReply(
       "me ajuda",
       "ajuda",
       "comandos",
-      "opcoes"
+      "opcoes",
     ])
   ) {
     return [
       "Posso te ajudar a encontrar telas, explicar fluxos e resumir dados do Carbon Flow.",
       "Também consigo apontar estoque baixo, orçamentos pendentes, clientes com oportunidade e vendas recentes quando esses dados estiverem carregados para o seu perfil.",
-      suggestionText
+      suggestionText,
     ]
       .filter(Boolean)
       .join("\n\n");
@@ -2037,7 +2105,7 @@ function formatBasicAssistantReply(
       "recomenda",
       "o que fazer agora",
       "proximo passo",
-      "próximo passo"
+      "próximo passo",
     ])
   ) {
     return formatLocalAlertSummary(context);
@@ -2047,7 +2115,7 @@ function formatBasicAssistantReply(
     "Consigo responder essa parte pelo modo básico do Carbon.",
     pageTip ? `Nesta tela: ${pageTip}` : null,
     formatLocalAlertSummary(context),
-    suggestionText
+    suggestionText,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -2055,7 +2123,7 @@ function formatBasicAssistantReply(
 
 function getAssistantReply(
   prompt: string,
-  context: ReplyContext
+  context: ReplyContext,
 ): string | null {
   const normalized = normalizePrompt(prompt);
 
@@ -2280,9 +2348,17 @@ export function VirtualAssistant({
   companyId,
   permissions,
   role,
-  userEmail
+  userEmail,
 }: VirtualAssistantProps) {
   const router = useRouter();
+  const assistantFrameRef = useRef<HTMLDivElement | null>(null);
+  const assistantDragStateRef = useRef<{
+    originX: number;
+    originY: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
+  const ignoreAssistantClickRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [budgets, setBudgets] = useState<AssistantBudget[]>([]);
   const [budgetsError, setBudgetsError] = useState<string | null>(null);
@@ -2300,6 +2376,11 @@ export function VirtualAssistant({
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [isSalesLoading, setIsSalesLoading] = useState(true);
   const [dismissedAlertIds, setDismissedAlertIds] = useState<string[]>([]);
+  const [seenAlertIds, setSeenAlertIds] = useState<string[]>([]);
+  const [openSessionAlertIds, setOpenSessionAlertIds] = useState<string[]>([]);
+  const [assistantPosition, setAssistantPosition] =
+    useState<AssistantPosition | null>(null);
+  const [isDraggingAssistant, setIsDraggingAssistant] = useState(false);
   const [loadedConversationKey, setLoadedConversationKey] = useState<
     string | null
   >(null);
@@ -2312,19 +2393,19 @@ export function VirtualAssistant({
       author: "assistant",
       text:
         pageTips[activeItem] ??
-        "Estou aqui para ajudar você a navegar pelo Carbon Flow."
+        "Estou aqui para ajudar você a navegar pelo Carbon Flow.",
     }),
-    [activeItem]
+    [activeItem],
   );
   const [messages, setMessages] = useState<Message[]>([introMessage]);
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("general");
   const conversationStorageKey = useMemo(
     () => getConversationStorageKey(companyId, userEmail),
-    [companyId, userEmail]
+    [companyId, userEmail],
   );
   const preferencesStorageKey = useMemo(
     () => getPreferencesStorageKey(companyId, userEmail),
-    [companyId, userEmail]
+    [companyId, userEmail],
   );
   const canReadBudgets = canAccessSection(role, "budgets", permissions);
   const canReadCustomers = canAccessSection(role, "customers", permissions);
@@ -2334,20 +2415,20 @@ export function VirtualAssistant({
   const assistantStatus = getAssistantStatus({
     canReadDashboard,
     dashboardError,
-    isDashboardLoading
+    isDashboardLoading,
   });
   const availableAssistantModes = getAvailableAssistantModes(role, permissions);
   const visibleNavigationLinks = getVisibleNavigationLinks(role, permissions);
   const visibleQuickActions = getVisibleQuickActions(
     activeItem,
     role,
-    permissions
+    permissions,
   );
   const visibleQuickPrompts = getVisibleQuickPrompts(
     activeItem,
     role,
     permissions,
-    assistantMode
+    assistantMode,
   );
   const assistantContext = useMemo<ReplyContext>(
     () => ({
@@ -2365,7 +2446,7 @@ export function VirtualAssistant({
       permissions,
       role,
       sales,
-      salesError
+      salesError,
     }),
     [
       budgets,
@@ -2382,25 +2463,39 @@ export function VirtualAssistant({
       permissions,
       role,
       sales,
-      salesError
-    ]
+      salesError,
+    ],
   );
   const allProactiveAlerts = useMemo(
     () => getProactiveAlerts(assistantContext),
-    [assistantContext]
+    [assistantContext],
   );
-  const proactiveAlerts = useMemo(
+  const activeProactiveAlerts = useMemo(
     () =>
       allProactiveAlerts.filter(
-        (alert) => !dismissedAlertIds.includes(alert.id)
+        (alert) => !dismissedAlertIds.includes(alert.id),
       ),
-    [allProactiveAlerts, dismissedAlertIds]
+    [allProactiveAlerts, dismissedAlertIds],
   );
-  const hasWarningAlert = proactiveAlerts.some(
-    (alert) => alert.severity === "warning"
+  const unreadProactiveAlerts = useMemo(
+    () =>
+      activeProactiveAlerts.filter((alert) => !seenAlertIds.includes(alert.id)),
+    [activeProactiveAlerts, seenAlertIds],
+  );
+  const visibleProactiveAlerts = useMemo(
+    () =>
+      activeProactiveAlerts.filter(
+        (alert) =>
+          !seenAlertIds.includes(alert.id) ||
+          openSessionAlertIds.includes(alert.id),
+      ),
+    [activeProactiveAlerts, openSessionAlertIds, seenAlertIds],
+  );
+  const hasWarningAlert = unreadProactiveAlerts.some(
+    (alert) => alert.severity === "warning",
   );
   const hiddenProactiveAlertCount =
-    allProactiveAlerts.length - proactiveAlerts.length;
+    allProactiveAlerts.length - visibleProactiveAlerts.length;
 
   useEffect(() => {
     function syncTheme() {
@@ -2428,18 +2523,76 @@ export function VirtualAssistant({
     setLoadedPreferencesKey(null);
 
     const storedPreferences = readStoredAssistantPreferences(
-      preferencesStorageKey
+      preferencesStorageKey,
     );
     const storedMode = storedPreferences?.mode ?? "general";
 
     setAssistantMode(
       canUseAssistantMode(storedMode, role, permissions)
         ? storedMode
-        : "general"
+        : "general",
     );
     setDismissedAlertIds(storedPreferences?.dismissedAlertIds ?? []);
+    setSeenAlertIds(storedPreferences?.seenAlertIds ?? []);
+    setAssistantPosition(storedPreferences?.position ?? null);
     setLoadedPreferencesKey(preferencesStorageKey);
   }, [permissions, preferencesStorageKey, role]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setOpenSessionAlertIds([]);
+      return;
+    }
+
+    const currentUnreadAlertIds = activeProactiveAlerts
+      .filter((alert) => !seenAlertIds.includes(alert.id))
+      .map((alert) => alert.id);
+
+    if (!currentUnreadAlertIds.length) {
+      return;
+    }
+
+    setOpenSessionAlertIds((current) =>
+      [...new Set([...current, ...currentUnreadAlertIds])].slice(-50),
+    );
+    setSeenAlertIds((current) =>
+      [...new Set([...current, ...currentUnreadAlertIds])].slice(-50),
+    );
+  }, [activeProactiveAlerts, isOpen, seenAlertIds]);
+
+  useEffect(() => {
+    if (!assistantPosition) {
+      return;
+    }
+
+    const nextPosition = getClampedAssistantPosition(
+      assistantPosition,
+      assistantFrameRef.current,
+    );
+
+    if (
+      nextPosition.x !== assistantPosition.x ||
+      nextPosition.y !== assistantPosition.y
+    ) {
+      setAssistantPosition(nextPosition);
+    }
+  }, [assistantPosition, isOpen]);
+
+  useEffect(() => {
+    function clampCurrentPosition() {
+      setAssistantPosition((current) =>
+        current
+          ? getClampedAssistantPosition(current, assistantFrameRef.current)
+          : current,
+      );
+    }
+
+    window.addEventListener("resize", clampCurrentPosition);
+
+    return () => {
+      window.removeEventListener("resize", clampCurrentPosition);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -2449,7 +2602,7 @@ export function VirtualAssistant({
     window.requestAnimationFrame(() => {
       messagesEndRef.current?.scrollIntoView({
         behavior: "smooth",
-        block: "end"
+        block: "end",
       });
     });
   }, [isOpen, messages]);
@@ -2477,14 +2630,18 @@ export function VirtualAssistant({
     }
 
     writeStoredAssistantPreferences(preferencesStorageKey, {
+      position: assistantPosition,
       dismissedAlertIds,
-      mode: assistantMode
+      mode: assistantMode,
+      seenAlertIds,
     });
   }, [
     assistantMode,
+    assistantPosition,
     dismissedAlertIds,
     loadedPreferencesKey,
-    preferencesStorageKey
+    preferencesStorageKey,
+    seenAlertIds,
   ]);
 
   useEffect(() => {
@@ -2504,7 +2661,7 @@ export function VirtualAssistant({
       try {
         const supabase = createSupabaseBrowserClient();
         const {
-          data: { session }
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!session) {
@@ -2515,14 +2672,14 @@ export function VirtualAssistant({
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            "x-company-id": companyId
-          }
+            "x-company-id": companyId,
+          },
         });
         const payload = (await response.json().catch(() => null)) as unknown;
 
         if (!response.ok) {
           throw new Error(
-            getApiMessage(payload, "Não foi possível carregar os orçamentos.")
+            getApiMessage(payload, "Não foi possível carregar os orçamentos."),
           );
         }
 
@@ -2535,7 +2692,7 @@ export function VirtualAssistant({
           setBudgetsError(
             error instanceof Error
               ? error.message
-              : "Não foi possível carregar os orçamentos."
+              : "Não foi possível carregar os orçamentos.",
           );
         }
       } finally {
@@ -2569,7 +2726,7 @@ export function VirtualAssistant({
       try {
         const supabase = createSupabaseBrowserClient();
         const {
-          data: { session }
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!session) {
@@ -2580,14 +2737,14 @@ export function VirtualAssistant({
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            "x-company-id": companyId
-          }
+            "x-company-id": companyId,
+          },
         });
         const payload = (await response.json().catch(() => null)) as unknown;
 
         if (!response.ok) {
           throw new Error(
-            getApiMessage(payload, "Não foi possível carregar os clientes.")
+            getApiMessage(payload, "Não foi possível carregar os clientes."),
           );
         }
 
@@ -2600,7 +2757,7 @@ export function VirtualAssistant({
           setCustomersError(
             error instanceof Error
               ? error.message
-              : "Não foi possível carregar os clientes."
+              : "Não foi possível carregar os clientes.",
           );
         }
       } finally {
@@ -2634,7 +2791,7 @@ export function VirtualAssistant({
       try {
         const supabase = createSupabaseBrowserClient();
         const {
-          data: { session }
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!session) {
@@ -2645,14 +2802,14 @@ export function VirtualAssistant({
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            "x-company-id": companyId
-          }
+            "x-company-id": companyId,
+          },
         });
         const payload = (await response.json().catch(() => null)) as unknown;
 
         if (!response.ok) {
           throw new Error(
-            getApiMessage(payload, "Não foi possível carregar o dashboard.")
+            getApiMessage(payload, "Não foi possível carregar o dashboard."),
           );
         }
 
@@ -2665,7 +2822,7 @@ export function VirtualAssistant({
           setDashboardError(
             error instanceof Error
               ? error.message
-              : "Não foi possível carregar os dados reais."
+              : "Não foi possível carregar os dados reais.",
           );
         }
       } finally {
@@ -2699,7 +2856,7 @@ export function VirtualAssistant({
       try {
         const supabase = createSupabaseBrowserClient();
         const {
-          data: { session }
+          data: { session },
         } = await supabase.auth.getSession();
 
         if (!session) {
@@ -2710,14 +2867,14 @@ export function VirtualAssistant({
           headers: {
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            "x-company-id": companyId
-          }
+            "x-company-id": companyId,
+          },
         });
         const payload = (await response.json().catch(() => null)) as unknown;
 
         if (!response.ok) {
           throw new Error(
-            getApiMessage(payload, "Não foi possível carregar as vendas.")
+            getApiMessage(payload, "Não foi possível carregar as vendas."),
           );
         }
 
@@ -2730,7 +2887,7 @@ export function VirtualAssistant({
           setSalesError(
             error instanceof Error
               ? error.message
-              : "Não foi possível carregar as vendas."
+              : "Não foi possível carregar as vendas.",
           );
         }
       } finally {
@@ -2750,7 +2907,7 @@ export function VirtualAssistant({
   async function requestAiReply(prompt: string) {
     const supabase = createSupabaseBrowserClient();
     const {
-      data: { session }
+      data: { session },
     } = await supabase.auth.getSession();
 
     if (!session) {
@@ -2761,21 +2918,21 @@ export function VirtualAssistant({
       body: JSON.stringify({
         activeItem,
         mode: assistantMode,
-        prompt
+        prompt,
       }),
       headers: {
         Authorization: `Bearer ${session.access_token}`,
         "Content-Type": "application/json",
-        "x-company-id": companyId
+        "x-company-id": companyId,
       },
-      method: "POST"
+      method: "POST",
     });
     const payload = (await response.json().catch(() => null)) as
       AssistantChatResponse | { message?: string | string[] } | null;
 
     if (!response.ok || !payload || !("answer" in payload)) {
       throw new Error(
-        getApiMessage(payload, "Não foi possível acionar a IA do Carbon.")
+        getApiMessage(payload, "Não foi possível acionar a IA do Carbon."),
       );
     }
 
@@ -2804,10 +2961,10 @@ export function VirtualAssistant({
             {
               author: "assistant",
               text: `Seu perfil atual não tem acesso ao modo ${getAssistantModeLabel(
-                requestedMode
-              )}. Se isso for necessário para o seu trabalho, peça para um administrador ajustar suas permissões.`
-            }
-          ])
+                requestedMode,
+              )}. Se isso for necessário para o seu trabalho, peça para um administrador ajustar suas permissões.`,
+            },
+          ]),
         );
         setInput("");
         return;
@@ -2820,9 +2977,9 @@ export function VirtualAssistant({
           { author: "user", text: cleanPrompt },
           {
             author: "assistant",
-            text: getAssistantModeIntro(requestedMode)
-          }
-        ])
+            text: getAssistantModeIntro(requestedMode),
+          },
+        ]),
       );
       setInput("");
       return;
@@ -2845,9 +3002,9 @@ export function VirtualAssistant({
           { author: "user", text: cleanPrompt },
           {
             author: "assistant",
-            text: localReply
-          }
-        ])
+            text: localReply,
+          },
+        ]),
       );
       setInput("");
       return;
@@ -2863,17 +3020,17 @@ export function VirtualAssistant({
             text: formatBasicAssistantReply(
               cleanPrompt,
               assistantContext,
-              activeItem
-            )
-          }
-        ])
+              activeItem,
+            ),
+          },
+        ]),
       );
       setInput("");
       return;
     }
 
     setMessages((current) =>
-      limitConversation([...current, { author: "user", text: cleanPrompt }])
+      limitConversation([...current, { author: "user", text: cleanPrompt }]),
     );
     setInput("");
     setIsAiThinking(true);
@@ -2886,7 +3043,7 @@ export function VirtualAssistant({
           : formatBasicAssistantReply(
               cleanPrompt,
               assistantContext,
-              activeItem
+              activeItem,
             );
 
       setMessages((current) =>
@@ -2894,15 +3051,15 @@ export function VirtualAssistant({
           ...current,
           {
             author: "assistant",
-            text: replyText
-          }
-        ])
+            text: replyText,
+          },
+        ]),
       );
     } catch (error) {
       const fallbackReply = formatBasicAssistantReply(
         cleanPrompt,
         assistantContext,
-        activeItem
+        activeItem,
       );
 
       setMessages((current) =>
@@ -2914,9 +3071,9 @@ export function VirtualAssistant({
               error instanceof Error &&
               error.message.includes("Sessão expirada")
                 ? error.message
-                : fallbackReply
-          }
-        ])
+                : fallbackReply,
+          },
+        ]),
       );
     } finally {
       setIsAiThinking(false);
@@ -2942,18 +3099,102 @@ export function VirtualAssistant({
 
   function dismissProactiveAlert(alertId: string) {
     setDismissedAlertIds((current) =>
-      current.includes(alertId) ? current : [...current, alertId].slice(-20)
+      current.includes(alertId) ? current : [...current, alertId].slice(-20),
     );
   }
 
   function restoreCurrentProactiveAlerts() {
     const currentAlertIds = new Set(
-      allProactiveAlerts.map((alert) => alert.id)
+      allProactiveAlerts.map((alert) => alert.id),
     );
 
     setDismissedAlertIds((current) =>
-      current.filter((alertId) => !currentAlertIds.has(alertId))
+      current.filter((alertId) => !currentAlertIds.has(alertId)),
     );
+    setSeenAlertIds((current) =>
+      current.filter((alertId) => !currentAlertIds.has(alertId)),
+    );
+  }
+
+  function openAssistant() {
+    setMessages((current) => (current.length ? current : [introMessage]));
+    setIsOpen(true);
+  }
+
+  function startAssistantDrag(
+    event: ReactPointerEvent<HTMLElement>,
+    options: {
+      allowInteractiveTarget?: boolean;
+      suppressNextClickOnDrag?: boolean;
+    } = {},
+  ) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+
+    if (
+      !options.allowInteractiveTarget &&
+      target?.closest("button,a,input,textarea,select")
+    ) {
+      return;
+    }
+
+    const frame = assistantFrameRef.current;
+    const rect = frame?.getBoundingClientRect();
+
+    if (!rect) {
+      return;
+    }
+
+    assistantDragStateRef.current = {
+      originX: rect.left,
+      originY: rect.top,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    if (options.suppressNextClickOnDrag) {
+      ignoreAssistantClickRef.current = false;
+    }
+    setIsDraggingAssistant(true);
+
+    function handlePointerMove(moveEvent: PointerEvent) {
+      const dragState = assistantDragStateRef.current;
+
+      if (!dragState) {
+        return;
+      }
+
+      const deltaX = moveEvent.clientX - dragState.startX;
+      const deltaY = moveEvent.clientY - dragState.startY;
+
+      if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
+        if (options.suppressNextClickOnDrag) {
+          ignoreAssistantClickRef.current = true;
+        }
+      }
+
+      setAssistantPosition(
+        getClampedAssistantPosition(
+          {
+            x: dragState.originX + deltaX,
+            y: dragState.originY + deltaY,
+          },
+          frame,
+        ),
+      );
+    }
+
+    function handlePointerUp() {
+      assistantDragStateRef.current = null;
+      setIsDraggingAssistant(false);
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
   }
 
   function runQuickAction(action: QuickAction, userText = action.label) {
@@ -2964,9 +3205,9 @@ export function VirtualAssistant({
           { author: "user", text: userText },
           {
             author: "assistant",
-            text: getRestrictedReply(action.label.toLowerCase())
-          }
-        ])
+            text: getRestrictedReply(action.label.toLowerCase()),
+          },
+        ]),
       );
       return;
     }
@@ -2984,8 +3225,8 @@ export function VirtualAssistant({
       limitConversation([
         ...current,
         { author: "user", text: userText },
-        { author: "assistant", text: action.reply }
-      ])
+        { author: "assistant", text: action.reply },
+      ]),
     );
     setIsOpen(false);
 
@@ -2997,17 +3238,37 @@ export function VirtualAssistant({
       window.requestAnimationFrame(() => {
         document.getElementById(targetUrl.hash.slice(1))?.scrollIntoView({
           behavior: "smooth",
-          block: "start"
+          block: "start",
         });
       });
     }
   }
 
   return (
-    <div className="fixed inset-x-2 bottom-2 z-40 flex flex-col items-end justify-end sm:inset-x-auto sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6">
+    <div
+      className={[
+        "fixed z-40 flex flex-col items-end justify-end",
+        assistantPosition
+          ? ""
+          : "inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6",
+      ].join(" ")}
+      ref={assistantFrameRef}
+      style={
+        assistantPosition
+          ? { left: assistantPosition.x, top: assistantPosition.y }
+          : undefined
+      }
+    >
       {isOpen ? (
-        <section className="flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-full flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]">
-          <header className="flex items-start justify-between gap-2 border-b border-[var(--border)] p-3 sm:items-center sm:gap-3 sm:p-4">
+        <section className="flex h-[min(44rem,calc(100dvh-5.75rem))] max-h-[calc(100dvh-5.75rem)] w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel-strong)] shadow-2xl shadow-[color:var(--shadow-color)] sm:h-[min(46rem,calc(100vh-7rem))] sm:max-h-[calc(100vh-7rem)] sm:w-[27rem] md:h-[min(48rem,calc(100vh-8rem))] md:max-h-[calc(100vh-8rem)] md:w-[30rem] lg:w-[32rem] xl:h-[min(52rem,calc(100vh-8rem))] xl:max-h-[calc(100vh-8rem)] xl:w-[34rem]">
+          <header
+            className={[
+              "flex cursor-move touch-none select-none items-start justify-between gap-2 border-b border-[var(--border)] p-3 sm:items-center sm:gap-3 sm:p-4",
+              isDraggingAssistant ? "cursor-grabbing" : "cursor-grab",
+            ].join(" ")}
+            onPointerDown={startAssistantDrag}
+            title="Arraste para mover"
+          >
             <div className="flex min-w-0 items-center gap-3">
               <AssistantAvatar
                 className="h-10 w-10 shrink-0 sm:h-12 sm:w-12"
@@ -3026,7 +3287,7 @@ export function VirtualAssistant({
                     <span
                       className={[
                         "h-1.5 w-1.5 rounded-full",
-                        assistantStatus.className
+                        assistantStatus.className,
                       ].join(" ")}
                     />
                     {assistantStatus.label}
@@ -3082,7 +3343,7 @@ export function VirtualAssistant({
                       "flex min-h-8 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 text-[11px] transition sm:min-h-9 sm:gap-1.5 sm:px-2 sm:text-xs",
                       isActiveMode
                         ? "border-[var(--primary)] bg-[var(--primary-active)] text-[var(--foreground)]"
-                        : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]"
+                        : "border-[var(--border)] bg-[var(--surface-muted)] text-[var(--muted-foreground)] hover:bg-[var(--secondary)] hover:text-[var(--foreground)]",
                     ].join(" ")}
                     key={mode.id}
                     onClick={() => {
@@ -3092,9 +3353,9 @@ export function VirtualAssistant({
                           ...current,
                           {
                             author: "assistant",
-                            text: getAssistantModeIntro(mode.id)
-                          }
-                        ])
+                            text: getAssistantModeIntro(mode.id),
+                          },
+                        ]),
                       );
                     }}
                     type="button"
@@ -3110,43 +3371,43 @@ export function VirtualAssistant({
             </div>
           </div>
 
-          {proactiveAlerts.length || hiddenProactiveAlertCount > 0 ? (
+          {visibleProactiveAlerts.length || hiddenProactiveAlertCount > 0 ? (
             <div className="shrink-0 border-b border-[var(--border)] p-2.5 sm:p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <p className="text-[11px] font-medium uppercase tracking-normal text-[var(--muted-foreground)]">
                   Atenção agora
                 </p>
                 <span className="text-[11px] text-[var(--muted-foreground)]">
-                  {proactiveAlerts.length
-                    ? `${proactiveAlerts.length} ponto(s)`
+                  {visibleProactiveAlerts.length
+                    ? `${visibleProactiveAlerts.length} ponto(s)`
                     : `${hiddenProactiveAlertCount} oculto(s)`}
                 </span>
               </div>
 
-              {proactiveAlerts.length ? (
+              {visibleProactiveAlerts.length ? (
                 <div className="max-h-32 space-y-2 overflow-y-auto pr-1 sm:max-h-none sm:overflow-visible sm:pr-0">
-                  {proactiveAlerts.map((alert) => {
+                  {visibleProactiveAlerts.map((alert) => {
                     const tone = getProactiveAlertClasses(alert.severity);
 
                     return (
                       <article
                         className={[
                           "flex w-full min-w-0 items-start gap-2 rounded-md border p-2.5 text-left transition sm:gap-3 sm:p-3",
-                          tone.panel
+                          tone.panel,
                         ].join(" ")}
                         key={alert.id}
                       >
                         <span
                           className={[
                             "mt-1 h-2 w-2 shrink-0 rounded-full",
-                            tone.dot
+                            tone.dot,
                           ].join(" ")}
                         />
                         <span className="min-w-0 flex-1">
                           <span
                             className={[
                               "block text-xs font-semibold",
-                              tone.title
+                              tone.title,
                             ].join(" ")}
                           >
                             {alert.title}
@@ -3185,7 +3446,7 @@ export function VirtualAssistant({
                   onClick={restoreCurrentProactiveAlerts}
                   type="button"
                 >
-                  Reexibir alertas dispensados
+                  Reexibir alertas ocultos
                 </button>
               ) : null}
             </div>
@@ -3198,7 +3459,7 @@ export function VirtualAssistant({
                   "whitespace-pre-line rounded-md px-3 py-2 text-sm leading-6",
                   message.author === "assistant"
                     ? "mr-4 bg-[var(--surface-soft)] text-[var(--muted-foreground)] sm:mr-8"
-                    : "ml-4 bg-[var(--primary-active)] text-[var(--foreground)] sm:ml-8"
+                    : "ml-4 bg-[var(--primary-active)] text-[var(--foreground)] sm:ml-8",
                 ].join(" ")}
                 key={`${message.author}-${index}`}
               >
@@ -3298,25 +3559,37 @@ export function VirtualAssistant({
       {!isOpen ? (
         <button
           aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
-          className="relative ml-auto flex h-16 w-16 items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60"
+          className={[
+            "relative ml-auto flex h-16 w-16 touch-none select-none items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60",
+            isDraggingAssistant ? "cursor-grabbing" : "cursor-grab",
+          ].join(" ")}
           onClick={() => {
-            setMessages((current) =>
-              current.length ? current : [introMessage]
-            );
-            setIsOpen(true);
+            if (ignoreAssistantClickRef.current) {
+              ignoreAssistantClickRef.current = false;
+              return;
+            }
+
+            openAssistant();
           }}
+          onPointerDown={(event) =>
+            startAssistantDrag(event, {
+              allowInteractiveTarget: true,
+              suppressNextClickOnDrag: true,
+            })
+          }
+          title="Clique para abrir ou arraste para mover"
           type="button"
         >
-          {proactiveAlerts.length ? (
+          {unreadProactiveAlerts.length ? (
             <span
               className={[
                 "absolute right-0 top-0 z-10 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold shadow-lg sm:right-2 sm:top-2 sm:h-6 sm:min-w-6 sm:text-xs md:right-3 md:top-3 xl:right-8 xl:top-8",
                 hasWarningAlert
                   ? "bg-[rgb(245_158_11)] text-black"
-                  : "bg-[var(--primary)] text-[var(--background)]"
+                  : "bg-[var(--primary)] text-[var(--background)]",
               ].join(" ")}
             >
-              {proactiveAlerts.length}
+              {unreadProactiveAlerts.length}
             </span>
           ) : null}
           <AssistantAvatar
