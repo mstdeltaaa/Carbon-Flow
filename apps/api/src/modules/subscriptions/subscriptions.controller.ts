@@ -6,6 +6,10 @@ import {
   CurrentCompany,
   type CurrentCompany as CurrentCompanyPayload,
 } from "../../common/decorators/current-company.decorator";
+import {
+  CurrentUser,
+  type CurrentUser as CurrentUserPayload,
+} from "../../common/decorators/current-user.decorator";
 import { CompanyMembershipGuard } from "../../common/guards/company-membership.guard";
 import { CompanyRoleGuard } from "../../common/guards/company-role.guard";
 import { SupabaseAuthGuard } from "../../common/guards/supabase-auth.guard";
@@ -28,5 +32,14 @@ export class SubscriptionsController {
   @CompanyRoles("admin")
   startProTrial(@CurrentCompany() company: CurrentCompanyPayload) {
     return this.subscriptionsService.startProTrial(company.id);
+  }
+
+  @Post("checkout/pro")
+  @CompanyRoles("admin")
+  createProCheckout(
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user?: CurrentUserPayload,
+  ) {
+    return this.subscriptionsService.createProCheckout(company.id, user?.email);
   }
 }

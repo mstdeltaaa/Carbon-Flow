@@ -39,6 +39,11 @@ type SettingsPayload = {
   subscription: Subscription;
 };
 
+type CheckoutPayload = {
+  checkoutUrl: string;
+  providerSubscriptionId: string;
+};
+
 type BillingManagerProps = {
   companyId: string;
 };
@@ -336,9 +341,26 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     }
 
     if (plan === "pro" && subscription && !subscription.canStartProTrial) {
-      setMessage(
-        "O teste grátis do Pro já foi usado por esta empresa. O próximo passo é conectar Mercado Pago ou Stripe para ativar pagamento.",
-      );
+      setPlanAction(plan);
+      setMessage(null);
+
+      try {
+        const checkout = await request<CheckoutPayload>(
+          "/subscriptions/checkout/pro",
+          { method: "POST" },
+        );
+
+        setMessage("Abrindo checkout seguro do Mercado Pago.");
+        window.location.assign(checkout.checkoutUrl);
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível abrir o checkout do Mercado Pago.",
+        );
+        setPlanAction(null);
+      }
+
       return;
     }
 
@@ -554,7 +576,9 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                           ? "Iniciando..."
                           : canStartTrial
                             ? "Iniciar teste grátis"
-                            : "Solicitar upgrade"}
+                            : plan.id === "pro"
+                              ? "Assinar Pro"
+                              : "Solicitar upgrade"}
                       </Button>
                     )}
                   </div>

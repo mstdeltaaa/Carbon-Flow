@@ -22,9 +22,16 @@ Use este checklist antes de liberar o sistema para clientes reais.
 - `SUPABASE_JWKS_URL`: URL JWKS do projeto, se a API passar a validar JWT localmente.
 - `OPENAI_API_KEY`: opcional, apenas quando o Carbon usar IA paga.
 - `OPENAI_MODEL`: opcional.
+- `API_PUBLIC_URL`: URL publica da API.
+- `MERCADO_PAGO_ACCESS_TOKEN`: access token da conta Mercado Pago.
+- `MERCADO_PAGO_WEBHOOK_SECRET`: segredo de validacao do webhook.
+- `MERCADO_PAGO_WEBHOOK_URL`: URL publica do webhook, por exemplo `https://carbon-flow-api.vercel.app/webhooks/mercado-pago`.
+- `MERCADO_PAGO_BACK_URL`: URL para voltar ao painel apos o checkout, por exemplo `https://carbon-flow-web.vercel.app/settings?section=billing`.
+- `MERCADO_PAGO_PRO_PRICE`: `45`.
+- `MERCADO_PAGO_CURRENCY_ID`: `BRL`.
 - `ENABLE_SWAGGER`: deixe vazio em producao. Use `true` somente para diagnostico temporario.
 
-Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY` ou `OPENAI_API_KEY` no projeto web.
+Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY`, `OPENAI_API_KEY` ou `MERCADO_PAGO_ACCESS_TOKEN` no projeto web.
 
 ## 2. Supabase Auth
 
@@ -86,7 +93,16 @@ Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_SECRET_KEY` ou `OPENAI_API_
 - Revogue chaves expostas imediatamente.
 - Monitore erros da Vercel e logs do Supabase.
 
-## 9. Teste final de aceite
+## 9. Mercado Pago
+
+- Configure o webhook para `https://SUA-API/webhooks/mercado-pago`.
+- Ative o evento de assinaturas/preapproval no Mercado Pago.
+- Guarde o segredo do webhook em `MERCADO_PAGO_WEBHOOK_SECRET`.
+- Teste o checkout do plano Pro com uma empresa de teste.
+- Confirme que a empresa so muda para Pro depois do pagamento autorizado.
+- Confirme que cancelamento ou pausa remove os limites Pro.
+
+## 10. Teste final de aceite
 
 - Criar empresa nova.
 - Criar insumo.
