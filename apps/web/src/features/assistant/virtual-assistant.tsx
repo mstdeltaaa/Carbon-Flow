@@ -3522,7 +3522,7 @@ export function VirtualAssistant({
         "fixed z-40 flex flex-col items-end justify-end",
         activeAssistantPosition
           ? ""
-          : "inset-x-2 bottom-2 sm:inset-x-auto sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6",
+          : "bottom-2 right-2 sm:bottom-2 sm:right-2 md:bottom-3 md:right-3 xl:bottom-6 xl:right-6",
       ].join(" ")}
       ref={assistantFrameRef}
       style={assistantFrameStyle}
