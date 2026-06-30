@@ -925,13 +925,14 @@ function clampAssistantPosition(
   width: number,
   height: number,
 ) {
-  const margin = 8;
-  const maxX = Math.max(margin, window.innerWidth - width - margin);
-  const maxY = Math.max(margin, window.innerHeight - height - margin);
+  const minX = 0;
+  const minY = 0;
+  const maxX = Math.max(minX, window.innerWidth - width);
+  const maxY = Math.max(minY, window.innerHeight - height);
 
   return {
-    x: Math.min(Math.max(position.x, margin), maxX),
-    y: Math.min(Math.max(position.y, margin), maxY),
+    x: Math.min(Math.max(position.x, minX), maxX),
+    y: Math.min(Math.max(position.y, minY), maxY),
   };
 }
 
