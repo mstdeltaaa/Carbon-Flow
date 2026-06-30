@@ -584,18 +584,18 @@ export class SubscriptionsService {
 
   private getMercadoPagoPayerReference(userEmail: string) {
     const accessToken = this.getRequiredConfig("MERCADO_PAGO_ACCESS_TOKEN");
-    const testPayer =
-      this.config.get<string>("MERCADO_PAGO_TEST_PAYER_USERNAME") ??
-      this.config.get<string>("MERCADO_PAGO_TEST_PAYER_EMAIL");
+    const testPayerEmail = this.config.get<string>(
+      "MERCADO_PAGO_TEST_PAYER_EMAIL",
+    );
 
     if (accessToken.startsWith("TEST-")) {
-      if (!testPayer) {
+      if (!testPayerEmail) {
         throw new BadRequestException(
-          "Configure MERCADO_PAGO_TEST_PAYER_USERNAME com o campo Usuario do comprador teste do Mercado Pago.",
+          "Configure MERCADO_PAGO_TEST_PAYER_EMAIL com o email do comprador teste do Mercado Pago. O campo Usuario serve apenas para login no checkout.",
         );
       }
 
-      return testPayer;
+      return testPayerEmail;
     }
 
     return userEmail;
