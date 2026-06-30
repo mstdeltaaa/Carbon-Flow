@@ -68,7 +68,7 @@ const plans: PlanCard[] = [
   },
   {
     description:
-      "Para empresas que já operam com equipe e volume recorrente. Comece com 7 dias grátis.",
+      "Para empresas que já operam com equipe e volume recorrente. Comece com 7 dias grátis e depois continue por R$ 45/mês.",
     features: [
       "5 usuários",
       "500 insumos",
@@ -76,10 +76,11 @@ const plans: PlanCard[] = [
       "500 clientes",
       "300 orçamentos por mês",
       "300 vendas por mês",
+      "7 dias grátis para começar",
     ],
     id: "pro",
     label: "Pro",
-    price: "7 dias grátis",
+    price: "R$ 45/mês",
   },
   {
     description: "Para operações com várias pessoas e necessidade de escala.",
