@@ -144,7 +144,10 @@ type DashboardSummary = {
     unit: string;
   }>;
   alerts: Array<{
+    actionLabel?: string;
+    daysLeft?: number;
     detail: string;
+    id?: string;
     severity: "info" | "warning";
     title: string;
     type: string;
@@ -247,7 +250,7 @@ const pageTips: Record<string, string> = {
   account:
     "Aqui você ajusta dados da sua conta e pode trocar informações pessoais do usuário logado.",
   billing:
-    "Em Planos você acompanha os limites da empresa e prepara a assinatura para recursos futuros.",
+    "Em Planos você acompanha limites, vencimento do Pro, Pix mensal e assinatura recorrente.",
   budgets:
     "Em Orçamentos você cria propostas profissionais e pode converter um orçamento aprovado em venda.",
   customers:
@@ -1621,6 +1624,28 @@ function getDaysUntil(value: string | null) {
 
 function getProactiveAlerts(context: ReplyContext): ProactiveAlert[] {
   const alerts: ProactiveAlert[] = [];
+  const proExpirationAlert = context.dashboard?.alerts.find(
+    (alert) => alert.type === "pro_expiration",
+  );
+
+  if (
+    proExpirationAlert &&
+    canAccessSection(context.role, "billing", context.permissions)
+  ) {
+    alerts.push({
+      action: {
+        ...quickActionById.billing,
+        href: "/billing#pro-payment-options",
+        label: proExpirationAlert.actionLabel ?? quickActionById.billing.label,
+      },
+      detail: proExpirationAlert.detail,
+      id:
+        proExpirationAlert.id ??
+        `pro-expiration:${proExpirationAlert.daysLeft ?? "soon"}`,
+      severity: proExpirationAlert.severity,
+      title: proExpirationAlert.title,
+    });
+  }
 
   if (
     canAccessSection(context.role, "stock", context.permissions) &&
@@ -2490,7 +2515,7 @@ function getAssistantReply(
       return getRestrictedReply("planos e assinatura");
     }
 
-    return "Em Planos você acompanha os limites do plano atual e deixa a estrutura pronta para assinaturas futuras.";
+    return "Em Planos você acompanha o plano atual, dias restantes do Pro, Pix mensal avulso e assinatura recorrente. Quando o Pro estiver perto de vencer, eu aviso em Atenção agora.";
   }
 
   if (normalized.includes("tema") || normalized.includes("cor")) {

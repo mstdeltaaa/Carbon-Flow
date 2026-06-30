@@ -13,7 +13,7 @@ import {
   Loader2,
   PackageCheck,
   Plus,
-  ShoppingCart
+  ShoppingCart,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,11 +21,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   OnboardingGuide,
-  type DashboardOnboardingSummary
+  type DashboardOnboardingSummary,
 } from "@/features/dashboard/onboarding-guide";
 import {
   canAccessSection,
-  type CompanyPermissionMap
+  type CompanyPermissionMap,
 } from "@/lib/access-control";
 import { env } from "@/lib/env";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -82,7 +82,10 @@ type DashboardSummary = {
     unit: string;
   }>;
   alerts: Array<{
+    actionLabel?: string;
+    daysLeft?: number;
     detail: string;
+    id?: string;
     severity: "info" | "warning";
     title: string;
     type: string;
@@ -98,11 +101,11 @@ type DashboardScreenProps = {
 
 const currencyFormatter = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
-  style: "currency"
+  style: "currency",
 });
 
 const decimalFormatter = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 4
+  maximumFractionDigits: 4,
 });
 
 const dateFormatter = new Intl.DateTimeFormat("pt-BR");
@@ -139,7 +142,7 @@ function formatDate(value: string | null) {
   }
 
   return dateFormatter.format(
-    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`)
+    value.includes("T") ? new Date(value) : new Date(`${value}T00:00:00`),
   );
 }
 
@@ -162,7 +165,7 @@ function getProfitDetail(revenue: number, profit: number) {
 function PanelState({
   description,
   isLoading = false,
-  title
+  title,
 }: {
   description?: string;
   isLoading?: boolean;
@@ -193,7 +196,7 @@ function PanelState({
 export function DashboardScreen({
   companyId,
   permissions,
-  role
+  role,
 }: DashboardScreenProps) {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -203,7 +206,7 @@ export function DashboardScreen({
     async <T,>(path: string): Promise<T> => {
       const supabase = createSupabaseBrowserClient();
       const {
-        data: { session }
+        data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
@@ -214,8 +217,8 @@ export function DashboardScreen({
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
-          "x-company-id": companyId
-        }
+          "x-company-id": companyId,
+        },
       });
       const payload = (await response.json().catch(() => null)) as unknown;
 
@@ -225,7 +228,7 @@ export function DashboardScreen({
 
       return payload as T;
     },
-    [companyId]
+    [companyId],
   );
 
   const loadDashboard = useCallback(async () => {
@@ -237,7 +240,7 @@ export function DashboardScreen({
       setData(summary);
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Não foi possível carregar."
+        error instanceof Error ? error.message : "Não foi possível carregar.",
       );
     } finally {
       setIsLoading(false);
@@ -257,32 +260,32 @@ export function DashboardScreen({
         icon: BarChart3,
         label: "Faturamento",
         trend: "up",
-        value: currencyFormatter.format(summary?.revenue ?? 0)
+        value: currencyFormatter.format(summary?.revenue ?? 0),
       },
       {
         detail: `${summary?.openBudgetCount ?? 0} orçamentos em aberto`,
         icon: ShoppingCart,
         label: "Vendas",
         trend: "up",
-        value: String(summary?.salesCount ?? 0)
+        value: String(summary?.salesCount ?? 0),
       },
       {
         detail: getProfitDetail(
           summary?.revenue ?? 0,
-          summary?.estimatedProfit ?? 0
+          summary?.estimatedProfit ?? 0,
         ),
         icon: ArrowUpRight,
         label: "Lucro estimado",
         trend: "up",
-        value: currencyFormatter.format(summary?.estimatedProfit ?? 0)
+        value: currencyFormatter.format(summary?.estimatedProfit ?? 0),
       },
       {
         detail: "Itens precisam de reposição",
         icon: AlertTriangle,
         label: "Estoque baixo",
         trend: "attention",
-        value: String(summary?.lowStockCount ?? 0)
-      }
+        value: String(summary?.lowStockCount ?? 0),
+      },
     ];
   }, [data]);
 
@@ -293,9 +296,10 @@ export function DashboardScreen({
     pendingBalance: 0,
     pendingExpense: 0,
     pendingIncome: 0,
-    upcomingDue: []
+    upcomingDue: [],
   };
   const canAccessSettings = canAccessSection(role, "settings", permissions);
+  const canAccessBilling = canAccessSection(role, "billing", permissions);
 
   return (
     <>
@@ -397,13 +401,13 @@ export function DashboardScreen({
                 detail: "Receitas pagas",
                 label: "Entradas",
                 value: finance.paidIncome,
-                valueClass: "text-[var(--primary)]"
+                valueClass: "text-[var(--primary)]",
               },
               {
                 detail: "Despesas pagas",
                 label: "Saídas",
                 value: finance.paidExpense,
-                valueClass: "text-[var(--destructive-text)]"
+                valueClass: "text-[var(--destructive-text)]",
               },
               {
                 detail: "Entradas menos saídas",
@@ -412,7 +416,7 @@ export function DashboardScreen({
                 valueClass:
                   finance.balance >= 0
                     ? "text-[var(--primary)]"
-                    : "text-[var(--destructive-text)]"
+                    : "text-[var(--destructive-text)]",
               },
               {
                 detail: `${data?.metrics.overdueCount ?? 0} vencido(s)`,
@@ -421,8 +425,8 @@ export function DashboardScreen({
                 valueClass:
                   (data?.metrics.overdueAmount ?? 0) > 0
                     ? "text-[var(--destructive-text)]"
-                    : "text-[var(--primary)]"
-              }
+                    : "text-[var(--primary)]",
+              },
             ].map((item) => (
               <article
                 className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4"
@@ -434,7 +438,7 @@ export function DashboardScreen({
                 <p
                   className={[
                     "mt-3 text-xl font-semibold",
-                    item.valueClass
+                    item.valueClass,
                   ].join(" ")}
                 >
                   {isLoading ? (
@@ -498,7 +502,7 @@ export function DashboardScreen({
                       <p
                         className={[
                           "shrink-0 text-sm font-semibold",
-                          getFinanceTypeClass(transaction.type)
+                          getFinanceTypeClass(transaction.type),
                         ].join(" ")}
                       >
                         {currencyFormatter.format(transaction.amount)}
@@ -509,7 +513,7 @@ export function DashboardScreen({
                         "mt-3 inline-flex rounded-md px-2 py-1 text-xs",
                         transaction.isOverdue
                           ? "bg-[var(--destructive-soft)] text-[var(--destructive-text)]"
-                          : "bg-[rgb(245_158_11/0.14)] text-[rgb(251_191_36)]"
+                          : "bg-[rgb(245_158_11/0.14)] text-[rgb(251_191_36)]",
                       ].join(" ")}
                     >
                       {transaction.isOverdue ? "Vencido" : "Pendente"}
@@ -654,7 +658,7 @@ export function DashboardScreen({
             ? data?.alerts.map((alert) => (
                 <article
                   className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4"
-                  key={`${alert.type}-${alert.title}`}
+                  key={alert.id ?? `${alert.type}-${alert.title}`}
                 >
                   <p className="text-sm font-medium text-white">
                     {alert.title}
@@ -662,6 +666,13 @@ export function DashboardScreen({
                   <p className="mt-2 text-xs text-[var(--muted-foreground)]">
                     {alert.detail}
                   </p>
+                  {alert.type === "pro_expiration" && canAccessBilling ? (
+                    <Button asChild className="mt-4">
+                      <Link href="/billing#pro-payment-options">
+                        {alert.actionLabel ?? "Ver planos"}
+                      </Link>
+                    </Button>
+                  ) : null}
                 </article>
               ))
             : null}

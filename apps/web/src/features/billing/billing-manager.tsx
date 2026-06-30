@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import {
+  AlertTriangle,
   Check,
   Copy,
   CreditCard,
@@ -37,10 +38,21 @@ type Subscription = {
   canCancelProSubscription: boolean;
   canStartProTrial: boolean;
   currentPeriodEnd: string | null;
+  expirationNotice: SubscriptionExpirationNotice | null;
   limits: PlanLimits;
   plan: SubscriptionPlan;
   status: SubscriptionStatus;
   usage: PlanUsage;
+};
+
+type SubscriptionExpirationNotice = {
+  actionLabel: string;
+  daysLeft: number;
+  detail: string;
+  id: string;
+  severity: "info" | "warning";
+  title: string;
+  type: "pro_expiration";
 };
 
 type SettingsPayload = {
@@ -845,6 +857,40 @@ export function BillingManager({ companyId }: BillingManagerProps) {
         <p className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-4 text-sm text-[var(--muted-foreground)]">
           {message}
         </p>
+      ) : null}
+
+      {subscription?.expirationNotice ? (
+        <section
+          className={[
+            "rounded-lg border p-5 sm:p-6",
+            subscription.expirationNotice.severity === "warning"
+              ? "border-[rgb(245_158_11/0.38)] bg-[rgb(245_158_11/0.10)]"
+              : "border-[rgb(159_243_196/0.32)] bg-[rgb(159_243_196/0.08)]",
+          ].join(" ")}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-sm font-semibold text-white">
+                <AlertTriangle
+                  className="h-4 w-4 text-[var(--primary)]"
+                  aria-hidden="true"
+                />
+                {subscription.expirationNotice.title}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                {subscription.expirationNotice.detail}
+              </p>
+            </div>
+            <Button
+              className="w-full shrink-0 sm:w-auto"
+              onClick={handleScrollToPaymentOptions}
+              type="button"
+            >
+              <CreditCard className="h-4 w-4" aria-hidden="true" />
+              {subscription.expirationNotice.actionLabel}
+            </Button>
+          </div>
+        </section>
       ) : null}
 
       {pixPayment ? (

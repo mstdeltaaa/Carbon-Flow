@@ -18,10 +18,20 @@ type PlanLimitKey =
   | "sales_per_month";
 type PlanLimits = Record<PlanLimitKey, number | null>;
 type PlanUsage = Record<PlanLimitKey, number>;
+type SubscriptionExpirationNotice = {
+  actionLabel: string;
+  daysLeft: number;
+  detail: string;
+  id: string;
+  severity: "info" | "warning";
+  title: string;
+  type: "pro_expiration";
+};
 
 type SubscriptionOverview = {
   canCreate: Record<PlanLimitKey, boolean>;
   currentPeriodEnd: string | null;
+  expirationNotice: SubscriptionExpirationNotice | null;
   limits: PlanLimits;
   plan: SubscriptionPlan;
   reached: PlanLimitKey[];
@@ -37,7 +47,7 @@ type PlanLimitUsageProps = {
 const planLabels: Record<SubscriptionPlan, string> = {
   enterprise: "Empresa",
   free: "Free",
-  pro: "Pro"
+  pro: "Pro",
 };
 const millisecondsInDay = 24 * 60 * 60 * 1000;
 
@@ -47,7 +57,7 @@ const resourceLabels: Record<PlanLimitKey, string> = {
   ingredients: "Insumos ativos",
   products: "Produtos ativos",
   sales_per_month: "Vendas neste mês",
-  users: "Usuários da empresa"
+  users: "Usuários da empresa",
 };
 
 function getApiMessage(payload: unknown, fallback: string) {
@@ -128,7 +138,7 @@ export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
     try {
       const supabase = createSupabaseBrowserClient();
       const {
-        data: { session }
+        data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
@@ -139,14 +149,14 @@ export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
-          "x-company-id": companyId
-        }
+          "x-company-id": companyId,
+        },
       });
       const payload = (await response.json().catch(() => null)) as unknown;
 
       if (!response.ok) {
         throw new Error(
-          getApiMessage(payload, "Não foi possível carregar o plano.")
+          getApiMessage(payload, "Não foi possível carregar o plano."),
         );
       }
 
@@ -154,7 +164,7 @@ export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
     } catch (error) {
       setOverview(null);
       setMessage(
-        error instanceof Error ? error.message : "Não foi possível carregar."
+        error instanceof Error ? error.message : "Não foi possível carregar.",
       );
     } finally {
       setIsLoading(false);
@@ -181,7 +191,7 @@ export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
       nearLimit,
       percent,
       reached,
-      usage
+      usage,
     };
   }, [overview, resource]);
 
@@ -262,6 +272,19 @@ export function PlanLimitUsage({ companyId, resource }: PlanLimitUsageProps) {
       ) : resourceState.nearLimit ? (
         <p className="mt-3 text-sm text-amber-200">
           Você está perto do limite deste recurso.
+        </p>
+      ) : null}
+
+      {overview.expirationNotice ? (
+        <p
+          className={[
+            "mt-3 rounded-md border px-3 py-2 text-sm",
+            overview.expirationNotice.severity === "warning"
+              ? "border-[rgb(245_158_11/0.36)] bg-[rgb(245_158_11/0.08)] text-amber-100"
+              : "border-[rgb(159_243_196/0.28)] bg-[rgb(159_243_196/0.08)] text-[var(--muted-foreground)]",
+          ].join(" ")}
+        >
+          {overview.expirationNotice.detail}
         </p>
       ) : null}
     </section>

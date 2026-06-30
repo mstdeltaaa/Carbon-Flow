@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 
 type SaleRow = {
   id: string;
@@ -50,7 +51,7 @@ type CountResult = {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Não foi possível carregar o dashboard."
+    error.message ?? "Não foi possível carregar o dashboard.",
   );
 }
 
@@ -76,7 +77,10 @@ function toDateOnly(value: Date) {
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly supabaseFactory: SupabaseClientFactory) {}
+  constructor(
+    private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly subscriptionsService: SubscriptionsService,
+  ) {}
 
   async getSummary(accessToken: string, companyId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -98,16 +102,16 @@ export class DashboardService {
     const sales = (salesData ?? []) as SaleRow[];
     const saleIds = sales.map((sale) => sale.id);
     const revenue = roundMoney(
-      sales.reduce((total, sale) => total + Number(sale.total_amount), 0)
+      sales.reduce((total, sale) => total + Number(sale.total_amount), 0),
     );
     const estimatedProfit = roundMoney(
-      sales.reduce((total, sale) => total + Number(sale.estimated_profit), 0)
+      sales.reduce((total, sale) => total + Number(sale.estimated_profit), 0),
     );
 
     const { data: lowStockData, error: lowStockError } = await supabase
       .from("ingredients")
       .select(
-        "id, name, category, inventory_unit, stock_quantity, minimum_stock"
+        "id, name, category, inventory_unit, stock_quantity, minimum_stock",
       )
       .eq("company_id", companyId)
       .eq("is_active", true)
@@ -122,7 +126,7 @@ export class DashboardService {
       productCountResult,
       customerCountResult,
       budgetCountResult,
-      saleCountResult
+      saleCountResult,
     ] = await Promise.all([
       supabase
         .from("ingredients")
@@ -146,14 +150,14 @@ export class DashboardService {
         .from("sales")
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId)
-        .eq("status", "completed")
+        .eq("status", "completed"),
     ]);
     const countResults = [
       ingredientCountResult,
       productCountResult,
       customerCountResult,
       budgetCountResult,
-      saleCountResult
+      saleCountResult,
     ] as CountResult[];
     const countError = countResults.find((result) => result.error)?.error;
 
@@ -167,7 +171,7 @@ export class DashboardService {
       customers: customerCountResult.count ?? 0,
       ingredients: ingredientCountResult.count ?? 0,
       products: productCountResult.count ?? 0,
-      sales: saleCountResult.count ?? 0
+      sales: saleCountResult.count ?? 0,
     };
     const onboardingCompletedSteps = [
       onboardingCounts.company > 0,
@@ -175,14 +179,14 @@ export class DashboardService {
       onboardingCounts.products > 0,
       onboardingCounts.customers > 0,
       onboardingCounts.budgets > 0,
-      onboardingCounts.sales > 0
+      onboardingCounts.sales > 0,
     ].filter(Boolean).length;
     const onboardingTotalSteps = 6;
 
     const lowStock = ((lowStockData ?? []) as IngredientRow[])
       .filter(
         (ingredient) =>
-          Number(ingredient.stock_quantity) <= Number(ingredient.minimum_stock)
+          Number(ingredient.stock_quantity) <= Number(ingredient.minimum_stock),
       )
       .map((ingredient) => ({
         category: ingredient.category,
@@ -190,7 +194,7 @@ export class DashboardService {
         id: ingredient.id,
         minimum: Number(ingredient.minimum_stock),
         name: ingredient.name,
-        unit: ingredient.inventory_unit
+        unit: ingredient.inventory_unit,
       }));
 
     const { data: budgetsData, error: budgetsError } = await supabase
@@ -207,8 +211,8 @@ export class DashboardService {
     const openBudgetAmount = roundMoney(
       openBudgets.reduce(
         (total, budget) => total + Number(budget.total_amount),
-        0
-      )
+        0,
+      ),
     );
 
     const periodStartDate = toDateOnly(periodStart);
@@ -217,7 +221,7 @@ export class DashboardService {
     const { data: financeData, error: financeError } = await supabase
       .from("financial_transactions")
       .select(
-        "id, type, status, category, description, amount, transaction_date, due_date"
+        "id, type, status, category, description, amount, transaction_date, due_date",
       )
       .eq("company_id", companyId)
       .gte("transaction_date", periodStartDate)
@@ -230,39 +234,39 @@ export class DashboardService {
     const financialTransactions = (financeData ??
       []) as FinancialTransactionRow[];
     const activeFinancialTransactions = financialTransactions.filter(
-      (transaction) => transaction.status !== "cancelled"
+      (transaction) => transaction.status !== "cancelled",
     );
     const paidFinancialTransactions = activeFinancialTransactions.filter(
-      (transaction) => transaction.status === "paid"
+      (transaction) => transaction.status === "paid",
     );
     const pendingFinancialTransactions = activeFinancialTransactions.filter(
-      (transaction) => transaction.status === "pending"
+      (transaction) => transaction.status === "pending",
     );
     const paidIncome = roundMoney(
       paidFinancialTransactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+        .reduce((total, transaction) => total + Number(transaction.amount), 0),
     );
     const paidExpense = roundMoney(
       paidFinancialTransactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+        .reduce((total, transaction) => total + Number(transaction.amount), 0),
     );
     const pendingIncome = roundMoney(
       pendingFinancialTransactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+        .reduce((total, transaction) => total + Number(transaction.amount), 0),
     );
     const pendingExpense = roundMoney(
       pendingFinancialTransactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((total, transaction) => total + Number(transaction.amount), 0)
+        .reduce((total, transaction) => total + Number(transaction.amount), 0),
     );
 
     const { data: pendingDueData, error: pendingDueError } = await supabase
       .from("financial_transactions")
       .select(
-        "id, type, status, category, description, amount, transaction_date, due_date"
+        "id, type, status, category, description, amount, transaction_date, due_date",
       )
       .eq("company_id", companyId)
       .eq("status", "pending")
@@ -276,13 +280,13 @@ export class DashboardService {
     const pendingDueTransactions = (pendingDueData ??
       []) as FinancialTransactionRow[];
     const overdueTransactions = pendingDueTransactions.filter(
-      (transaction) => transaction.due_date && transaction.due_date < today
+      (transaction) => transaction.due_date && transaction.due_date < today,
     );
     const overdueAmount = roundMoney(
       overdueTransactions.reduce(
         (total, transaction) => total + Number(transaction.amount),
-        0
-      )
+        0,
+      ),
     );
     const upcomingDue = pendingDueTransactions
       .slice(0, 5)
@@ -293,9 +297,9 @@ export class DashboardService {
         dueDate: transaction.due_date,
         id: transaction.id,
         isOverdue: Boolean(
-          transaction.due_date && transaction.due_date < today
+          transaction.due_date && transaction.due_date < today,
         ),
-        type: transaction.type
+        type: transaction.type,
       }));
 
     let saleItems: SaleItemRow[] = [];
@@ -336,7 +340,7 @@ export class DashboardService {
           productId: item.product_id,
           productName: item.product_name,
           quantity: Number(item.quantity),
-          revenue: Number(item.total_price)
+          revenue: Number(item.total_price),
         });
       }
     }
@@ -344,17 +348,20 @@ export class DashboardService {
     const bestSellers = [...productMap.values()]
       .map((product) => ({
         ...product,
-        revenue: roundMoney(product.revenue)
+        revenue: roundMoney(product.revenue),
       }))
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 5);
 
+    const subscription = await this.subscriptionsService.getOverview(companyId);
+
     const alerts = [
+      ...(subscription.expirationNotice ? [subscription.expirationNotice] : []),
       ...lowStock.slice(0, 5).map((ingredient) => ({
         detail: `Atual: ${ingredient.current} ${ingredient.unit} / Mínimo: ${ingredient.minimum} ${ingredient.unit}`,
         severity: "warning" as const,
         title: ingredient.name,
-        type: "low_stock" as const
+        type: "low_stock" as const,
       })),
       ...(openBudgets.length > 0
         ? [
@@ -362,8 +369,8 @@ export class DashboardService {
               detail: `${openBudgets.length} orçamentos em aberto`,
               severity: "info" as const,
               title: "Orçamentos pendentes",
-              type: "open_budgets" as const
-            }
+              type: "open_budgets" as const,
+            },
           ]
         : []),
       ...(overdueTransactions.length > 0
@@ -372,17 +379,17 @@ export class DashboardService {
               detail: `${overdueTransactions.length} lançamento(s) vencido(s), totalizando ${overdueAmount}`,
               severity: "warning" as const,
               title: "Financeiro vencido",
-              type: "financial_overdue" as const
-            }
+              type: "financial_overdue" as const,
+            },
           ]
-        : [])
+        : []),
     ];
 
     return {
       period: {
         label: "Mês atual",
         start: periodStart.toISOString(),
-        end: periodEnd.toISOString()
+        end: periodEnd.toISOString(),
       },
       metrics: {
         estimatedProfit,
@@ -396,7 +403,7 @@ export class DashboardService {
         pendingExpense,
         pendingIncome,
         revenue,
-        salesCount: sales.length
+        salesCount: sales.length,
       },
       finance: {
         balance: roundMoney(paidIncome - paidExpense),
@@ -405,20 +412,20 @@ export class DashboardService {
         pendingBalance: roundMoney(pendingIncome - pendingExpense),
         pendingExpense,
         pendingIncome,
-        upcomingDue
+        upcomingDue,
       },
       onboarding: {
         completedSteps: onboardingCompletedSteps,
         counts: onboardingCounts,
         isComplete: onboardingCompletedSteps === onboardingTotalSteps,
         progress: Math.round(
-          (onboardingCompletedSteps / onboardingTotalSteps) * 100
+          (onboardingCompletedSteps / onboardingTotalSteps) * 100,
         ),
-        totalSteps: onboardingTotalSteps
+        totalSteps: onboardingTotalSteps,
       },
       bestSellers,
       lowStock: lowStock.slice(0, 5),
-      alerts: alerts.slice(0, 6)
+      alerts: alerts.slice(0, 6),
     };
   }
 }

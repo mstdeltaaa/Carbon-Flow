@@ -24,6 +24,8 @@ type SubscriptionRow = {
   status: SubscriptionStatus;
 };
 
+type BillingMode = "pix" | "recurring" | "trial" | null;
+
 type MercadoPagoPreapprovalResponse = {
   auto_recurring?: {
     currency_id?: string;
@@ -62,6 +64,7 @@ type MercadoPagoPaymentResponse = {
 };
 
 const proPixExternalReferencePrefix = "carbon_flow_pro_pix:";
+const proExpirationNoticeDays = 7;
 
 const planLimitKeys: PlanLimitKey[] = [
   "users",
@@ -92,6 +95,20 @@ function getNextMonthlyPeriodEndIso() {
   periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
   return periodEnd.toISOString();
+}
+
+function getDaysUntil(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const endsAt = Date.parse(value);
+
+  if (!Number.isFinite(endsAt)) {
+    return null;
+  }
+
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / 86400000));
 }
 
 function getExtendedMonthlyPeriodEndIso(currentPeriodEnd: string | null) {
@@ -199,7 +216,7 @@ function mapSubscription(row: SubscriptionRow | null) {
   };
 }
 
-function getBillingMode(row: SubscriptionRow | null) {
+function getBillingMode(row: SubscriptionRow | null): BillingMode {
   if (row?.plan === "pro" && row.status === "trialing") {
     return "trial";
   }
@@ -217,6 +234,76 @@ function getBillingMode(row: SubscriptionRow | null) {
   }
 
   return null;
+}
+
+function getProExpirationNotice(subscription: {
+  billingMode: BillingMode;
+  currentPeriodEnd: string | null;
+  plan: SubscriptionPlan;
+  status: SubscriptionStatus;
+}) {
+  if (subscription.plan !== "pro" || !subscription.currentPeriodEnd) {
+    return null;
+  }
+
+  const shouldWarn =
+    (subscription.status === "trialing" &&
+      subscription.billingMode === "trial") ||
+    (subscription.status === "active" && subscription.billingMode === "pix") ||
+    subscription.status === "cancelled";
+
+  if (!shouldWarn) {
+    return null;
+  }
+
+  const daysLeft = getDaysUntil(subscription.currentPeriodEnd);
+
+  if (daysLeft === null || daysLeft > proExpirationNoticeDays) {
+    return null;
+  }
+
+  const periodDate = subscription.currentPeriodEnd.slice(0, 10);
+  const timing =
+    daysLeft === 0
+      ? "vence hoje"
+      : daysLeft === 1
+        ? "vence em 1 dia"
+        : `vence em ${daysLeft} dias`;
+  const severity = daysLeft <= 3 ? "warning" : "info";
+
+  if (subscription.billingMode === "trial") {
+    return {
+      actionLabel: "Escolher pagamento",
+      daysLeft,
+      detail: `Seu teste grátis do Pro ${timing}. Escolha Pix mensal ou assinatura recorrente para manter os limites Pro.`,
+      id: `pro-expiration:trial:${periodDate}:${daysLeft}`,
+      severity,
+      title: "Teste Pro perto do fim",
+      type: "pro_expiration",
+    };
+  }
+
+  if (subscription.billingMode === "pix") {
+    return {
+      actionLabel: "Renovar com Pix",
+      daysLeft,
+      detail: `Seu Pro pago por Pix ${timing}. Pague mais 1 mês para manter o acesso sem interrupção.`,
+      id: `pro-expiration:pix:${periodDate}:${daysLeft}`,
+      severity,
+      title: "Pro por Pix perto do vencimento",
+      type: "pro_expiration",
+    };
+  }
+
+  return {
+    actionLabel: "Reativar Pro",
+    daysLeft,
+    detail: `Sua renovação foi cancelada e o Pro ${timing}. Depois disso, a empresa volta automaticamente para o Free.`,
+    id: `pro-expiration:cancelled:${periodDate}:${daysLeft}`,
+    severity,
+    title: "Pro cancelado perto do fim",
+    type: "pro_expiration",
+  };
 }
 
 function isExpiredTrial(row: SubscriptionRow | null) {
@@ -290,6 +377,7 @@ export class SubscriptionsService {
         subscription.plan !== "enterprise" &&
         !subscription.currentPeriodEnd,
       canCreate,
+      expirationNotice: getProExpirationNotice(subscription),
       reached,
       usage,
     };
