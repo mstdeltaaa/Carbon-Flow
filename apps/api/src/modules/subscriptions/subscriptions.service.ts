@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "crypto";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { AuditService } from "../audit/audit.service";
 import {
   createEmptyPlanUsage,
   defaultPlanLimits,
@@ -347,6 +348,7 @@ export class SubscriptionsService {
   constructor(
     private readonly config: ConfigService,
     private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly auditService: AuditService,
   ) {}
 
   async getOverview(companyId: string) {
@@ -383,7 +385,7 @@ export class SubscriptionsService {
     };
   }
 
-  async startProTrial(companyId: string) {
+  async startProTrial(companyId: string, userId?: string | null) {
     const subscription = await this.getSubscription(companyId);
 
     if (subscription.plan === "enterprise") {
@@ -422,10 +424,27 @@ export class SubscriptionsService {
       throwDatabaseError(error);
     }
 
+    await this.auditService.record({
+      action: "subscription.trial_started",
+      companyId,
+      entityId: companyId,
+      entityType: "subscription",
+      metadata: {
+        currentPeriodEnd: getProTrialEndIso(),
+        plan: "pro",
+        status: "trialing",
+      },
+      userId,
+    });
+
     return this.getOverview(companyId);
   }
 
-  async createProCheckout(companyId: string, userEmail?: string) {
+  async createProCheckout(
+    companyId: string,
+    userEmail?: string,
+    userId?: string | null,
+  ) {
     const subscription = await this.getSubscription(companyId);
 
     if (subscription.plan === "enterprise") {
@@ -469,13 +488,29 @@ export class SubscriptionsService {
       await this.saveMercadoPagoReference(companyId, preapproval);
     }
 
+    await this.auditService.record({
+      action: "subscription.checkout_created",
+      companyId,
+      entityId: companyId,
+      entityType: "subscription",
+      metadata: {
+        provider: "mercado_pago",
+        providerSubscriptionId: preapproval.id,
+      },
+      userId,
+    });
+
     return {
       checkoutUrl,
       providerSubscriptionId: preapproval.id,
     };
   }
 
-  async createProPixPayment(companyId: string, userEmail?: string) {
+  async createProPixPayment(
+    companyId: string,
+    userEmail?: string,
+    userId?: string | null,
+  ) {
     const subscription = await this.getSubscription(companyId);
 
     if (subscription.plan === "enterprise") {
@@ -507,6 +542,20 @@ export class SubscriptionsService {
         "O Mercado Pago não retornou um Pix válido para pagamento.",
       );
     }
+
+    await this.auditService.record({
+      action: "subscription.pix_created",
+      companyId,
+      entityId: companyId,
+      entityType: "subscription",
+      metadata: {
+        amount: payment.transaction_amount ?? this.getMercadoPagoProPrice(),
+        expiresAt: payment.date_of_expiration ?? null,
+        paymentId: String(payment.id),
+        provider: "mercado_pago",
+      },
+      userId,
+    });
 
     return {
       amount: payment.transaction_amount ?? this.getMercadoPagoProPrice(),
@@ -564,6 +613,20 @@ export class SubscriptionsService {
         throwDatabaseError(error);
       }
 
+      await this.auditService.record({
+        action: "subscription.activated",
+        companyId,
+        entityId: companyId,
+        entityType: "subscription",
+        metadata: {
+          currentPeriodEnd: periodEnd,
+          plan: "pro",
+          provider: "mercado_pago",
+          providerSubscriptionId: preapproval.id,
+          status: "active",
+        },
+      });
+
       return { companyId, plan: "pro", status: "active" };
     }
 
@@ -602,6 +665,19 @@ export class SubscriptionsService {
         throwDatabaseError(error);
       }
 
+      await this.auditService.record({
+        action: "subscription.cancelled_by_provider",
+        companyId,
+        entityId: companyId,
+        entityType: "subscription",
+        metadata: {
+          plan: shouldKeepProAccess ? "pro" : "free",
+          provider: "mercado_pago",
+          providerSubscriptionId: preapproval.id,
+          status: shouldKeepProAccess ? "cancelled" : "active",
+        },
+      });
+
       return shouldKeepProAccess
         ? { companyId, plan: "pro", status: "cancelled" }
         : { companyId, plan: "free", status: "active" };
@@ -625,6 +701,19 @@ export class SubscriptionsService {
         throwDatabaseError(error);
       }
 
+      await this.auditService.record({
+        action: "subscription.past_due",
+        companyId,
+        entityId: companyId,
+        entityType: "subscription",
+        metadata: {
+          plan: "free",
+          provider: "mercado_pago",
+          providerSubscriptionId: preapproval.id,
+          status: "past_due",
+        },
+      });
+
       return { companyId, plan: "free", status: "past_due" };
     }
 
@@ -637,7 +726,7 @@ export class SubscriptionsService {
     };
   }
 
-  async syncMercadoPagoPayment(paymentId: string) {
+  async syncMercadoPagoPayment(paymentId: string, userId?: string | null) {
     const payment = {
       ...(await this.getMercadoPagoPaymentById(paymentId)),
       id: paymentId,
@@ -678,6 +767,9 @@ export class SubscriptionsService {
       "current_period_end" | "provider_subscription_id"
     > | null;
     const providerPaymentReference = `pix:${payment.id}`;
+    const nextPeriodEnd = getExtendedMonthlyPeriodEndIso(
+      subscription?.current_period_end ?? null,
+    );
 
     if (subscription?.provider_subscription_id === providerPaymentReference) {
       return {
@@ -692,9 +784,7 @@ export class SubscriptionsService {
     const { error } = await supabase.from("subscriptions").upsert(
       {
         company_id: companyId,
-        current_period_end: getExtendedMonthlyPeriodEndIso(
-          subscription?.current_period_end ?? null,
-        ),
+        current_period_end: nextPeriodEnd,
         limits: defaultPlanLimits.pro,
         plan: "pro",
         provider: "mercado_pago",
@@ -709,6 +799,22 @@ export class SubscriptionsService {
       throwDatabaseError(error);
     }
 
+    await this.auditService.record({
+      action: "subscription.payment_received",
+      companyId,
+      entityId: companyId,
+      entityType: "subscription",
+      metadata: {
+        amount: payment.transaction_amount ?? this.getMercadoPagoProPrice(),
+        currentPeriodEnd: nextPeriodEnd,
+        paymentId: String(payment.id),
+        plan: "pro",
+        provider: "mercado_pago",
+        status: "active",
+      },
+      userId,
+    });
+
     return {
       companyId,
       paymentId,
@@ -717,8 +823,12 @@ export class SubscriptionsService {
     };
   }
 
-  async refreshProPixPayment(companyId: string, paymentId: string) {
-    const result = await this.syncMercadoPagoPayment(paymentId);
+  async refreshProPixPayment(
+    companyId: string,
+    paymentId: string,
+    userId?: string | null,
+  ) {
+    const result = await this.syncMercadoPagoPayment(paymentId, userId);
 
     if (!("companyId" in result) || result.companyId !== companyId) {
       throw new BadRequestException(
@@ -729,7 +839,7 @@ export class SubscriptionsService {
     return this.getOverview(companyId);
   }
 
-  async cancelProSubscription(companyId: string) {
+  async cancelProSubscription(companyId: string, userId?: string | null) {
     const subscription = await this.getSubscriptionRowByCompanyId(companyId);
 
     if (!subscription || subscription.plan !== "pro") {
@@ -772,6 +882,22 @@ export class SubscriptionsService {
     if (error) {
       throwDatabaseError(error);
     }
+
+    await this.auditService.record({
+      action: "subscription.cancelled",
+      companyId,
+      entityId: companyId,
+      entityType: "subscription",
+      metadata: {
+        currentPeriodEnd:
+          subscription.current_period_end ?? getNextMonthlyPeriodEndIso(),
+        plan: "pro",
+        provider: "mercado_pago",
+        providerSubscriptionId: subscription.provider_subscription_id,
+        status: "cancelled",
+      },
+      userId,
+    });
 
     return this.getOverview(companyId);
   }

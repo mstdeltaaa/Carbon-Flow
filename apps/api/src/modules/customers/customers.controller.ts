@@ -68,18 +68,31 @@ export class CustomersController {
   update(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("id") customerId: string,
     @Body() dto: UpdateCustomerDto
   ) {
-    return this.customersService.update(accessToken, company, customerId, dto);
+    return this.customersService.update(
+      accessToken,
+      company,
+      customerId,
+      user.id,
+      dto
+    );
   }
 
   @Delete(":id")
   remove(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("id") customerId: string
   ) {
-    return this.customersService.remove(accessToken, company.id, customerId);
+    return this.customersService.remove(
+      accessToken,
+      company.id,
+      customerId,
+      user.id
+    );
   }
 }

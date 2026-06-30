@@ -30,8 +30,11 @@ export class SubscriptionsController {
 
   @Post("pro-trial")
   @CompanyRoles("admin")
-  startProTrial(@CurrentCompany() company: CurrentCompanyPayload) {
-    return this.subscriptionsService.startProTrial(company.id);
+  startProTrial(
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.subscriptionsService.startProTrial(company.id, user.id);
   }
 
   @Post("checkout/pro")
@@ -40,7 +43,11 @@ export class SubscriptionsController {
     @CurrentCompany() company: CurrentCompanyPayload,
     @CurrentUser() user?: CurrentUserPayload,
   ) {
-    return this.subscriptionsService.createProCheckout(company.id, user?.email);
+    return this.subscriptionsService.createProCheckout(
+      company.id,
+      user?.email,
+      user?.id,
+    );
   }
 
   @Post("checkout/pro-pix")
@@ -52,6 +59,7 @@ export class SubscriptionsController {
     return this.subscriptionsService.createProPixPayment(
       company.id,
       user?.email,
+      user?.id,
     );
   }
 
@@ -59,17 +67,22 @@ export class SubscriptionsController {
   @CompanyRoles("admin")
   syncProPixPayment(
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("paymentId") paymentId: string,
   ) {
     return this.subscriptionsService.refreshProPixPayment(
       company.id,
       paymentId,
+      user.id,
     );
   }
 
   @Post("cancel-pro")
   @CompanyRoles("admin")
-  cancelProSubscription(@CurrentCompany() company: CurrentCompanyPayload) {
-    return this.subscriptionsService.cancelProSubscription(company.id);
+  cancelProSubscription(
+    @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.subscriptionsService.cancelProSubscription(company.id, user.id);
   }
 }

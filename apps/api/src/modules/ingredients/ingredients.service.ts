@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { AuditService } from "../audit/audit.service";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { CreateIngredientDto } from "./dto/create-ingredient.dto";
 import { UpdateIngredientDto } from "./dto/update-ingredient.dto";
@@ -51,6 +52,7 @@ function throwDatabaseError(error: { message?: string }): never {
 export class IngredientsService {
   constructor(
     private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly auditService: AuditService,
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
@@ -104,13 +106,30 @@ export class IngredientsService {
       throwDatabaseError(error);
     }
 
-    return mapIngredient(data as IngredientRow);
+    const ingredient = mapIngredient(data as IngredientRow);
+
+    await this.auditService.record({
+      action: "ingredient.created",
+      companyId,
+      entityId: ingredient.id,
+      entityType: "ingredient",
+      metadata: {
+        name: ingredient.name,
+        stockQuantity: ingredient.stockQuantity,
+        unit: ingredient.inventoryUnit,
+        unitCost: ingredient.unitCost
+      },
+      userId
+    });
+
+    return ingredient;
   }
 
   async update(
     accessToken: string,
     companyId: string,
     ingredientId: string,
+    userId: string,
     dto: UpdateIngredientDto
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -162,11 +181,34 @@ export class IngredientsService {
       throw new NotFoundException("Insumo não encontrado.");
     }
 
-    return mapIngredient(data as IngredientRow);
+    const ingredient = mapIngredient(data as IngredientRow);
+
+    await this.auditService.record({
+      action:
+        dto.isActive === false ? "ingredient.deactivated" : "ingredient.updated",
+      companyId,
+      entityId: ingredient.id,
+      entityType: "ingredient",
+      metadata: {
+        changedFields: Object.keys(payload),
+        name: ingredient.name,
+        stockQuantity: ingredient.stockQuantity,
+        unit: ingredient.inventoryUnit,
+        unitCost: ingredient.unitCost
+      },
+      userId
+    });
+
+    return ingredient;
   }
 
-  async deactivate(accessToken: string, companyId: string, ingredientId: string) {
-    return this.update(accessToken, companyId, ingredientId, {
+  async deactivate(
+    accessToken: string,
+    companyId: string,
+    ingredientId: string,
+    userId: string
+  ) {
+    return this.update(accessToken, companyId, ingredientId, userId, {
       isActive: false
     });
   }

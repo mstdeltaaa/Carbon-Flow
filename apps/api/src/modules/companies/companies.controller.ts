@@ -48,12 +48,14 @@ export class CompaniesController {
   update(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: UpdateCompanyDto
   ) {
     return this.companiesService.update(
       accessToken,
       company.id,
       company.role,
+      user.id,
       dto
     );
   }
@@ -75,12 +77,14 @@ export class CompaniesController {
   @Patch("members/:memberId")
   updateMember(
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("memberId") memberId: string,
     @Body() dto: UpdateMemberDto
   ) {
     return this.companiesService.updateMember(
       company.id,
       company.role,
+      user.id,
       memberId,
       dto
     );
@@ -89,11 +93,13 @@ export class CompaniesController {
   @Post("members/:memberId/resend-access")
   resendMemberAccess(
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("memberId") memberId: string
   ) {
     return this.companiesService.resendMemberAccess(
       company.id,
       company.role,
+      user.id,
       memberId
     );
   }

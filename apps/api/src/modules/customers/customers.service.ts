@@ -7,6 +7,7 @@ import {
 import { hasCompanyPermission } from "../../common/access-control/permissions";
 import { type CurrentCompany } from "../../common/decorators/current-company.decorator";
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { AuditService } from "../audit/audit.service";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { CreateCustomerDto } from "./dto/create-customer.dto";
 import { UpdateCustomerDto } from "./dto/update-customer.dto";
@@ -190,6 +191,7 @@ function throwDatabaseError(error: { message?: string }): never {
 export class CustomersService {
   constructor(
     private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly auditService: AuditService,
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
@@ -248,13 +250,29 @@ export class CustomersService {
       throwDatabaseError(error);
     }
 
-    return mapCustomer(data as CustomerRow);
+    const customer = mapCustomer(data as CustomerRow);
+
+    await this.auditService.record({
+      action: "customer.created",
+      companyId,
+      entityId: customer.id,
+      entityType: "customer",
+      metadata: {
+        email: customer.email,
+        name: customer.name,
+        phone: customer.phone
+      },
+      userId
+    });
+
+    return customer;
   }
 
   async update(
     accessToken: string,
     company: CurrentCompany,
     customerId: string,
+    userId: string,
     dto: UpdateCustomerDto
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -302,7 +320,23 @@ export class CustomersService {
       customerId
     ]);
 
-    return mapCustomer(data as CustomerRow, summaries.get(customerId));
+    const customer = mapCustomer(data as CustomerRow, summaries.get(customerId));
+
+    await this.auditService.record({
+      action: "customer.updated",
+      companyId: company.id,
+      entityId: customer.id,
+      entityType: "customer",
+      metadata: {
+        changedFields: Object.keys(payload),
+        email: customer.email,
+        name: customer.name,
+        phone: customer.phone
+      },
+      userId
+    });
+
+    return customer;
   }
 
   async findHistory(
@@ -343,8 +377,14 @@ export class CustomersService {
     };
   }
 
-  async remove(accessToken: string, companyId: string, customerId: string) {
+  async remove(
+    accessToken: string,
+    companyId: string,
+    customerId: string,
+    userId: string
+  ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
+    const existing = await this.getCustomerRow(accessToken, companyId, customerId);
 
     const { data, error } = await supabase
       .from("customers")
@@ -361,6 +401,19 @@ export class CustomersService {
     if (!data) {
       throw new NotFoundException("Cliente não encontrado.");
     }
+
+    await this.auditService.record({
+      action: "customer.deleted",
+      companyId,
+      entityId: customerId,
+      entityType: "customer",
+      metadata: {
+        email: existing.email,
+        name: existing.name,
+        phone: existing.phone
+      },
+      userId
+    });
 
     return { id: customerId };
   }

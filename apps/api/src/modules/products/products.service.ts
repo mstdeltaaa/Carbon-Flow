@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { AuditService } from "../audit/audit.service";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { CreateProductDto } from "./dto/create-product.dto";
 import { ProductItemDto } from "./dto/product-item.dto";
@@ -124,6 +125,7 @@ function mapProduct(row: ProductRow, itemRows: ProductItemRow[]) {
 export class ProductsService {
   constructor(
     private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly auditService: AuditService,
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
@@ -249,13 +251,31 @@ export class ProductsService {
       throwDatabaseError(itemsError);
     }
 
-    return this.findOne(accessToken, companyId, productRow.id);
+    const savedProduct = await this.findOne(accessToken, companyId, productRow.id);
+
+    await this.auditService.record({
+      action: "product.created",
+      companyId,
+      entityId: savedProduct.id,
+      entityType: "product",
+      metadata: {
+        estimatedCost: savedProduct.estimatedCost,
+        itemCount: savedProduct.items.length,
+        name: savedProduct.name,
+        salePrice: savedProduct.salePrice,
+        sku: savedProduct.sku
+      },
+      userId
+    });
+
+    return savedProduct;
   }
 
   async update(
     accessToken: string,
     companyId: string,
     productId: string,
+    userId: string,
     dto: UpdateProductDto
   ) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -350,11 +370,35 @@ export class ProductsService {
       }
     }
 
-    return this.findOne(accessToken, companyId, productId);
+    const savedProduct = await this.findOne(accessToken, companyId, productId);
+
+    await this.auditService.record({
+      action: dto.isActive === false ? "product.deactivated" : "product.updated",
+      companyId,
+      entityId: savedProduct.id,
+      entityType: "product",
+      metadata: {
+        changedFields: Object.keys(payload),
+        compositionChanged: Boolean(calculatedItems),
+        estimatedCost: savedProduct.estimatedCost,
+        itemCount: savedProduct.items.length,
+        name: savedProduct.name,
+        salePrice: savedProduct.salePrice,
+        sku: savedProduct.sku
+      },
+      userId
+    });
+
+    return savedProduct;
   }
 
-  async deactivate(accessToken: string, companyId: string, productId: string) {
-    return this.update(accessToken, companyId, productId, {
+  async deactivate(
+    accessToken: string,
+    companyId: string,
+    productId: string,
+    userId: string
+  ) {
+    return this.update(accessToken, companyId, productId, userId, {
       isActive: false
     });
   }

@@ -74,10 +74,17 @@ export class ProductsController {
   update(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("id") productId: string,
     @Body() dto: UpdateProductDto
   ) {
-    return this.productsService.update(accessToken, company.id, productId, dto);
+    return this.productsService.update(
+      accessToken,
+      company.id,
+      productId,
+      user.id,
+      dto
+    );
   }
 
   @Delete(":id")
@@ -86,8 +93,14 @@ export class ProductsController {
   deactivate(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("id") productId: string
   ) {
-    return this.productsService.deactivate(accessToken, company.id, productId);
+    return this.productsService.deactivate(
+      accessToken,
+      company.id,
+      productId,
+      user.id
+    );
   }
 }

@@ -15,6 +15,7 @@ import {
   type CompanyPermissionMap
 } from "../../common/access-control/permissions";
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { AuditService } from "../audit/audit.service";
 import { SubscriptionsService } from "../subscriptions/subscriptions.service";
 import { InviteMemberDto } from "./dto/invite-member.dto";
 import { UpdateMemberDto } from "./dto/update-member.dto";
@@ -180,6 +181,7 @@ export class CompaniesService {
   constructor(
     private readonly config: ConfigService,
     private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly auditService: AuditService,
     private readonly subscriptionsService: SubscriptionsService
   ) {}
 
@@ -288,6 +290,7 @@ export class CompaniesService {
     accessToken: string,
     companyId: string,
     role: string,
+    userId: string,
     dto: UpdateCompanyDto
   ) {
     if (role !== "admin") {
@@ -366,13 +369,28 @@ export class CompaniesService {
       throw new NotFoundException("Empresa não encontrada.");
     }
 
-    return {
+    const company = {
       ...mapCompany(data as unknown as CompanyRow),
       logoUrl:
         dto.logoUrl !== undefined
           ? normalizeText(dto.logoUrl)
           : await this.getCompanyLogoUrl(supabase, companyId)
     };
+
+    await this.auditService.record({
+      action: "company.updated",
+      companyId,
+      entityId: companyId,
+      entityType: "company",
+      metadata: {
+        changedFields: Object.keys(payload),
+        logoUpdated: dto.logoUrl !== undefined,
+        name: company.name
+      },
+      userId
+    });
+
+    return company;
   }
 
   private async getCompanyLogoUrl(
@@ -468,10 +486,25 @@ export class CompaniesService {
         throw new NotFoundException("Usuário da empresa não encontrado.");
       }
 
-      return mapMember({
+      const member = mapMember({
         ...(data as CompanyUserRow),
         users: user
       });
+
+      await this.auditService.record({
+        action: "member.reactivated",
+        companyId,
+        entityId: member.id,
+        entityType: "company_user",
+        metadata: {
+          email: member.user?.email ?? email,
+          role: member.role,
+          status: member.status
+        },
+        userId: invitedBy
+      });
+
+      return member;
     }
 
     const { data, error } = await supabase
@@ -491,15 +524,31 @@ export class CompaniesService {
       throwDatabaseError(error);
     }
 
-    return mapMember({
+    const member = mapMember({
       ...(data as CompanyUserRow),
       users: user
     });
+
+    await this.auditService.record({
+      action: "member.invited",
+      companyId,
+      entityId: member.id,
+      entityType: "company_user",
+      metadata: {
+        email: member.user?.email ?? email,
+        role: member.role,
+        status: member.status
+      },
+      userId: invitedBy
+    });
+
+    return member;
   }
 
   async resendMemberAccess(
     companyId: string,
     currentRole: string,
+    actorUserId: string,
     memberId: string
   ) {
     requireAdmin(currentRole);
@@ -528,6 +577,19 @@ export class CompaniesService {
       );
     }
 
+    await this.auditService.record({
+      action: "member.access_resent",
+      companyId,
+      entityId: member.id,
+      entityType: "company_user",
+      metadata: {
+        email: user.email,
+        role: member.role,
+        status: member.status
+      },
+      userId: actorUserId
+    });
+
     return {
       email: user.email
     };
@@ -536,6 +598,7 @@ export class CompaniesService {
   async updateMember(
     companyId: string,
     currentRole: string,
+    actorUserId: string,
     memberId: string,
     dto: UpdateMemberDto
   ) {
@@ -602,10 +665,28 @@ export class CompaniesService {
 
     const user = await this.findUserById((data as CompanyUserRow).user_id);
 
-    return mapMember({
+    const updatedMember = mapMember({
       ...(data as CompanyUserRow),
       users: user
     });
+
+    await this.auditService.record({
+      action: "member.updated",
+      companyId,
+      entityId: updatedMember.id,
+      entityType: "company_user",
+      metadata: {
+        email: updatedMember.user?.email ?? null,
+        nextRole: updatedMember.role,
+        nextStatus: updatedMember.status,
+        permissionsChanged: dto.permissions !== undefined,
+        previousRole: member.role,
+        previousStatus: member.status
+      },
+      userId: actorUserId
+    });
+
+    return updatedMember;
   }
 
   private async findUserByEmail(email: string) {

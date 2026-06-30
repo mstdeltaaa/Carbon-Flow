@@ -79,7 +79,7 @@ export function AccountManager({ companyName, role }: AccountManagerProps) {
       setProfile({
         email:
           String(publicUser?.email ?? user.email ?? "").trim() ||
-          "E-mail indisponivel",
+          "E-mail indisponível",
         fullName:
           String(
             publicUser?.full_name ?? user.user_metadata?.full_name ?? ""

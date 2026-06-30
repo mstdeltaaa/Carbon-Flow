@@ -64,6 +64,7 @@ export class IngredientsController {
   update(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("id") ingredientId: string,
     @Body() dto: UpdateIngredientDto
   ) {
@@ -71,6 +72,7 @@ export class IngredientsController {
       accessToken,
       company.id,
       ingredientId,
+      user.id,
       dto
     );
   }
@@ -79,12 +81,14 @@ export class IngredientsController {
   deactivate(
     @AccessToken() accessToken: string,
     @CurrentCompany() company: CurrentCompanyPayload,
+    @CurrentUser() user: CurrentUserPayload,
     @Param("id") ingredientId: string
   ) {
     return this.ingredientsService.deactivate(
       accessToken,
       company.id,
-      ingredientId
+      ingredientId,
+      user.id
     );
   }
 }

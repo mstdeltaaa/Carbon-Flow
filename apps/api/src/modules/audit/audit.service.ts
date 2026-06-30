@@ -8,7 +8,7 @@ type AuditLogInput = {
   entityId?: string | null;
   entityType: string;
   metadata?: Record<string, unknown>;
-  userId: string;
+  userId?: string | null;
 };
 
 type AuditLogRow = {
@@ -106,7 +106,7 @@ export class AuditService {
         entity_id: input.entityId ?? null,
         entity_type: input.entityType,
         metadata: input.metadata ?? {},
-        user_id: input.userId
+        user_id: input.userId ?? null
       });
 
       if (error) {
@@ -114,7 +114,7 @@ export class AuditService {
       }
     } catch (error) {
       console.warn(
-        "Auditoria indisponivel.",
+        "Auditoria indisponível.",
         error instanceof Error ? error.message : error
       );
     }

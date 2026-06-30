@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 
 import { SupabaseClientFactory } from "../../common/supabase/supabase-client.factory";
+import { AuditService } from "../audit/audit.service";
 import { CreateStockMovementDto } from "./dto/create-stock-movement.dto";
 
 type IngredientRow = {
@@ -104,7 +105,10 @@ function mapMovement(row: MovementRow) {
 
 @Injectable()
 export class StockService {
-  constructor(private readonly supabaseFactory: SupabaseClientFactory) {}
+  constructor(
+    private readonly supabaseFactory: SupabaseClientFactory,
+    private readonly auditService: AuditService
+  ) {}
 
   async findItems(accessToken: string, companyId: string) {
     const supabase = this.supabaseFactory.createForUser(accessToken);
@@ -226,10 +230,31 @@ export class StockService {
       throwDatabaseError(movementError);
     }
 
-    return {
+    const result = {
       item: mapIngredient(updatedIngredient as IngredientRow),
       movement: mapMovement(movement as MovementRow)
     };
+
+    await this.auditService.record({
+      action:
+        dto.type === "entry" ? "stock.entry_created" : "stock.adjustment_created",
+      companyId,
+      entityId: result.movement.id,
+      entityType: "stock_movement",
+      metadata: {
+        currentStock,
+        ingredientId: ingredient.id,
+        ingredientName: ingredient.name,
+        nextStock,
+        quantityDelta,
+        type: dto.type,
+        unit: ingredient.inventory_unit,
+        unitCost: movementUnitCost
+      },
+      userId
+    });
+
+    return result;
   }
 
   private async getIngredient(
