@@ -925,10 +925,11 @@ function clampAssistantPosition(
   width: number,
   height: number,
 ) {
-  const minX = 0;
-  const minY = 0;
-  const maxX = Math.max(minX, window.innerWidth - width);
-  const maxY = Math.max(minY, window.innerHeight - height);
+  const visibleHandle = 32;
+  const minX = Math.min(0, visibleHandle - width);
+  const minY = Math.min(0, visibleHandle - height);
+  const maxX = Math.max(minX, window.innerWidth - visibleHandle);
+  const maxY = Math.max(minY, window.innerHeight - visibleHandle);
 
   return {
     x: Math.min(Math.max(position.x, minX), maxX),
@@ -3615,7 +3616,7 @@ export function VirtualAssistant({
         <button
           aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
           className={[
-            "relative ml-auto flex h-32 w-32 touch-none select-none items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-48 sm:w-48 md:h-56 md:w-56 lg:h-60 lg:w-60 xl:h-60 xl:w-60",
+            "relative ml-auto flex h-24 w-24 touch-none select-none items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-36 sm:w-36 md:h-44 md:w-44 lg:h-48 lg:w-48 xl:h-48 xl:w-48",
             isDraggingAssistant ? "cursor-grabbing" : "cursor-pointer",
           ].join(" ")}
           onClick={() => {
@@ -3648,8 +3649,8 @@ export function VirtualAssistant({
             </span>
           ) : null}
           <AssistantAvatar
-            className="h-28 w-28 sm:h-40 sm:w-40 md:h-48 md:w-48 lg:h-[13.5rem] lg:w-[13.5rem] xl:h-[13.5rem] xl:w-[13.5rem]"
-            sizes="(min-width: 1024px) 216px, (min-width: 768px) 192px, (min-width: 640px) 160px, 112px"
+            className="h-20 w-20 sm:h-32 sm:w-32 md:h-40 md:w-40 lg:h-44 lg:w-44 xl:h-44 xl:w-44"
+            sizes="(min-width: 1024px) 176px, (min-width: 768px) 160px, (min-width: 640px) 128px, 80px"
             src={avatarSrc}
           />
         </button>
