@@ -3590,7 +3590,7 @@ export function VirtualAssistant({
         <button
           aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
           className={[
-            "relative ml-auto flex h-16 w-16 touch-none select-none items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60",
+            "relative ml-auto flex h-32 w-32 touch-none select-none items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-48 sm:w-48 md:h-56 md:w-56 lg:h-60 lg:w-60 xl:h-60 xl:w-60",
             isDraggingAssistant ? "cursor-grabbing" : "cursor-pointer",
           ].join(" ")}
           onClick={() => {
@@ -3623,8 +3623,8 @@ export function VirtualAssistant({
             </span>
           ) : null}
           <AssistantAvatar
-            className="h-14 w-14 sm:h-20 sm:w-20 md:h-24 md:w-24 lg:h-28 lg:w-28 xl:h-[13.5rem] xl:w-[13.5rem]"
-            sizes="(min-width: 1280px) 216px, (min-width: 1024px) 112px, (min-width: 768px) 96px, (min-width: 640px) 80px, 72px"
+            className="h-28 w-28 sm:h-40 sm:w-40 md:h-48 md:w-48 lg:h-[13.5rem] lg:w-[13.5rem] xl:h-[13.5rem] xl:w-[13.5rem]"
+            sizes="(min-width: 1024px) 216px, (min-width: 768px) 192px, (min-width: 640px) 160px, 112px"
             src={avatarSrc}
           />
         </button>
