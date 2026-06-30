@@ -2358,6 +2358,7 @@ export function VirtualAssistant({
     startX: number;
     startY: number;
   } | null>(null);
+  const assistantDragCleanupRef = useRef<(() => void) | null>(null);
   const ignoreAssistantClickRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const [budgets, setBudgets] = useState<AssistantBudget[]>([]);
@@ -2569,6 +2570,13 @@ export function VirtualAssistant({
       window.removeEventListener("resize", clampCurrentPosition);
     };
   }, []);
+
+  useEffect(
+    () => () => {
+      assistantDragCleanupRef.current?.();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -3093,8 +3101,16 @@ export function VirtualAssistant({
   }
 
   function openAssistant() {
+    assistantDragCleanupRef.current?.();
+    ignoreAssistantClickRef.current = false;
     setMessages((current) => (current.length ? current : [introMessage]));
     setIsOpen(true);
+  }
+
+  function closeAssistant() {
+    assistantDragCleanupRef.current?.();
+    ignoreAssistantClickRef.current = false;
+    setIsOpen(false);
   }
 
   function startAssistantDrag(
@@ -3108,7 +3124,7 @@ export function VirtualAssistant({
       return;
     }
 
-    const target = event.target as HTMLElement | null;
+    const target = event.target instanceof Element ? event.target : null;
 
     if (
       !options.allowInteractiveTarget &&
@@ -3117,11 +3133,20 @@ export function VirtualAssistant({
       return;
     }
 
+    assistantDragCleanupRef.current?.();
+
     const frame = assistantFrameRef.current;
     const rect = frame?.getBoundingClientRect();
+    const dragHandle = event.currentTarget;
 
     if (!rect) {
       return;
+    }
+
+    try {
+      dragHandle.setPointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture is a browser convenience; the window listeners are the fallback.
     }
 
     assistantDragStateRef.current = {
@@ -3162,15 +3187,37 @@ export function VirtualAssistant({
       );
     }
 
-    function handlePointerUp() {
+    function cleanupAssistantDrag() {
       assistantDragStateRef.current = null;
       setIsDraggingAssistant(false);
       window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointerup", cleanupAssistantDrag);
+      window.removeEventListener("pointercancel", cleanupAssistantDrag);
+      window.removeEventListener("mouseup", cleanupAssistantDrag);
+      window.removeEventListener("blur", cleanupAssistantDrag);
+      dragHandle.removeEventListener(
+        "lostpointercapture",
+        cleanupAssistantDrag,
+      );
+      assistantDragCleanupRef.current = null;
+
+      try {
+        if (dragHandle.hasPointerCapture(event.pointerId)) {
+          dragHandle.releasePointerCapture(event.pointerId);
+        }
+      } catch {
+        // The pointer may already have been released by the browser.
+      }
     }
 
+    assistantDragCleanupRef.current = cleanupAssistantDrag;
+
     window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointerup", cleanupAssistantDrag);
+    window.addEventListener("pointercancel", cleanupAssistantDrag);
+    window.addEventListener("mouseup", cleanupAssistantDrag);
+    window.addEventListener("blur", cleanupAssistantDrag);
+    dragHandle.addEventListener("lostpointercapture", cleanupAssistantDrag);
   }
 
   function runQuickAction(action: QuickAction, userText = action.label) {
@@ -3291,7 +3338,7 @@ export function VirtualAssistant({
               <button
                 aria-label="Fechar Carbon"
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted-foreground)] transition hover:bg-[var(--secondary)] hover:text-[var(--foreground)] sm:h-9 sm:w-9"
-                onClick={() => setIsOpen(false)}
+                onClick={closeAssistant}
                 type="button"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -3537,7 +3584,7 @@ export function VirtualAssistant({
           aria-label="Abrir Carbon, assistente virtual do Carbon Flow"
           className={[
             "relative ml-auto flex h-16 w-16 touch-none select-none items-center justify-center rounded-full bg-transparent transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] sm:h-24 sm:w-24 md:h-28 md:w-28 lg:h-32 lg:w-32 xl:h-60 xl:w-60",
-            isDraggingAssistant ? "cursor-grabbing" : "cursor-grab",
+            isDraggingAssistant ? "cursor-grabbing" : "cursor-pointer",
           ].join(" ")}
           onClick={() => {
             if (ignoreAssistantClickRef.current) {
