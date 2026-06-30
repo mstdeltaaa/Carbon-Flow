@@ -1075,17 +1075,52 @@ export function BillingManager({ companyId }: BillingManagerProps) {
 
           <section className="rounded-lg border border-[var(--border)] bg-[rgb(16_19_20/0.78)] p-5 sm:p-6">
             <h2 className="text-base font-semibold text-white">
-              Pagamentos futuros
+              Como funciona o pagamento
             </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
+              O pagamento é feito pelo Mercado Pago. Depois da aprovação, o
+              Carbon Flow atualiza o plano da empresa automaticamente.
+            </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {["Checkout", "Webhook", "Atualização do plano"].map((item) => (
-                <article
-                  className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 text-sm text-[var(--muted-foreground)]"
-                  key={item}
-                >
-                  {item}
-                </article>
-              ))}
+              <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 text-sm text-[var(--muted-foreground)]">
+                <p className="flex items-center gap-2 font-medium text-white">
+                  <CreditCard
+                    className="h-4 w-4 text-[var(--primary)]"
+                    aria-hidden="true"
+                  />
+                  Pagamento seguro
+                </p>
+                <p className="mt-2 leading-6">
+                  Você paga por Pix ou cartão dentro do ambiente do Mercado
+                  Pago.
+                </p>
+              </article>
+              <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 text-sm text-[var(--muted-foreground)]">
+                <p className="flex items-center gap-2 font-medium text-white">
+                  <RefreshCw
+                    className="h-4 w-4 text-[var(--primary)]"
+                    aria-hidden="true"
+                  />
+                  Confirmação automática
+                </p>
+                <p className="mt-2 leading-6">
+                  Assim que o pagamento é aprovado, o Carbon Flow identifica a
+                  confirmação.
+                </p>
+              </article>
+              <article className="rounded-md border border-[var(--border)] bg-[rgb(8_10_11/0.44)] p-4 text-sm text-[var(--muted-foreground)]">
+                <p className="flex items-center gap-2 font-medium text-white">
+                  <Sparkles
+                    className="h-4 w-4 text-[var(--primary)]"
+                    aria-hidden="true"
+                  />
+                  Pro liberado
+                </p>
+                <p className="mt-2 leading-6">
+                  O plano Pro é ativado automaticamente. No Pix, o período pago
+                  é somado ao acesso atual.
+                </p>
+              </article>
             </div>
           </section>
         </>
