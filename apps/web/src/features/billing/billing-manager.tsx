@@ -145,6 +145,7 @@ const usageOrder: PlanLimitKey[] = [
   "sales_per_month",
 ];
 const millisecondsInDay = 24 * 60 * 60 * 1000;
+const pixAutoRefreshIntervalMs = 5000;
 
 function getApiMessage(payload: unknown, fallback: string) {
   if (
@@ -366,6 +367,87 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     void loadBilling();
   }, [request]);
 
+  const syncPixPayment = useCallback(
+    async (paymentId: string, options: { silent?: boolean } = {}) => {
+      if (!options.silent) {
+        setIsSyncingPix(true);
+        setMessage(null);
+      }
+
+      try {
+        const updatedSubscription = await request<Subscription>(
+          `/subscriptions/checkout/pro-pix/${paymentId}/sync`,
+          { method: "POST" },
+        );
+
+        setSubscription(updatedSubscription);
+
+        if (
+          updatedSubscription.plan === "pro" &&
+          updatedSubscription.status === "active"
+        ) {
+          setPixPayment(null);
+          setMessage("Pagamento confirmado. O plano Pro está ativo.");
+          return true;
+        }
+
+        if (!options.silent) {
+          setMessage("Ainda não identificamos a confirmação do Pix.");
+        }
+
+        return false;
+      } catch (error) {
+        if (!options.silent) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível atualizar o status do Pix.",
+          );
+        }
+
+        return false;
+      } finally {
+        if (!options.silent) {
+          setIsSyncingPix(false);
+        }
+      }
+    },
+    [request],
+  );
+
+  useEffect(() => {
+    if (!pixPayment?.paymentId) {
+      return;
+    }
+
+    let isCancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    async function pollPixPayment() {
+      if (!pixPayment?.paymentId) {
+        return;
+      }
+
+      const wasConfirmed = await syncPixPayment(pixPayment.paymentId, {
+        silent: true,
+      });
+
+      if (!isCancelled && !wasConfirmed) {
+        timeoutId = setTimeout(pollPixPayment, pixAutoRefreshIntervalMs);
+      }
+    }
+
+    timeoutId = setTimeout(pollPixPayment, pixAutoRefreshIntervalMs);
+
+    return () => {
+      isCancelled = true;
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [pixPayment?.paymentId, syncPixPayment]);
+
   async function handleUpgradeClick(plan: SubscriptionPlan) {
     const label = planLabels[plan];
 
@@ -513,36 +595,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
       return;
     }
 
-    setIsSyncingPix(true);
-    setMessage(null);
-
-    try {
-      const updatedSubscription = await request<Subscription>(
-        `/subscriptions/checkout/pro-pix/${pixPayment.paymentId}/sync`,
-        { method: "POST" },
-      );
-
-      setSubscription(updatedSubscription);
-
-      if (
-        updatedSubscription.plan === "pro" &&
-        updatedSubscription.status === "active"
-      ) {
-        setPixPayment(null);
-        setMessage("Pagamento confirmado. O plano Pro está ativo.");
-        return;
-      }
-
-      setMessage("Ainda não identificamos a confirmação do Pix.");
-    } catch (error) {
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível atualizar o status do Pix.",
-      );
-    } finally {
-      setIsSyncingPix(false);
-    }
+    await syncPixPayment(pixPayment.paymentId);
   }
 
   return (
