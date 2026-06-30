@@ -5,7 +5,7 @@ import {
   CreditCard,
   Loader2,
   MessageCircle,
-  Sparkles
+  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -27,6 +27,7 @@ type PlanLimits = Record<PlanLimitKey, number | null>;
 type PlanUsage = Record<PlanLimitKey, number>;
 
 type Subscription = {
+  canStartProTrial: boolean;
   currentPeriodEnd: string | null;
   limits: PlanLimits;
   plan: SubscriptionPlan;
@@ -59,11 +60,11 @@ const plans: PlanCard[] = [
       "20 produtos",
       "50 clientes",
       "20 orçamentos por mês",
-      "20 vendas por mês"
+      "20 vendas por mês",
     ],
     id: "free",
     label: "Free",
-    price: "Grátis"
+    price: "Grátis",
   },
   {
     description:
@@ -74,11 +75,11 @@ const plans: PlanCard[] = [
       "200 produtos",
       "500 clientes",
       "300 orçamentos por mês",
-      "300 vendas por mês"
+      "300 vendas por mês",
     ],
     id: "pro",
     label: "Pro",
-    price: "7 dias grátis"
+    price: "7 dias grátis",
   },
   {
     description: "Para operações com várias pessoas e necessidade de escala.",
@@ -88,18 +89,18 @@ const plans: PlanCard[] = [
       "Produtos ilimitados",
       "Clientes ilimitados",
       "Orçamentos ilimitados",
-      "Vendas ilimitadas"
+      "Vendas ilimitadas",
     ],
     id: "enterprise",
     label: "Empresa",
-    price: "Sob consulta"
-  }
+    price: "Sob consulta",
+  },
 ];
 
 const planLabels: Record<SubscriptionPlan, string> = {
   enterprise: "Empresa",
   free: "Free",
-  pro: "Pro"
+  pro: "Pro",
 };
 
 const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
@@ -107,7 +108,7 @@ const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
   cancelled: "Cancelado",
   inactive: "Inativo",
   past_due: "Pagamento pendente",
-  trialing: "Teste"
+  trialing: "Teste",
 };
 
 const usageOrder: PlanLimitKey[] = [
@@ -116,7 +117,7 @@ const usageOrder: PlanLimitKey[] = [
   "products",
   "customers",
   "budgets_per_month",
-  "sales_per_month"
+  "sales_per_month",
 ];
 const millisecondsInDay = 24 * 60 * 60 * 1000;
 
@@ -149,7 +150,7 @@ function getLimitLabel(key: PlanLimitKey) {
     ingredients: "Insumos",
     products: "Produtos",
     sales_per_month: "Vendas/mês",
-    users: "Usuários"
+    users: "Usuários",
   };
 
   return labels[key];
@@ -213,20 +214,21 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("pt-BR", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric"
+    year: "numeric",
   }).format(date);
 }
 
 export function BillingManager({ companyId }: BillingManagerProps) {
   const [isLoading, setIsLoading] = useState(true);
+  const [planAction, setPlanAction] = useState<SubscriptionPlan | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
 
   const request = useCallback(
-    async <T,>(path: string): Promise<T> => {
+    async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
       const supabase = createSupabaseBrowserClient();
       const {
-        data: { session }
+        data: { session },
       } = await supabase.auth.getSession();
 
       if (!session) {
@@ -234,11 +236,12 @@ export function BillingManager({ companyId }: BillingManagerProps) {
       }
 
       const response = await fetch(`${env.apiUrl}${path}`, {
+        ...init,
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
-          "x-company-id": companyId
-        }
+          "x-company-id": companyId,
+        },
       });
       const payload = (await response.json().catch(() => null)) as unknown;
 
@@ -248,7 +251,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
 
       return payload as T;
     },
-    [companyId]
+    [companyId],
   );
 
   const currentPlan = subscription?.plan ?? "free";
@@ -291,7 +294,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
         setMessage(
           error instanceof Error
             ? error.message
-            : "Não foi possível carregar os planos."
+            : "Não foi possível carregar os planos.",
         );
       } finally {
         setIsLoading(false);
@@ -301,10 +304,45 @@ export function BillingManager({ companyId }: BillingManagerProps) {
     void loadBilling();
   }, [request]);
 
-  function handleUpgradeClick(plan: SubscriptionPlan) {
+  async function handleUpgradeClick(plan: SubscriptionPlan) {
     const label = planLabels[plan];
+
+    if (plan === "pro" && subscription?.canStartProTrial) {
+      setPlanAction(plan);
+      setMessage(null);
+
+      try {
+        const updatedSubscription = await request<Subscription>(
+          "/subscriptions/pro-trial",
+          { method: "POST" },
+        );
+
+        setSubscription(updatedSubscription);
+        setMessage(
+          "Teste grátis do Pro iniciado. Os limites maiores já estão ativos para esta empresa.",
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Não foi possível iniciar o teste grátis.",
+        );
+      } finally {
+        setPlanAction(null);
+      }
+
+      return;
+    }
+
+    if (plan === "pro" && subscription && !subscription.canStartProTrial) {
+      setMessage(
+        "O teste grátis do Pro já foi usado por esta empresa. O próximo passo é conectar Mercado Pago ou Stripe para ativar pagamento.",
+      );
+      return;
+    }
+
     setMessage(
-      `Solicitação para o plano ${label} registrada localmente. O próximo passo é conectar Mercado Pago ou Stripe.`
+      `Solicitação para o plano ${label} registrada. O próximo passo é conectar Mercado Pago ou Stripe.`,
     );
   }
 
@@ -432,6 +470,9 @@ export function BillingManager({ companyId }: BillingManagerProps) {
             {plans.map((plan) => {
               const isCurrent = currentPlan === plan.id;
               const isFeatured = plan.id === "pro";
+              const isStartingPlan = planAction === plan.id;
+              const canStartTrial =
+                plan.id === "pro" && Boolean(subscription.canStartProTrial);
 
               return (
                 <article
@@ -484,6 +525,7 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                       </Button>
                     ) : plan.id === "enterprise" ? (
                       <Button
+                        disabled={Boolean(planAction)}
                         className="w-full"
                         onClick={() => handleUpgradeClick(plan.id)}
                         type="button"
@@ -494,12 +536,24 @@ export function BillingManager({ companyId }: BillingManagerProps) {
                       </Button>
                     ) : (
                       <Button
+                        disabled={Boolean(planAction)}
                         className="w-full"
                         onClick={() => handleUpgradeClick(plan.id)}
                         type="button"
                       >
-                        <CreditCard className="h-4 w-4" aria-hidden="true" />
-                        Solicitar upgrade
+                        {isStartingPlan ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <CreditCard className="h-4 w-4" aria-hidden="true" />
+                        )}
+                        {isStartingPlan
+                          ? "Iniciando..."
+                          : canStartTrial
+                            ? "Iniciar teste grátis"
+                            : "Solicitar upgrade"}
                       </Button>
                     )}
                   </div>

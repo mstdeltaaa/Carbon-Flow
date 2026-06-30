@@ -9,7 +9,7 @@ import {
   type PlanLimits,
   type PlanUsage,
   type SubscriptionPlan,
-  type SubscriptionStatus
+  type SubscriptionStatus,
 } from "./subscription-limits";
 
 type SubscriptionRow = {
@@ -25,15 +25,22 @@ const planLimitKeys: PlanLimitKey[] = [
   "products",
   "customers",
   "budgets_per_month",
-  "sales_per_month"
+  "sales_per_month",
 ];
 
 function getCurrentMonthStartIso() {
   const now = new Date();
 
   return new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
   ).toISOString();
+}
+
+function getProTrialEndIso() {
+  const trialEnd = new Date();
+  trialEnd.setUTCDate(trialEnd.getUTCDate() + 7);
+
+  return trialEnd.toISOString();
 }
 
 function toCount(value: number | null) {
@@ -68,10 +75,10 @@ function normalizeStoredLimit(value: unknown) {
 
 function mergeLimits(
   plan: SubscriptionPlan,
-  storedLimits: Record<string, unknown> | null
+  storedLimits: Record<string, unknown> | null,
 ) {
   const limits: PlanLimits = {
-    ...defaultPlanLimits[plan]
+    ...defaultPlanLimits[plan],
   };
 
   for (const key of planLimitKeys) {
@@ -92,7 +99,7 @@ function mapSubscription(row: SubscriptionRow | null) {
     currentPeriodEnd: row?.current_period_end ?? null,
     limits: mergeLimits(plan, row?.limits ?? null),
     plan,
-    status: row?.status ?? "active"
+    status: row?.status ?? "active",
   };
 }
 
@@ -108,7 +115,7 @@ function isExpiredTrial(row: SubscriptionRow | null) {
 
 function throwDatabaseError(error: { message?: string }): never {
   throw new BadRequestException(
-    error.message ?? "Nao foi possivel processar a assinatura."
+    error.message ?? "Nao foi possivel processar a assinatura.",
   );
 }
 
@@ -119,7 +126,7 @@ export class SubscriptionsService {
   async getOverview(companyId: string) {
     const [subscription, usage] = await Promise.all([
       this.getSubscription(companyId),
-      this.getUsage(companyId)
+      this.getUsage(companyId),
     ]);
     const canCreate = planLimitKeys.reduce(
       (result, key) => {
@@ -129,7 +136,7 @@ export class SubscriptionsService {
 
         return result;
       },
-      {} as Record<PlanLimitKey, boolean>
+      {} as Record<PlanLimitKey, boolean>,
     );
     const reached = planLimitKeys.filter((key) => {
       const limit = subscription.limits[key];
@@ -139,10 +146,56 @@ export class SubscriptionsService {
 
     return {
       ...subscription,
+      canStartProTrial:
+        subscription.plan !== "pro" &&
+        subscription.plan !== "enterprise" &&
+        !subscription.currentPeriodEnd,
       canCreate,
       reached,
-      usage
+      usage,
     };
+  }
+
+  async startProTrial(companyId: string) {
+    const subscription = await this.getSubscription(companyId);
+
+    if (subscription.plan === "enterprise") {
+      throw new BadRequestException(
+        "O plano Empresa deve ser gerenciado pelo suporte.",
+      );
+    }
+
+    if (subscription.plan === "pro" && subscription.status === "trialing") {
+      return this.getOverview(companyId);
+    }
+
+    if (subscription.plan === "pro" && subscription.status === "active") {
+      throw new BadRequestException("A empresa ja esta no plano Pro.");
+    }
+
+    if (subscription.currentPeriodEnd) {
+      throw new BadRequestException(
+        "O teste gratis do Pro ja foi usado por esta empresa.",
+      );
+    }
+
+    const supabase = this.supabaseFactory.createAdmin();
+    const { error } = await supabase.from("subscriptions").upsert(
+      {
+        company_id: companyId,
+        current_period_end: getProTrialEndIso(),
+        limits: defaultPlanLimits.pro,
+        plan: "pro",
+        status: "trialing",
+      },
+      { onConflict: "company_id" },
+    );
+
+    if (error) {
+      throwDatabaseError(error);
+    }
+
+    return this.getOverview(companyId);
   }
 
   async assertCanCreate(companyId: string, resource: PlanLimitKey) {
@@ -152,7 +205,7 @@ export class SubscriptionsService {
 
     if (!["active", "trialing"].includes(overview.status)) {
       throw new BadRequestException(
-        "O plano da empresa precisa estar ativo para criar novos registros."
+        "O plano da empresa precisa estar ativo para criar novos registros.",
       );
     }
 
@@ -161,7 +214,7 @@ export class SubscriptionsService {
     }
 
     throw new BadRequestException(
-      `Seu plano atual permite ate ${limit} ${planLimitLabels[resource]}.`
+      `Seu plano atual permite ate ${limit} ${planLimitLabels[resource]}.`,
     );
   }
 
@@ -183,10 +236,9 @@ export class SubscriptionsService {
       const { data: updatedSubscription, error: updateError } = await supabase
         .from("subscriptions")
         .update({
-          current_period_end: null,
           limits: defaultPlanLimits.free,
           plan: "free",
-          status: "active"
+          status: "active",
         })
         .eq("company_id", companyId)
         .select("plan, status, limits, current_period_end")
@@ -237,7 +289,7 @@ export class SubscriptionsService {
           .from("sales")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId)
-          .gte("created_at", monthStart)
+          .gte("created_at", monthStart),
       ]);
 
     for (const result of [
@@ -246,7 +298,7 @@ export class SubscriptionsService {
       products,
       customers,
       budgets,
-      sales
+      sales,
     ]) {
       if (result.error) {
         throwDatabaseError(result.error);

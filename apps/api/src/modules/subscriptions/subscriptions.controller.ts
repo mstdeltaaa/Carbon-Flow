@@ -1,10 +1,10 @@
-import { Controller, Get, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { CompanyRoles } from "../../common/decorators/company-roles.decorator";
 import {
   CurrentCompany,
-  type CurrentCompany as CurrentCompanyPayload
+  type CurrentCompany as CurrentCompanyPayload,
 } from "../../common/decorators/current-company.decorator";
 import { CompanyMembershipGuard } from "../../common/guards/company-membership.guard";
 import { CompanyRoleGuard } from "../../common/guards/company-role.guard";
@@ -22,5 +22,11 @@ export class SubscriptionsController {
   @Get("overview")
   getOverview(@CurrentCompany() company: CurrentCompanyPayload) {
     return this.subscriptionsService.getOverview(company.id);
+  }
+
+  @Post("pro-trial")
+  @CompanyRoles("admin")
+  startProTrial(@CurrentCompany() company: CurrentCompanyPayload) {
+    return this.subscriptionsService.startProTrial(company.id);
   }
 }
